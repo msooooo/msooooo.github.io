@@ -70,6 +70,11 @@ a:link, a:visited {
     margin: 2% auto;
 }
 
+.project_below {
+    width: 100%;
+    text-align: center;
+}
+
 .vision_message {
     width: 40%;
     text-align: left;
