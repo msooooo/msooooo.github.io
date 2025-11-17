@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Derivatives Simulator</title>
+<title>Mini Derivatives Game — Full Simulator with Macro & Events (Enhanced Chart)</title>
 <style>
   :root{
     --bg:#071028; --panel:#0b1730; --accent:#2fc3ff; --text:#e8eefc;
@@ -27,8 +27,12 @@
   .small{ font-size:12px; color:var(--muted); }
   /* CENTER - chart + econ/details row */
   #center{ flex:1; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
-  #chartWrap{ height:34%; background:#081226; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); }
+  #chartWrap{ height:34%; background:#081226; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; }
   #chartCanvas{ width:100%; height:100%; display:block; border-radius:6px; background:#041026; }
+  #chartControls{ display:flex; gap:8px; align-items:center; margin-top:8px; }
+  .periodBtn{ background:#062b44; color:var(--text); border:1px solid rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px; cursor:pointer; }
+  .periodBtn.active{ background:var(--accent); color:#022; }
+  #periodReturn{ margin-left:12px; font-weight:700; }
   #below{ display:flex; gap:10px; flex:1; min-height:180px; }
   #econPanel{ flex:2; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
@@ -88,7 +92,6 @@
       <h3 style="margin:0">현물 (Spot)</h3>
       <div class="small muted">현재가</div>
       <div style="font-size:20px; font-weight:700;" id="spotPrice">10000.00</div>
-      <div class="muted" style="margin-top:6px;">현물은 08:00 ~ 16:00만 거래 가능</div>
       <div class="inline" style="margin-top:8px;">
         <button id="buySpot">시장가 매수</button>
         <button id="sellSpot">시장가 매도</button>
@@ -100,7 +103,7 @@
       <label>포지션</label>
       <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
       <label>레버리지</label>
-      <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option></select>
+      <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
@@ -109,10 +112,10 @@
     </div>
 
     <div class="section">
-      <h3 style="margin:0">옵션 (Strike 지정)</h3>
+      <h3 style="margin:0">옵션 (Option)</h3>
       <label>종류</label>
       <select id="optType"><option value="Call">Call</option><option value="Put">Put</option></select>
-      <label>사/파</label>
+      <label>포지션</label>
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
       <label>행사가 (Strike)</label>
       <div style="display:flex; gap:8px; align-items:center;">
@@ -126,18 +129,20 @@
       <button id="tradeOpt">옵션 거래</button>
     </div>
 
-    <!-- Event log (left bottom) -->
-    <div class="section">
-      <h3 style="margin:0">시장 이벤트 로그</h3>
-      <div class="small muted">최근 이벤트 및 주요 알림 (최대 20)</div>
-      <div id="eventLog"></div>
-    </div>
   </div>
 
   <!-- CENTER -->
   <div id="center">
     <div id="chartWrap">
       <canvas id="chartCanvas"></canvas>
+      <div id="chartControls">
+        <button class="periodBtn" data-period="1D">1D</button>
+        <button class="periodBtn" data-period="1W">1W</button>
+        <button class="periodBtn" data-period="1M">1M</button>
+        <button class="periodBtn" data-period="1Y">1Y</button>
+        <button class="periodBtn active" data-period="ALL">ALL</button>
+        <div id="periodReturn">증감률 +0.00%</div>
+      </div>
     </div>
 
     <div id="below">
@@ -154,11 +159,12 @@
         </div>
 
         <!-- debug tools (hidden until toggled) -->
-        <div id="econDebugTools" style="margin-top:10px;">
+        <div id="econDebugTools" style="margin-top:10px; display:none;">
           <button id="dbgReset" class="debugBtn tiny">리셋 (초기화)</button>
           <button id="dbgAddCash" class="debugBtn tiny">현금 +100k</button>
-          <button id="dbgWitch" class="debugBtn tiny">강제 네마녀</button>
-          <button id="dbgBlackSwan" class="debugBtn tiny">강제 블랙스완</button>
+          <button id="dbgWitch" class="debugBtn tiny">강제 변동성 증가</button>
+          <button id="dbgWhiteSwan" class="debugBtn tiny">강제 대폭등</button>
+          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button>
         </div>
 
         <hr style="border:none;height:8px;">
@@ -178,20 +184,28 @@
           <li>Bond Yield: 월 단위 시장 보행</li>
           <li>GDP/Unemp: 느리게 변하며 μ를 좌우</li>
         </ul>
+
+        <!-- Moved Event Log here so it matches econ panel width -->
+        <div style="margin-top:32px;">
+          <h4 style="margin:6px 0 4px 0">시장 이벤트 로그</h4>
+          <div class="small muted">최근 이벤트 및 주요 알림 (최대 20)</div>
+          <div id="eventLog" style="margin-top:6px;"></div>
+        </div>
+
       </div>
 
       <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
       <div id="details">
-        <div class="small muted">오른쪽 보유목록에서 종목을 클릭하면 이곳에 실시간 세부 정보가 표시됩니다.</div>
+        <div class="small muted">오른쪽 보유목록에서 종목을 클릭하면, <br> 이곳에 실시간 세부 정보가 표시됩니다.</div>
       </div>
     </div>
   </div>
 
   <!-- RIGHT: player info & positions -->
   <div id="right">
-    <h2>플레이어</h2>
-    <div class="indRow"><div class="small muted">Cash</div><div id="cash" style="font-weight:700">100000.00</div></div>
-    <div class="indRow"><div class="small muted">Equity</div><div id="equity" style="font-weight:700">100000.00</div></div>
+    <h2>플레이어 정보</h2>
+    <div class="indRow"><div class="small muted">현금 (Cash)</div><div id="cash" style="font-weight:700">100000.00</div></div>
+    <div class="indRow"><div class="small muted">평가금액 (Equity)</div><div id="equity" style="font-weight:700">100000.00</div></div>
 
     <div class="section">
       <h3 style="margin:0">현물 보유</h3>
@@ -200,24 +214,27 @@
 
     <div class="section">
       <h3 style="margin:0">선물 포지션</h3>
-      <div id="futHoldings" class="posList small"></div>
+      <div id="futHoldings" class="posList small">없음</div>
     </div>
 
     <div class="section">
       <h3 style="margin:0">옵션 포지션</h3>
-      <div id="optHoldings" class="posList small"></div>
+      <div id="optHoldings" class="posList small">없음</div>
     </div>
   </div>
 
 <script>
 /* ============================
-   FULL SIMULATOR JS
-   - preserves all prior functionality (spot/futures/options, Black-76)
-   - adds macro indicators, events (witching day, black swan), debug tools, event log, notifications
+   FULL SIMULATOR JS (UPDATED)
+   - Adjusted chart period semantics to use period-start -> now (e.g., today's 00:00 -> now for 1D)
+   - Monthly boundary uses first of current month; weekly uses Monday 00:00; yearly uses Jan 1 00:00
+   - Time stepping now produces hourly sub-steps when hoursPerTick > 1 so history contains intermediate prices
+   - Moved event log into econ panel
+   - When a selected detail's underlying position disappears, the details panel resets
    ============================ */
 
 /* ----------------------------
-   Base parameters & state
+   Base parameters & state (unchanged)
 -----------------------------*/
 const BASE_VOL = 0.20;    // base mapping when VIX base matches
 const VIX_BASE = 20.0;
@@ -233,6 +250,10 @@ let state = {
   spot: 10000.0,
   history: [] // [{t:Date, price:number}]
 };
+
+// chart period state
+let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
+let hoverIndex = null; // for crosshair
 
 // macro econ indicators
 let econ = {
@@ -264,8 +285,12 @@ let eventLog = []; // {t:string, msg:string}
 let witchingActiveTicks = 0;  // if >0, volatility is multiplied for a few ticks
 let blackSwanActiveTicks = 0; // similar
 
+// track last day/month for econ updates (DECLARED to fix ReferenceError)
+let lastTickDay = null;
+let lastTickMonth = null;
+
 /* ----------------------------
-   Utilities
+   Utilities (unchanged)
 -----------------------------*/
 function fmt2(x){ return Number(x).toFixed(2); }
 function nowStr(d){
@@ -283,7 +308,7 @@ function addMonthsToFirst(d, months){
 function pushEventLog(msg){
   const t = nowStr(simDate);
   eventLog.unshift({t, msg});
-  if (eventLog.length > 40) eventLog.pop();
+  if (eventLog.length > 200) eventLog.pop();
   renderEventLog();
 }
 function notify(msg, ms=3000){
@@ -293,440 +318,577 @@ function notify(msg, ms=3000){
 }
 
 /* ----------------------------
-   Math helpers: erf, normCdf, Black-76
+   Math helpers (unchanged)
 -----------------------------*/
-function erf(x){ const sign=x>=0?1:-1; x=Math.abs(x); const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911; const t=1/(1+p*x); const y=1-((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t*Math.exp(-x*x); return sign*y; }
-function normCdf(x){ return 0.5*(1 + erf(x/Math.sqrt(2))); }
-function black76_call(F,K,r,sigma,tau){
-  if (tau<=0) return Math.exp(-r*0) * Math.max(F-K,0);
-  if (sigma<=0) return Math.exp(-r*tau)*Math.max(F-K,0);
-  const d1 = (Math.log(F/K) + 0.5*sigma*sigma*tau) / (sigma*Math.sqrt(tau));
-  const d2 = d1 - sigma*Math.sqrt(tau);
-  return Math.exp(-r*tau)*(F*normCdf(d1) - K*normCdf(d2));
+function erf(x) {
+    const sign = x >= 0 ? 1 : -1;
+    x = Math.abs(x);
+    const a1 = 0.254829592,
+          a2 = -0.284496736,
+          a3 = 1.421413741,
+          a4 = -1.453152027,
+          a5 = 1.061405429,
+          p = 0.3275911;
+    const t = 1 / (1 + p * x);
+    const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    return sign * y;
 }
-function black76_put(F,K,r,sigma,tau){
-  if (tau<=0) return Math.exp(-r*0) * Math.max(K-F,0);
-  if (sigma<=0) return Math.exp(-r*tau)*Math.max(K-F,0);
-  const d1 = (Math.log(F/K) + 0.5*sigma*sigma*tau) / (sigma*Math.sqrt(tau));
-  const d2 = d1 - sigma*Math.sqrt(tau);
-  return Math.exp(-r*tau)*(K*normCdf(-d2) - F*normCdf(-d1));
+
+function normCdf(x) {
+    return 0.5 * (1 + erf(x / Math.sqrt(2)));
 }
-function tauYearsFromExpiry(expiryDateStr){
-  const exp = new Date(expiryDateStr + 'T00:00:00');
-  const diffMs = Math.max(0, exp.getTime() - simDate.getTime());
-  return diffMs / (365*24*3600*1000);
+
+function black76_call(F, K, r, sigma, tau) {
+    if (tau <= 0) return Math.exp(-r * 0) * Math.max(F - K, 0);
+    if (sigma <= 0) return Math.exp(-r * tau) * Math.max(F - K, 0);
+    const d1 = (Math.log(F / K) + 0.5 * sigma * sigma * tau) / (sigma * Math.sqrt(tau));
+    const d2 = d1 - sigma * Math.sqrt(tau);
+    return Math.exp(-r * tau) * (F * normCdf(d1) - K * normCdf(d2));
+}
+
+function black76_put(F, K, r, sigma, tau) {
+    if (tau <= 0) return Math.exp(-r * 0) * Math.max(K - F, 0);
+    if (sigma <= 0) return Math.exp(-r * tau) * Math.max(K - F, 0);
+    const d1 = (Math.log(F / K) + 0.5 * sigma * sigma * tau) / (sigma * Math.sqrt(tau));
+    const d2 = d1 - sigma * Math.sqrt(tau);
+    return Math.exp(-r * tau) * (K * normCdf(-d2) - F * normCdf(-d1));
+}
+
+function tauYearsFromExpiry(expiryDateStr) {
+    const exp = new Date(expiryDateStr + 'T00:00:00');
+    const diffMs = Math.max(0, exp.getTime() - simDate.getTime());
+    return diffMs / (365 * 24 * 3600 * 1000);
 }
 
 /* ----------------------------
-   Macro -> sigma, mu mapping
-   - sigma: maps from econ.vix
-   - mu: maps from GDP, policyRate, unemployment, bondYield
+   Macro mapping (unchanged)
 -----------------------------*/
-function getCurrentVol(){
-  // base mapping: linear map from VIX to annual sigma
-  let s = BASE_VOL * (econ.vix / VIX_BASE);
-  // if witching or black swan active, amplify temporarily
-  if (witchingActiveTicks > 0) s *= 2.5; // strong temporary jump
-  if (blackSwanActiveTicks > 0) s *= 3.5;
-  // clamp
-  return Math.max(0.02, Math.min(2.0, s));
+function getCurrentVol() {
+    let s = BASE_VOL * (econ.vix / VIX_BASE);
+    if (witchingActiveTicks > 0) s *= 2.5;
+    if (blackSwanActiveTicks > 0) s *= 3.5;
+    return Math.max(0.02, Math.min(2.0, s));
 }
 
-function getCurrentMu(){
-  // tuned coefficients
-  const a = 0.02;  // gdp sensitivity
-  const b = 0.04;  // policyRate sensitivity (tightening)
-  const c = 0.03;  // unemployment sensitivity
-  const d = 0.02;  // bond yield sensitivity
-  const mu = BASE_MU + a * (econ.gdpGrowth - 2.0) - b * (econ.policyRate - 0.5) - c * (econ.unemployment - 5.0) - d * (econ.bondYield - 1.5);
-  return Math.max(-0.8, Math.min(0.8, mu));
+function getCurrentMu() {
+    const a = 0.02;
+    const b = 0.04;
+    const c = 0.03;
+    const d = 0.02;
+    const mu = BASE_MU + a * (econ.gdpGrowth - 2.0) - b * (econ.policyRate - 0.5) - c * (econ.unemployment - 5.0) - d * (econ.bondYield - 1.5);
+    return Math.max(-0.8, Math.min(0.8, mu));
 }
 
-/* Option premium uses dynamic sigma */
-function optionPremiumByExpiry(kind,S,K,expiryDateStr){
-  const tau = tauYearsFromExpiry(expiryDateStr);
-  const sigma = getCurrentVol();
-  const F = S * Math.exp((R - Q) * tau);
-  return (kind === 'Call') ? black76_call(F,K,R,sigma,tau) : black76_put(F,K,R,sigma,tau);
+function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
+    const tau = tauYearsFromExpiry(expiryDateStr);
+    const sigma = getCurrentVol();
+    const F = S * Math.exp((R - Q) * tau);
+    return (kind === 'Call') ? black76_call(F, K, R, sigma, tau) : black76_put(F, K, R, sigma, tau);
 }
 
 /* ----------------------------
-   Economic indicators update logic
-   - day change: vix small random moves + small chance for spike
-   - month change: policyRate (occasional big moves), bondYield random walk, GDP/Unemp slow changes
+   Economic updates (unchanged)
 -----------------------------*/
-let lastTickDay = null;
-let lastTickMonth = null;
-
-function updateEconForDayChange(){
-  // VIX daily random step (mix of small-normal and occasional jump)
-  // base daily sigma points
-  const baseDaily = 1.5; // typical VIX point s.d.
-  // gaussian step
-  let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
-  const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
-  econ.vix += z * baseDaily;
-  // small mean reversion towards 20
-  econ.vix += (20 - econ.vix) * 0.02;
-  // occasional small spike probability
-  if (Math.random() < 0.2) econ.vix += (5 + Math.random()*5); // small shock
-  if (Math.random() < 0.020 * econ.vix) econ.vix -= (Math.random()*econ.vix*0.2); // stabilized
-  econ.vix = Math.max(5, Math.min(120, econ.vix));
+function updateEconForDayChange() {
+    const baseDaily = 1.5;
+    let u = 0,
+        v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    econ.vix += z * baseDaily;
+    econ.vix += (20 - econ.vix) * 0.02;
+    if (Math.random() < 0.2) econ.vix += (5 + Math.random() * 5);
+    if (Math.random() < 0.020 * econ.vix) econ.vix -= (Math.random() * econ.vix * 0.2);
+    econ.vix = Math.max(5, Math.min(120, econ.vix));
 }
 
-function updateEconForMonthChange(){
-  // policyRate changes rarely but in steps
-  const rateMoveProb = 0.12; // 12% chance this month
-  if (Math.random() < rateMoveProb){
-    const stepOptions = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75];
-    const step = stepOptions[Math.floor(Math.random()*stepOptions.length)];
-    econ.policyRate = Math.max(0, econ.policyRate + step);
-    pushEventLog(`📊 정책금리 변경 ${step>0? '인상':'인하'} ${fmt2(step)}% -> ${fmt2(econ.policyRate)}%`);
-    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
-  }
-  // bond yield: small random walk
-  const bondStep = (Math.random()*0.6 - 0.3); // ±0.3
-  econ.bondYield = Math.max(0, econ.bondYield + bondStep);
-  // GDP growth small change
-  const gdpStep = (Math.random()*0.4 - 0.2);
-  econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth + gdpStep));
-  // unemployment small change
-  const unempStep = (Math.random()*0.4 - 0.2);
-  econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + unempStep));
+function updateEconForMonthChange() {
+    const rateMoveProb = 0.99;
+    if (Math.random() < rateMoveProb) {
+        const stepOptions = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75];
+        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
+        econ.policyRate = Math.max(0, econ.policyRate + step);
+        pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}% -> ${fmt2(econ.policyRate)}%`);
+        notify(`정책금리 ${fmt2(econ.policyRate)}%`);
+    }
+    const bondStep = (Math.random() * 0.6 - 0.3);
+    econ.bondYield = Math.max(econ.policyRate*1.1, econ.bondYield + bondStep);
+
+    const gdpStep = (Math.random() * 0.4 - 0.2);
+    econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth + gdpStep));
+
+    const unempStep = (Math.random() * 0.4 - 0.2);
+    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + unempStep));
 }
 
 /* ----------------------------
-   Events: Witching Day (네 마녀의 날) & Black Swan
-   - Witching: scheduled quarterly (Mar, Jun, Sep, Dec) first Friday
-   - effect: volatility spike for short period and increased trading/margin churn -> we simulate by multiplying sigma for several ticks
-   - Black Swan: tiny daily probability; large immediate negative shock + VIX spike
+   Events (unchanged)
 -----------------------------*/
-function isWitchingDay(d){
-  // check if date is first Friday of Mar/Jun/Sep/Dec
-  const month = d.getMonth(); // 0-11
-  if (![2,5,8,11].includes(month)) return false;
-  // find first friday of month
-  const first = new Date(d.getFullYear(), month, 1);
-  const dayOfWeek = first.getDay(); // 0 Sun .. 5 Fri
-  // first Friday date:
-  let firstFriday = 1 + ((5 - dayOfWeek + 7) % 7);
-  // Witching often is third Friday (triple witching third Friday), but user's text earlier mentioned quarterly; we'll use first Friday as per earlier spec
-  // However to be more realistic, use third Friday of month (common triple witching is third Fri)
-  // Let's implement third Friday:
-  firstFriday = firstFriday + 14;
-  const dDate = d.getDate();
-  return dDate === firstFriday;
+function isWitchingDay(d) {
+    const month = d.getMonth();
+    if (![2, 5, 8, 11].includes(month)) return false;
+    const first = new Date(d.getFullYear(), month, 1);
+    const dayOfWeek = first.getDay();
+    let firstFriday = 1 + ((5 - dayOfWeek + 7) % 7);
+    firstFriday = firstFriday + 14;
+    const dDate = d.getDate();
+    return dDate === firstFriday;
 }
 
-function triggerWitchingEvent(source='system'){
-  // apply temporary volatility multiplier for N ticks
-  witchingActiveTicks = Math.max(witchingActiveTicks, 6); // e.g., 6 ticks (6 hours if 1x)
-  pushEventLog(`⚡ 네 마녀의 날 (${source}) — 파생상품 만기로 변동성 일시 증가`);
-  notify('⚡ 네 마녀의 날 — 변동성 증가', 4000);
+function triggerWitchingEvent(source = 'system') {
+    witchingActiveTicks = Math.max(witchingActiveTicks, 6);
+    econ.vix = Math.min(80, econ.vix + (Math.random() * 10));
+    pushEventLog(`⚡ 변동성 증가 (${source}) — 파생상품 만기로 변동성 일시 증가`);
+    notify('⚡ 변동성 일시 증가', 4000);
 }
 
-function triggerBlackSwan(source='system'){
-  // Very severe: instant price drop, vix spike, set blackSwanActiveTicks
-  blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12); // e.g., 12 ticks volatility spike
-  // vix spike
-  econ.vix = Math.min(200, econ.vix + (30 + Math.random()*50));
-  // immediate price shock: -10% ~ -30%
-  const shockPct = - (10 + Math.random()*20); // negative
-  const factor = 1 + shockPct/100;
-  state.spot *= factor;
-  if (state.spot < 0.01) state.spot = 0.01;
-  pushEventLog(`💣 블랙스완(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
-  notify('💣 블랙스완 발생!', 6000);
+function triggerWhiteSwan(source = 'system') {
+    blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
+    econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
+    const shockPct = +(10 + Math.random() * 20);
+    const factor = 1 + shockPct / 100;
+    state.spot *= factor;
+    if (state.spot < 0.01) state.spot = 0.01;
+    pushEventLog(`🌟 대폭등(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급등, VIX 급등`);
+    notify('🌟 대폭등 발생!', 6000);
+}
+
+function triggerBlackSwan(source = 'system') {
+    blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
+    econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
+    const shockPct = -(10 + Math.random() * 20);
+    const factor = 1 + shockPct / 100;
+    state.spot *= factor;
+    if (state.spot < 0.01) state.spot = 0.01;
+    pushEventLog(`💣 대폭락(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
+    notify('💣 대폭락 발생!', 6000);
 }
 
 /* ----------------------------
-   Time & Market tick
-   - advance simDate by hoursPerTick
-   - detect day/month change to update econ indicators
-   - daily chance for black swan (very low)
+   Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
 function isSpotOpenAt(d){ const h=d.getHours(); return (h>=8 && h<16); }
-function advanceTimeAndTick(){
-  simDate = new Date(simDate.getTime() + hoursPerTick*3600*1000);
-}
 
 function stepMarket(){
-  // store previous day/month
-  const prevDay = lastTickDay;
-  const prevMonth = lastTickMonth;
-  advanceTimeAndTick();
-  const curDay = simDate.getDate();
-  const curMonth = simDate.getMonth() + 1;
+  // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
+  for (let step=0; step<Math.max(1,hoursPerTick); step++){
+    // advance by 1 hour
+    const prevDate = new Date(simDate);
+    simDate = new Date(simDate.getTime() + 1*3600*1000);
 
-  // day change -> update VIX daily etc.
-  if (prevDay === null || curDay !== prevDay){
-    updateEconForDayChange();
-    // daily tiny chance of black swan (very rare)
-    if (Math.random() < 0.0015){ // 0.15% per day
-      triggerBlackSwan('random');
+    // detect day/month transitions
+    const curDay = simDate.getDate();
+    const curMonth = simDate.getMonth() + 1;
+    if (lastTickDay === null || curDay !== lastTickDay){
+      updateEconForDayChange();
+      if (Math.random() < 0.0015){ triggerBlackSwan('random'); }
     }
+    if (lastTickMonth === null || curMonth !== lastTickMonth){
+      updateEconForMonthChange();
+    }
+    lastTickDay = curDay; lastTickMonth = curMonth;
+
+    // compute dt for 1 hour
+    const dt = 1 / (24*365);
+    const sigma = getCurrentVol();
+    const mu = getCurrentMu();
+    // gaussian
+    let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+    const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+    const factor = Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z);
+    state.spot *= factor; if (state.spot < 0.01) state.spot = 0.01;
+    // record this hourly price
+    state.history.push({ t: new Date(simDate), price: state.spot });
+
+    // scheduled witching check at 08:00
+    if (isWitchingDay(simDate) && simDate.getHours() === 8 && Math.random() < 0.9){ triggerWitchingEvent('scheduled'); }
+
+    // expiries: only check after hourly advancement to catch expiries that happen at 00:00
+    checkExpiries();
+
+    // decrement temporary event counters
+    if (witchingActiveTicks > 0) witchingActiveTicks--;
+    if (blackSwanActiveTicks > 0) blackSwanActiveTicks--;
   }
-  // month change -> monthly updates
-  if (prevMonth === null || curMonth !== prevMonth){
-    updateEconForMonthChange();
-  }
-
-  lastTickDay = curDay;
-  lastTickMonth = curMonth;
-
-  // compute dt in years using hoursPerTick
-  const dt = hoursPerTick / (24*365);
-  const sigma = getCurrentVol();
-  const mu = getCurrentMu();
-
-  // gaussian random
-  let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
-  const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
-
-  // GBM step
-  const factor = Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z);
-  state.spot *= factor;
-  if (state.spot < 0.01) state.spot = 0.01;
-  state.history.push({t:new Date(simDate), price: state.spot});
-  if (state.history.length > 1000) state.history.shift();
-
-  // decrement temporary event counters
-  if (witchingActiveTicks > 0) witchingActiveTicks--;
-  if (blackSwanActiveTicks > 0) blackSwanActiveTicks--;
-
-  // Check scheduled witching days (we check at 08:00 of the day)
-  if (isWitchingDay(simDate) && simDate.getHours() === 8 && Math.random() < 0.9){
-    // high chance to trigger on the morning
-    triggerWitchingEvent('scheduled');
-  }
-
-  // expiries (futures/options)
-  checkExpiries();
-
-  // update UI
+  // after all sub-steps, render UI
   renderAll();
 }
 
 /* ----------------------------
-   Trading logic (preserve previous semantics)
-   - spot buy/sell
-   - futures open/close/expiry (with margin, notional)
-   - options trade/close/expiry (entryPremium stored)
-   - immediate close functions
+   Trading & expiry logic unchanged but ensure details are cleared when positions removed
 -----------------------------*/
-function buySpot(){ 
-  if (!isSpotOpenAt(simDate)) return alert('현물은 08:00~16:00만 거래 가능합니다.');
-  const cost = state.spot;
-  if (player.cash < cost) return alert('현금 부족');
-  player.cash -= cost;
-  const s = player.positions.spot;
-  const prevTotal = s.qty * s.avg;
-  s.qty += 1;
-  s.avg = (prevTotal + cost) / s.qty;
-  pushEventLog(`🟢 Spot 매수 1 @ ${fmt2(cost)}`);
-  renderAll();
-}
-function sellSpot(){
-  if (!isSpotOpenAt(simDate)) return alert('현물은 08:00~16:00만 거래 가능합니다.');
-  const s = player.positions.spot;
-  if (s.qty <= 0) return alert('보유 현물이 없습니다. (공매도 미지원)');
-  player.cash += state.spot;
-  s.qty -= 1;
-  if (s.qty === 0) s.avg = 0;
-  pushEventLog(`🔴 Spot 매도 1 @ ${fmt2(state.spot)}`);
-  renderAll();
+function buySpot() {
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 08:00~16:00만 거래 가능합니다',2000);
+    const cost = state.spot;
+    if (player.cash < cost) return notify('현금 부족',2000);
+    player.cash -= cost;
+    const s = player.positions.spot;
+    const prevTotal = s.qty * s.avg;
+    s.qty += 1;
+    s.avg = (prevTotal + cost) / s.qty;
+    notify(`🟢 현물 :: 매수 | 수량 1 | 매수금액 ${fmt2(cost)}`,2000);
+    renderAll();
 }
 
-function openFuture(){
-  const side = document.getElementById('futSide').value;
-  const lev = Number(document.getElementById('futLev').value) || 1;
-  const months = Number(document.getElementById('futExp').value) || 1;
-  const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
-  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0,10);
-  const tau = tauYearsFromExpiry(expiryDate);
-  const entry = state.spot * Math.exp((R - Q) * tau);
-  const notional = entry * qty;
-  const margin = notional / lev;
-  if (player.cash < margin) return alert(`증거금 부족: ${fmt2(margin)}`);
-  player.cash -= margin;
-  player.positions.futures.push({ side, qty, entry, lev, expiryDate, lockedMargin: margin, notional });
-  pushEventLog(`📘 FUT ${side} x${qty} opened entry ${fmt2(entry)} lev ${lev}`);
-  renderAll();
+function sellSpot() {
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 08:00~16:00만 거래 가능합니다',2000);
+    const s = player.positions.spot;
+    if (s.qty <= 0) return notify('보유 현물이 없습니다',2000);
+    player.cash += state.spot;
+    s.qty -= 1;
+    if (s.qty === 0) s.avg = 0;
+    notify(`🔴 현물 :: 매도 | 수량 1 | 매도금액 ${fmt2(state.spot)}`,2000);
+    renderAll();
 }
 
-function tradeOption(){
-  const kind = document.getElementById('optType').value;
-  const side = document.getElementById('optSide').value;
-  const K = Number(document.getElementById('optK').value) || state.spot;
-  const months = Number(document.getElementById('optExp').value) || 1;
-  const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
-  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0,10);
-  const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
-  if (side === 'Long'){
-    const total = prem * qty;
-    if (player.cash < total) return alert('프리미엄 지불할 현금 부족');
-    player.cash -= total;
-    player.positions.options.push({ kind, side, qty, K, entryPremium: prem, openDate: new Date(simDate), expiryDate });
-    pushEventLog(`🟢 OPT Long ${kind} x${qty} K${fmt2(K)} prem ${fmt2(prem)}`);
-  } else {
-    player.cash += prem * qty;
-    player.positions.options.push({ kind, side, qty, K, entryPremium: prem, openDate: new Date(simDate), expiryDate });
-    pushEventLog(`🟣 OPT Short ${kind} x${qty} K${fmt2(K)} recv ${fmt2(prem)}`);
-  }
-  renderAll();
-}
-
-/* expiries: futures => physical delivery; options => cash settlement
-   Additionally: on mass expiries / witching, we trigger volatility spike already handled by event system.
-*/
-function checkExpiries(){
-  const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate());
-  // Futures
-  for (let i = player.positions.futures.length - 1; i >= 0; i--){
-    const f = player.positions.futures[i];
-    const exp = new Date(f.expiryDate + 'T00:00:00');
-    if (today >= exp){
-      // on expiry, we simulate physical delivery and return margin
-      if (f.side === 'Long'){
-        const pay = f.entry * f.qty;
-        player.cash -= pay;
-        const s = player.positions.spot;
-        const prevTotal = s.qty * s.avg;
-        s.qty += f.qty;
-        s.avg = (s.qty>0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
-        player.cash += f.lockedMargin;
-        pushEventLog(`📦 FUT Long expired: paid ${fmt2(pay)}, acquired ${f.qty} spot`);
-      } else {
-        const receive = f.entry * f.qty;
-        const s = player.positions.spot;
-        if (s.qty >= f.qty){
-          s.qty -= f.qty;
-          if (s.qty === 0) s.avg = 0;
-          player.cash += receive;
-          player.cash += f.lockedMargin;
-          pushEventLog(`📦 FUT Short expired: delivered ${f.qty} from holdings, received ${fmt2(receive)}`);
-        } else {
-          const buyCost = state.spot * f.qty;
-          player.cash += receive;
-          player.cash -= buyCost;
-          player.cash += f.lockedMargin;
-          pushEventLog(`📦 FUT Short expired: forced buy ${fmt2(buyCost)}, net ${fmt2(receive - buyCost)}`);
-        }
-      }
-      // It is common that many futures expire together -> make additional volatility spike
-      witchingActiveTicks = Math.max(witchingActiveTicks, 4);
-      player.positions.futures.splice(i,1);
-      // if user had that detail open, clear selection
-      if (selectedDetail && selectedDetail.type === 'Future' && selectedDetail.index === i) selectedDetail = null;
+function openFuture() {
+    const side = document.getElementById('futSide').value;
+    const lev = Number(document.getElementById('futLev').value) || 1;
+    const months = Number(document.getElementById('futExp').value) || 1;
+    const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
+    const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const tau = tauYearsFromExpiry(expiryDate);
+    const entry = state.spot * Math.exp((R - Q) * tau);
+    const notional = entry * qty;
+    const margin = notional * lev * 0.05;
+    if (player.cash < margin) return notify(`증거금 부족: ${fmt2(margin)}`,2000);
+    player.cash -= margin;
+    player.positions.futures.push({
+        side,
+        qty,
+        entry,
+        lev,
+        expiryDate,
+        lockedMargin: margin,
+        notional
+    });
+    if (side === 'Long') {
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 x${lev}`);
+    } else {
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 x${lev}`);
     }
-  }
+    
+    
+    renderAll();
+}
 
-  // Options
-  for (let i = player.positions.options.length - 1; i >= 0; i--){
-    const o = player.positions.options[i];
-    const exp = new Date(o.expiryDate + 'T00:00:00');
-    if (today >= exp){
-      const S = state.spot;
-      let payoffPer = 0;
-      if (o.kind === 'Call') payoffPer = Math.max(S - o.K, 0);
-      else payoffPer = Math.max(o.K - S, 0);
-      const total = payoffPer * o.qty;
-      if (o.side === 'Long'){
-        player.cash += total;
-        pushEventLog(`💰 OPT Long expired payoff ${fmt2(total)}`);
-      } else {
+function tradeOption() {
+    const kind = document.getElementById('optType').value;
+    const side = document.getElementById('optSide').value;
+    const K = Number(document.getElementById('optK').value) || state.spot;
+    const months = Number(document.getElementById('optExp').value) || 1;
+    const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
+    const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
+    if (side === 'Long') {
+        const total = prem * qty;
+        if (player.cash < total) return notify('프리미엄 지불금 부족',2000);
         player.cash -= total;
-        pushEventLog(`💸 OPT Short expired paid ${fmt2(total)}`);
-      }
-      witchingActiveTicks = Math.max(witchingActiveTicks, 3);
-      player.positions.options.splice(i,1);
-      if (selectedDetail && selectedDetail.type === 'Option' && selectedDetail.index === i) selectedDetail = null;
+        player.positions.options.push({
+            kind,
+            side,
+            qty,
+            K,
+            entryPremium: prem,
+            openDate: new Date(simDate),
+            expiryDate
+        });
+        pushEventLog(`🟢 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
+    } else {
+        player.cash += prem * qty;
+        player.positions.options.push({
+            kind,
+            side,
+            qty,
+            K,
+            entryPremium: prem,
+            openDate: new Date(simDate),
+            expiryDate
+        });
+        pushEventLog(`🔴 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
     }
-  }
+    renderAll();
 }
 
-/* immediate close (user-requested) */
-function closeFuture(idx){
-  const f = player.positions.futures[idx];
-  const tau = tauYearsFromExpiry(f.expiryDate);
-  const curF = state.spot * Math.exp((R - Q) * tau);
-  const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-  const pnl = pnlPer * f.qty * f.lev;
-  player.cash += f.lockedMargin + pnl;
-  player.positions.futures.splice(idx,1);
-  pushEventLog(`✂️ FUT ${f.side} closed pnl ${fmt2(pnl)} margin returned ${fmt2(f.lockedMargin)}`);
-  if (selectedDetail && selectedDetail.type === 'Future' && selectedDetail.index === idx) selectedDetail = null;
-  renderAll();
+function checkExpiries() {
+    const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate());
+    for (let i = player.positions.futures.length - 1; i >= 0; i--) {
+        const f = player.positions.futures[i];
+        const exp = new Date(f.expiryDate + 'T00:00:00');
+        if (today >= exp) {
+            if (f.side === 'Long') {
+                const pay = f.entry * f.qty;
+                player.cash -= pay;
+                const s = player.positions.spot;
+                const prevTotal = s.qty * s.avg;
+                s.qty += f.qty;
+                s.avg = (s.qty > 0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
+                player.cash += f.lockedMargin;
+                pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty}`);
+            } else {
+                const receive = f.entry * f.qty;
+                const s = player.positions.spot;
+                if (s.qty >= f.qty) {
+                    s.qty -= f.qty;
+                    if (s.qty === 0) s.avg = 0;
+                    player.cash += receive;
+                    player.cash += f.lockedMargin;
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 잔여량 ${s.qty} | 정산금 ${fmt2(receive)}`);
+                } else {
+                    const buyCost = state.spot * f.qty;
+                    player.cash += receive;
+                    player.cash -= buyCost;
+                    player.cash += f.lockedMargin;
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 매수금 ${fmt2(buyCost)} | 정산금 ${fmt2(receive - buyCost)}`);
+                }
+            }
+            witchingActiveTicks = Math.max(witchingActiveTicks, 4);
+            player.positions.futures.splice(i, 1); // clear selection if it pointed here
+            if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+        }
+    }
+    for (let i = player.positions.options.length - 1; i >= 0; i--) {
+        const o = player.positions.options[i];
+        const exp = new Date(o.expiryDate + 'T00:00:00');
+        if (today >= exp) {
+            const S = state.spot;
+            let payoffPer = 0;
+            if (o.kind === 'Call') payoffPer = Math.max(S - o.K, 0);
+            else payoffPer = Math.max(o.K - S, 0);
+            const total = payoffPer * o.qty;
+            if (o.side === 'Long') {
+                player.cash += total;
+                pushEventLog(`💰 옵션 Long 만기 :: 수익금 ${fmt2(total)}`);
+            } else {
+                player.cash -= total;
+                pushEventLog(`💸 옵션 Short 만기 ::  지급금 ${fmt2(total)}`);
+            }
+            witchingActiveTicks = Math.max(witchingActiveTicks, 3);
+            player.positions.options.splice(i, 1);
+            if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
+        }
+    }
+    // ensure details panel reset if selectedDetail now invalid
+    updateDetails();
 }
 
-function closeOption(idx){
-  const o = player.positions.options[idx];
-  const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
-  let pnl = 0;
-  if (o.side === 'Long') pnl = (cur - o.entryPremium) * o.qty;
-  else pnl = (o.entryPremium - cur) * o.qty;
-  player.cash += pnl;
-  player.positions.options.splice(idx,1);
-  pushEventLog(`✂️ OPT ${o.side} ${o.kind} closed pnl ${fmt2(pnl)}`);
-  if (selectedDetail && selectedDetail.type === 'Option' && selectedDetail.index === idx) selectedDetail = null;
-  renderAll();
-}
-
-/* ----------------------------
-   Equity & UI helpers
------------------------------*/
-function computeEquity(){
-  const s = player.positions.spot;
-  const spotVal = s.qty * state.spot;
-  let futUnreal = 0;
-  player.positions.futures.forEach(f=>{
+function closeFuture(idx) {
+    const f = player.positions.futures[idx];
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-    futUnreal += pnlPer * f.qty * f.lev;
-  });
-  let optUnreal = 0;
-  player.positions.options.forEach(o=>{
+    const pnl = pnlPer * f.qty * f.lev;
+    player.cash += f.lockedMargin + pnl;
+    player.positions.futures.splice(idx, 1);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} | 정산금 ${fmt2(f.lockedMargin)}`);
+    if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+    renderAll();
+}
+
+function closeOption(idx) {
+    const o = player.positions.options[idx];
     const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
-    if (o.side === 'Long') optUnreal += (cur - o.entryPremium) * o.qty;
-    else optUnreal += (o.entryPremium - cur) * o.qty;
-  });
-  const total = player.cash + spotVal + futUnreal + optUnreal;
-  return { total, spotVal, futUnreal, optUnreal };
+    let pnl = 0;
+    if (o.side === 'Long') {
+      pnl = (cur - o.entryPremium) * o.qty;
+      player.cash += pnl + o.entryPremium * o.qty;
+    } else {
+      pnl = (o.entryPremium - cur) * o.qty;
+      player.cash += pnl - o.entryPremium * o.qty;
+    } 
+    player.positions.options.splice(idx, 1);
+    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)}`);
+    if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
+    renderAll();
 }
 
 /* ----------------------------
-   Chart drawing
+   Equity & UI helpers (unchanged)
 -----------------------------*/
-const canvas = document.getElementById('chartCanvas');
-const ctx = canvas.getContext('2d');
-
-function drawChart(){
-  canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight;
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle = "#041426"; ctx.fillRect(0,0,canvas.width,canvas.height);
-  const data = state.history.map(h=>h.price);
-  if (data.length < 2){ ctx.fillStyle="#cfeaff"; ctx.font="12px system-ui"; ctx.fillText("가격 차트 준비 중...",8,16); return; }
-  const max = Math.max(...data), min = Math.min(...data); const range = (max-min)||1;
-  ctx.beginPath(); ctx.lineWidth = 2;
-  // color changes if event active
-  if (blackSwanActiveTicks>0) ctx.strokeStyle = "#ff6b6b"; else if (witchingActiveTicks>0) ctx.strokeStyle="#ffd166"; else ctx.strokeStyle = "#2fc3ff";
-  for (let i=0;i<data.length;i++){ const x=(i/(data.length-1))*canvas.width; const y=canvas.height - ((data[i]-min)/range)*canvas.height; if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
-  ctx.stroke();
-  // latest price & sigma info
-  ctx.fillStyle = "#cfeaff"; ctx.font = "12px system-ui";
-  const latest = data[data.length-1];
-  ctx.fillText(`Price: ${fmt2(latest)}`, 8, 16);
-  ctx.fillText(`VIX: ${fmt2(econ.vix)} σ:${fmt2(getCurrentVol())}`, 120, 16);
+function computeEquity() {
+    const s = player.positions.spot;
+    const spotVal = s.qty * state.spot;
+    let futUnreal = 0;
+    player.positions.futures.forEach(f => {
+        const tau = tauYearsFromExpiry(f.expiryDate);
+        const curF = state.spot * Math.exp((R - Q) * tau);
+        const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+        futUnreal += pnlPer * f.qty * f.lev;
+    });
+    let optUnreal = 0;
+    player.positions.options.forEach(o => {
+        const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
+        if (o.side === 'Long') optUnreal += (cur - o.entryPremium) * o.qty;
+        else optUnreal += (o.entryPremium - cur) * o.qty;
+    });
+    const total = player.cash + spotVal + futUnreal + optUnreal;
+    return {
+        total,
+        spotVal,
+        futUnreal,
+        optUnreal
+    };
 }
 
 /* ----------------------------
-   Event log rendering
+   Chart drawing (update: period semantics start->now)
 -----------------------------*/
-function renderEventLog(){
+const canvas2 = document.getElementById('chartCanvas');
+const ctx2 = canvas2.getContext('2d');
+
+function periodStartDate(){
+  const end = new Date(simDate);
+  switch(chartPeriod){
+    case '1D': return new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate(), 0,0,0);
+    case '1W': {
+      const dow = simDate.getDay(); // 0 Sun .. 1 Mon
+      const diffToMon = (dow + 6) % 7; // 0 if Mon, 1 if Tue ...
+      const d = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate() - diffToMon, 0,0,0);
+      return d;
+    }
+    case '1M': return new Date(simDate.getFullYear(), simDate.getMonth(), 1, 0,0,0);
+    case '1Y': return new Date(simDate.getFullYear(), 0, 1, 0,0,0);
+    default: return new Date(0);
+  }
+}
+
+function getPeriodFilteredData(){
+  if (!state.history || state.history.length===0) return [];
+  if (chartPeriod === 'ALL') return state.history.slice();
+  const start = periodStartDate();
+  return state.history.filter(h => h.t.getTime() >= start.getTime());
+}
+
+function calcPeriodReturn(data){ if (!data || data.length<2) return null; const first = data[0].price; const last = data[data.length-1].price; const pct = (last - first) / first * 100; return pct; }
+
+let isHovering = false; let hoverPos = null;
+
+function drawChart() {
+    const canvas = canvas2;
+    const ctx = ctx2;
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#041426";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const dataFull = getPeriodFilteredData();
+    if (!dataFull || dataFull.length < 2) {
+        ctx.fillStyle = "#cfeaff";
+        ctx.font = "12px system-ui";
+        ctx.fillText("가격 차트 준비 중...", 8, 16);
+        document.getElementById('periodReturn').innerText = `증감률 +0.00%`;
+        return;
+    }
+
+    const data = dataFull.map(d => d.price);
+    const max = Math.max(...data),
+        min = Math.min(...data);
+    const range = (max - min) || 1;
+
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    if (blackSwanActiveTicks > 0) ctx.strokeStyle = "#ff6b6b";
+    else if (witchingActiveTicks > 0) ctx.strokeStyle = "#ffd166";
+    else ctx.strokeStyle = "#2fc3ff";
+    for (let i = 0; i < data.length; i++) {
+        const x = (i / (data.length - 1)) * canvas.width;
+        const y = canvas.height - ((data[i] - min) / range) * canvas.height;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    ctx.fillStyle = "#cfeaff";
+    ctx.font = "12px system-ui";
+    const latest = data[data.length - 1];
+    ctx.fillText(`Price: ${fmt2(latest)}`, 8, 16);
+    ctx.fillText(`VIX: ${fmt2(econ.vix)} σ:${fmt2(getCurrentVol())}`, 120, 16);
+
+    const ret = calcPeriodReturn(dataFull);
+    if (ret !== null) {
+        const el = document.getElementById('periodReturn');
+        el.innerText = `증감률 ${ret>=0?'+':''}${fmt2(ret)}%`;
+        el.style.color = ret >= 0 ? 'var(--profit)' : 'var(--loss)';
+    }
+
+    // hover crosshair
+    if (isHovering && hoverPos && data.length > 0) {
+        const i = hoverPos.index;
+        const px = hoverPos.x;
+        const py = hoverPos.y;
+        ctx.strokeStyle = 'rgba(200,230,255,0.25)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(px, 0);
+        ctx.lineTo(px, canvas.height);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(canvas.width, py);
+        ctx.stroke();
+        const h = dataFull[i];
+        if (h) {
+            const boxW = 180,
+                boxH = 48;
+            const bx = Math.min(canvas.width - boxW - 10, px + 8);
+            const by = Math.max(8, Math.min(canvas.height - boxH - 8, py - boxH / 2));
+            ctx.fillStyle = 'rgba(6,18,36,0.95)';
+            ctx.fillRect(bx, by, boxW, boxH);
+            ctx.strokeStyle = 'rgba(47,195,255,0.15)';
+            ctx.strokeRect(bx, by, boxW, boxH);
+            ctx.fillStyle = '#cfeaff';
+            ctx.font = '12px system-ui';
+            ctx.fillText(`${h.t.getFullYear()}-${String(h.t.getMonth()+1).padStart(2,'0')}-${String(h.t.getDate()).padStart(2,'0')} ${String(h.t.getHours()).padStart(2,'0')}:${String(h.t.getMinutes()).padStart(2,'0')}`, bx + 8, by + 18);
+            ctx.fillText(`Price: ${fmt2(h.price)}`, bx + 8, by + 36);
+        }
+    }
+}
+
+// canvas hover handlers - similar but using period-aware mapping
+canvas2.addEventListener('mousemove', (ev) => {
+  const rect = canvas2.getBoundingClientRect();
+  const x = ev.clientX - rect.left;
+  const y = ev.clientY - rect.top;
+
+  const dataFull = getPeriodFilteredData();
+  if (!dataFull || dataFull.length === 0) return;
+
+  const idx = Math.round((x / canvas2.width) * (dataFull.length - 1));
+  const clamped = Math.max(0, Math.min(dataFull.length - 1, idx));
+
+  const prices = dataFull.map(d => d.price);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const range = (max - min) || 1;
+
+  const py = canvas2.height - ((prices[clamped] - min) / range) * canvas2.height;
+
+  isHovering = true;
+  hoverPos = {
+    x: (clamped / (dataFull.length - 1)) * canvas2.width,
+    y: py,
+    index: clamped
+  };
+
+  drawChart();
+});
+
+canvas2.addEventListener('mouseout', () => {
+  isHovering = false;
+  hoverPos = null;
+  drawChart();
+});
+
+/* ----------------------------
+   Event log rendering (unchanged)
+-----------------------------*/
+function renderEventLog() {
   const el = document.getElementById('eventLog');
   el.innerHTML = '';
-  for (let i = 0; i < Math.min(20, eventLog.length); i++){
+
+  for (let i = 0; i < Math.min(20, eventLog.length); i++) {
     const e = eventLog[i];
     const div = document.createElement('div');
     div.className = 'logItem';
@@ -736,50 +898,70 @@ function renderEventLog(){
 }
 
 /* ----------------------------
-   Details panel: live update
+   Details panel: live update (ensure reset when no selection)
 -----------------------------*/
-function updateDetails(){
+function updateDetails() {
   const details = document.getElementById('details');
-  if (!selectedDetail){ return; }
+
+  if (!selectedDetail) {
+    details.innerHTML = `<div class="small muted">오른쪽 보유목록에서 종목을 클릭하면, <br> 이곳에 실시간 세부 정보가 표시됩니다.</div>`;
+    return;
+  }
+
   const type = selectedDetail.type;
   const idx = selectedDetail.index;
-  if (type === 'Future'){
-    if (idx < 0 || idx >= player.positions.futures.length){ selectedDetail = null; details.innerHTML = `<div class="small muted">선택한 선물이 없습니다.</div>`; return; }
+
+  if (type === 'Future') {
+    if (idx < 0 || idx >= player.positions.futures.length) {
+      selectedDetail = null;
+      details.innerHTML = `<div class="small muted">선택한 선물이 없습니다.</div>`;
+      return;
+    }
+
     const f = player.positions.futures[idx];
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty * f.lev;
-    const pct = f.notional ? pnl / f.notional * 100 : 0;
+    const pct = f.notional ? (pnl / f.notional) * 100 : 0;
+
     details.innerHTML = `
       <h3>선물 상세 (실시간)</h3>
-      <div class="indRow"><div class="small muted">포지션</div><div>${f.side}</div></div>
+      <div class="indRow"><div class="small muted">포지션</div><div>${f.side} ${f.lev}x</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
       <div class="indRow"><div class="small muted">진입가</div><div>${fmt2(f.entry)}</div></div>
-      <div class="indRow"><div class="small muted">현재 Mark</div><div>${fmt2(curF)}</div></div>
-      <div class="indRow"><div class="small muted">총 Notional</div><div>${fmt2(f.notional)}</div></div>
-      <div class="indRow"><div class="small muted">증거금(Locked)</div><div>${fmt2(f.lockedMargin)}</div></div>
-      <div class="indRow"><div class="small muted">미실현 P/L</div><div class="${pnl>=0?'profit':'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
+      <div class="indRow"><div class="small muted">현재가</div><div>${fmt2(curF)}</div></div>
+      <div class="indRow"><div class="small muted">총 거래금액</div><div>${fmt2(f.notional)}</div></div>
+      <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
+      <div class="indRow"><div class="small muted">미실현 손익</div>
+        <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${f.expiryDate}</div></div>
-      <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산 (역포지션)</button></div>
+      <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
     `;
-  } else if (type === 'Option'){
-    if (idx < 0 || idx >= player.positions.options.length){ selectedDetail = null; details.innerHTML = `<div class="small muted">선택한 옵션이 없습니다.</div>`; return; }
+  } else if (type === 'Option') {
+    if (idx < 0 || idx >= player.positions.options.length) {
+      selectedDetail = null;
+      details.innerHTML = `<div class="small muted">선택한 옵션이 없습니다.</div>`;
+      return;
+    }
+
     const o = player.positions.options[idx];
     const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
     const paidPer = o.entryPremium;
     const totalPaid = paidPer * o.qty;
     const pnl = (o.side === 'Long') ? (cur - paidPer) * o.qty : (paidPer - cur) * o.qty;
-    const pct = totalPaid ? pnl / totalPaid * 100 : 0;
+    const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
+
     details.innerHTML = `
       <h3>옵션 상세 (실시간)</h3>
       <div class="indRow"><div class="small muted">종류</div><div>${o.kind} (${o.side})</div></div>
       <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${o.qty}</div></div>
-      <div class="indRow"><div class="small muted">진입 prem (per)</div><div>${fmt2(paidPer)}</div></div>
-      <div class="indRow"><div class="small muted">총 지불/수령</div><div>${fmt2(totalPaid)}</div></div>
-      <div class="indRow"><div class="small muted">현재 prem (per)</div><div>${fmt2(cur)}</div></div>
-      <div class="indRow"><div class="small muted">미실현 P/L</div><div class="${pnl>=0?'profit':'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
+      <div class="indRow"><div class="small muted">지불 프리미엄</div><div>${fmt2(paidPer)}</div></div>
+      <div class="indRow"><div class="small muted">총 거래금액</div><div>${fmt2(totalPaid)}</div></div>
+      <div class="indRow"><div class="small muted">현재 프리미엄</div><div>${fmt2(cur)}</div></div>
+      <div class="indRow"><div class="small muted">미실현 손익</div>
+        <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${o.expiryDate}</div></div>
       <div style="margin-top:10px;"><button onclick="closeOption(${idx})">즉시 청산</button></div>
     `;
@@ -789,74 +971,95 @@ function updateDetails(){
 /* ----------------------------
    Render all UI elements (called each tick)
 -----------------------------*/
-function renderAll(){
+function renderAll() {
   document.getElementById('datetime').innerText = nowStr(simDate);
   document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 Market OPEN (Spot tradable)' : '🔴 Market CLOSED (Spot disabled)';
   document.getElementById('spotPrice').innerText = fmt2(state.spot);
-  // econ panel values
+
   document.getElementById('indVix').innerText = fmt2(econ.vix);
   document.getElementById('indPolicy').innerText = fmt2(econ.policyRate);
   document.getElementById('indBond').innerText = fmt2(econ.bondYield);
   document.getElementById('indGdp').innerText = fmt2(econ.gdpGrowth);
   document.getElementById('indUnemp').innerText = fmt2(econ.unemployment);
-  // premium display for option UI
+
   updateOptPremiumDisplay();
-  // chart
   drawChart();
-  // account & positions
+
   document.getElementById('cash').innerText = fmt2(player.cash);
   const eq = computeEquity();
   document.getElementById('equity').innerText = fmt2(eq.total);
-  // spot holdings
+
   const s = player.positions.spot;
   const spotEl = document.getElementById('spotHoldings');
-  if (s.qty <= 0) spotEl.innerHTML = `<div class="small muted">없음</div>`; else {
-    const pnl = (state.spot - s.avg) * s.qty; const pct = s.avg>0 ? pnl/(s.avg*s.qty)*100 : 0;
-    spotEl.innerHTML = `<div>보유 ${s.qty} | avg ${fmt2(s.avg)}</div><div class="${pnl>=0?'profit':'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>`;
+  if (s.qty <= 0) {
+    spotEl.innerHTML = `<div class="small muted">없음</div>`;
+  } else {
+    const pnl = (state.spot - s.avg) * s.qty;
+    const pct = s.avg > 0 ? (pnl / (s.avg * s.qty)) * 100 : 0;
+    spotEl.innerHTML = `<div>보유 ${s.qty} | avg ${fmt2(s.avg)}</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>`;
   }
-  // futures
-  const futEl = document.getElementById('futHoldings'); futEl.innerHTML = '';
-  player.positions.futures.forEach((f,i)=>{
+
+  // futures list
+  const futEl = document.getElementById('futHoldings');
+  if (player.positions.futures.length <= 0) {
+    futEl.innerHTML = '없음';
+  } else {
+    futEl.innerHTML = '';
+  }
+  player.positions.futures.forEach((f, i) => {
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty * f.lev;
-    const pct = f.notional ? pnl / f.notional * 100 : 0;
-    const el = document.createElement('div'); el.className='posItem';
-    el.innerHTML = `<div><strong>${f.side}</strong> x${f.qty} | ${f.lev}x | entry ${fmt2(f.entry)} | 만기 ${f.expiryDate}</div>
-                    <div class="${pnl>=0?'profit':'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
-                    <div class="small muted">notional ${fmt2(f.notional)} | locked ${fmt2(f.lockedMargin)}</div>`;
-    el.onclick = ()=>{ selectedDetail = { type:'Future', index:i }; updateDetails(); };
+    const pct = f.notional ? (pnl / f.notional) * 100 : 0;
+
+    const el = document.createElement('div');
+    el.className = 'posItem';
+    el.innerHTML = `
+      <div><strong>${f.side}</strong> ${f.lev}x | 수량 ${f.qty} | 진입가 ${fmt2(f.entry)} | 만기 ${f.expiryDate}</div>
+      <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
+      <div class="small muted">거래금 ${fmt2(f.notional)} | 증거금 ${fmt2(f.lockedMargin)}</div>
+    `;
+    el.onclick = () => { selectedDetail = { type: 'Future', index: i }; updateDetails(); };
     futEl.appendChild(el);
   });
-  // options
-  const optEl = document.getElementById('optHoldings'); optEl.innerHTML = '';
-  player.positions.options.forEach((o,i)=>{
+
+  // options list
+  const optEl = document.getElementById('optHoldings');
+  if (player.positions.options.length <= 0) {
+    optEl.innerHTML = '없음';
+  } else {
+    optEl.innerHTML = '';
+  }
+  player.positions.options.forEach((o, i) => {
     const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
     const paidPer = o.entryPremium;
-    const pnl = (o.side==='Long') ? (cur - paidPer) * o.qty : (paidPer - cur) * o.qty;
-    const pct = paidPer ? (pnl / (paidPer * o.qty) * 100) : 0;
-    const el = document.createElement('div'); el.className='posItem';
-    el.innerHTML = `<div><strong>${o.side} ${o.kind}</strong> x${o.qty} | K ${fmt2(o.K)}</div>
-                    <div class="${pnl>=0?'profit':'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
-                    <div class="small muted">총 ${fmt2(paidPer*o.qty)} | current ${fmt2(cur)}</div>
-                    <div class="small muted">만기 ${o.expiryDate}</div>`;
-    el.onclick = ()=>{ selectedDetail = { type:'Option', index:i }; updateDetails(); };
+    const pnl = (o.side === 'Long') ? (cur - paidPer) * o.qty : (paidPer - cur) * o.qty;
+    const pct = paidPer ? (pnl / (paidPer * o.qty)) * 100 : 0;
+
+    const el = document.createElement('div');
+    el.className = 'posItem';
+    el.innerHTML = `
+      <div><strong>${o.side} ${o.kind}</strong> | 수량 ${o.qty} | 행사가 ${fmt2(o.K)}</div>
+      <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
+      <div class="small muted">거래금 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
+      <div class="small muted">만기 ${o.expiryDate}</div>
+    `;
+    el.onclick = () => { selectedDetail = { type: 'Option', index: i }; updateDetails(); };
     optEl.appendChild(el);
   });
-  // update details if selected
+
   updateDetails();
-  // render event log
   renderEventLog();
 }
 
 /* ----------------------------
-   Opt premium display helper (UI)
+   Opt premium display helper
 -----------------------------*/
-function updateOptPremiumDisplay(){
+function updateOptPremiumDisplay() {
   const K = Number(document.getElementById('optK').value || state.spot);
   const months = Number(document.getElementById('optExp').value || 1);
-  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0,10);
+  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
   const kind = document.getElementById('optType').value;
   const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
   document.getElementById('optPremiumDisplay').innerText = `프리미엄: ${fmt2(prem)}`;
@@ -865,26 +1068,31 @@ function updateOptPremiumDisplay(){
 /* ----------------------------
    Debug tools wiring
 -----------------------------*/
-document.getElementById('toggleDebug').addEventListener('click', ()=>{
+document.getElementById('toggleDebug').addEventListener('click', () => {
   const tools = document.getElementById('econDebugTools');
   if (tools.style.display === 'flex' || tools.style.display === 'block') tools.style.display = 'none';
   else tools.style.display = 'flex';
 });
-document.getElementById('dbgReset').addEventListener('click', ()=>{
+
+document.getElementById('dbgReset').addEventListener('click', () => {
   if (!confirm('시스템 초기화: 모든 포지션과 지표를 리셋합니다. 계속 진행하시겠습니까?')) return;
   resetSystem();
 });
-document.getElementById('dbgAddCash').addEventListener('click', ()=>{
+document.getElementById('dbgAddCash').addEventListener('click', () => {
   player.cash += 100000;
   pushEventLog('🧾 Debug: 현금 +100k 추가');
   notify('현금 +100k');
   renderAll();
 });
-document.getElementById('dbgWitch').addEventListener('click', ()=>{
+document.getElementById('dbgWitch').addEventListener('click', () => {
   triggerWitchingEvent('debug');
   renderAll();
 });
-document.getElementById('dbgBlackSwan').addEventListener('click', ()=>{
+document.getElementById('dbgWhiteSwan').addEventListener('click', () => {
+  triggerWhiteSwan('debug');
+  renderAll();
+});
+document.getElementById('dbgBlackSwan').addEventListener('click', () => {
   triggerBlackSwan('debug');
   renderAll();
 });
@@ -892,16 +1100,19 @@ document.getElementById('dbgBlackSwan').addEventListener('click', ()=>{
 /* ----------------------------
    Reset system (debug)
 -----------------------------*/
-function resetSystem(){
+function resetSystem() {
   simDate = new Date("2025-01-01T08:00:00");
   hoursPerTick = 1;
   state.spot = 10000.0;
-  state.history = [{t:new Date(simDate), price: state.spot}];
-  econ = { vix:20.0, policyRate:0.5, bondYield:1.5, gdpGrowth:2.0, unemployment:5.0 };
-  player = { cash:100000.0, positions:{ spot:{qty:0,avg:0}, futures:[], options:[] }, log:[] };
+  state.history = [{ t: new Date(simDate), price: state.spot }];
+  econ = { vix: 20.0, policyRate: 0.5, bondYield: 1.5, gdpGrowth: 2.0, unemployment: 5.0 };
+  player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
-  witchingActiveTicks = 0; blackSwanActiveTicks = 0;
-  lastTickDay = null; lastTickMonth = null; selectedDetail = null;
+  witchingActiveTicks = 0;
+  blackSwanActiveTicks = 0;
+  lastTickDay = null;
+  lastTickMonth = null;
+  selectedDetail = null;
   pushEventLog('🔁 시스템 초기화 (Debug)');
   renderAll();
 }
@@ -916,18 +1127,27 @@ document.getElementById('tradeOpt').addEventListener('click', tradeOption);
 document.getElementById('optK').addEventListener('input', updateOptPremiumDisplay);
 document.getElementById('optType').addEventListener('change', updateOptPremiumDisplay);
 document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
-document.getElementById('speedSelect').addEventListener('change', (e)=>{ hoursPerTick = Number(e.target.value) || 1; });
+document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = Number(e.target.value) || 1; });
+
+const periodButtons = document.querySelectorAll('.periodBtn');
+periodButtons.forEach(b => {
+  b.addEventListener('click', () => {
+    periodButtons.forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    chartPeriod = b.getAttribute('data-period');
+    drawChart();
+  });
+});
 
 /* ----------------------------
    Initialization & main loop
 -----------------------------*/
-state.history.push({t:new Date(simDate), price: state.spot});
+state.history.push({ t: new Date(simDate), price: state.spot });
 pushEventLog('🚀 시뮬레이터 시작 (spot 10,000)');
 renderAll();
 drawChart();
+setInterval(() => { stepMarket(); }, 1000);
 
-// main loop: 1s => hoursPerTick hours
-setInterval(()=>{ stepMarket(); }, 1000);
 
 </script>
 </body>
