@@ -551,7 +551,7 @@ function openFuture() {
     const tau = tauYearsFromExpiry(expiryDate);
     const entry = state.spot * Math.exp((R - Q) * tau);
     const notional = entry * qty;
-    const margin = notional * lev * 0.05;
+    const margin = notional / lev;
     if (player.cash < margin) return notify(`증거금 부족: ${fmt2(margin)}`,2000);
     player.cash -= margin;
     player.positions.futures.push({
@@ -922,8 +922,8 @@ function updateDetails() {
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-    const pnl = pnlPer * f.qty * f.lev;
-    const pct = f.notional ? (pnl / f.notional) * 100 : 0;
+    const pnl = pnlPer * f.qty;
+    const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
 
     details.innerHTML = `
       <h3>선물 상세 (실시간)</h3>
