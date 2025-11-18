@@ -139,7 +139,10 @@
         <button class="periodBtn" data-period="1D">1D</button>
         <button class="periodBtn" data-period="1W">1W</button>
         <button class="periodBtn" data-period="1M">1M</button>
+        <button class="periodBtn" data-period="3M">3M</button>
+        <button class="periodBtn" data-period="6M">6M</button>
         <button class="periodBtn" data-period="1Y">1Y</button>
+        <button class="periodBtn" data-period="3Y">3Y</button>
         <button class="periodBtn active" data-period="ALL">ALL</button>
         <div id="periodReturn">증감률 +0.00%</div>
       </div>
@@ -769,6 +772,13 @@ function periodStartDate(){
       // ALL
       return new Date(0);
   }
+}
+
+function getPeriodFilteredData(){
+  if (!state.history || state.history.length===0) return [];
+  if (chartPeriod === 'ALL') return state.history.slice();
+  const start = periodStartDate();
+  return state.history.filter(h => h.t.getTime() >= start.getTime());
 }
 
 function calcPeriodReturn(data){ if (!data || data.length<2) return null; const first = data[0].price; const last = data[data.length-1].price; const pct = (last - first) / first * 100; return pct; }
