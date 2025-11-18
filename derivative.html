@@ -974,7 +974,7 @@ function updateDetails() {
 -----------------------------*/
 function renderAll() {
   document.getElementById('datetime').innerText = nowStr(simDate);
-  document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 장 열림 (Market Opened)' : 🔴 장 닫힘 (Market Closed)';
+  document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 장 열림 (Market Opened)' : '🔴 장 닫힘 (Market Closed)';
   document.getElementById('spotPrice').innerText = fmt2(state.spot);
 
   document.getElementById('indVix').innerText = fmt2(econ.vix);
