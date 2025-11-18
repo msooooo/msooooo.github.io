@@ -468,7 +468,7 @@ function triggerBlackSwan(source = 'system') {
 /* ----------------------------
    Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
-function isSpotOpenAt(d){ const h=d.getHours(); return (h>=8 && h<18); }
+function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<12); }
 
 function stepMarket(){
   // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
@@ -974,7 +974,7 @@ function updateDetails() {
 -----------------------------*/
 function renderAll() {
   document.getElementById('datetime').innerText = nowStr(simDate);
-  document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 Market OPEN (Spot tradable)' : '🔴 Market CLOSED (Spot disabled)';
+  document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 장 열림 (Market Opened)' : 🔴 장 닫힘 (Market Closed)';
   document.getElementById('spotPrice').innerText = fmt2(state.spot);
 
   document.getElementById('indVix').innerText = fmt2(econ.vix);
