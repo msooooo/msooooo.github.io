@@ -195,7 +195,7 @@
         <!-- Moved Event Log here so it matches econ panel width -->
         <div style="margin-top:32px;">
           <h4 style="margin:6px 0 4px 0">시장 이벤트 로그</h4>
-          <div class="small muted">최근 이벤트 및 주요 알림 (최대 20)</div>
+          <div class="small muted">최근 이벤트 및 주요 알림 (최대 100)</div>
           <div id="eventLog" style="margin-top:6px;"></div>
         </div>
 
@@ -930,7 +930,7 @@ function renderEventLog() {
   const el = document.getElementById('eventLog');
   el.innerHTML = '';
 
-  for (let i = 0; i < Math.min(20, eventLog.length); i++) {
+  for (let i = 0; i < Math.min(100, eventLog.length); i++) {
     const e = eventLog[i];
     const div = document.createElement('div');
     div.className = 'logItem';
