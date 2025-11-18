@@ -528,7 +528,7 @@ function buySpot() {
     const prevTotal = s.qty * s.avg;
     s.qty += 1;
     s.avg = (prevTotal + cost) / s.qty;
-    notify(`🟢 현물 :: 매수 | 수량 1 | 매수금액 ${fmt2(cost)}`,2000);
+    pushEventLog(`🟢 현물 :: 매수 | 수량 1 | 매수금액 ${fmt2(cost)}`,2000);
     renderAll();
 }
 
@@ -539,7 +539,7 @@ function sellSpot() {
     player.cash += state.spot;
     s.qty -= 1;
     if (s.qty === 0) s.avg = 0;
-    notify(`🔴 현물 :: 매도 | 수량 1 | 매도금액 ${fmt2(state.spot)}`,2000);
+    pushEventLog(`🔴 현물 :: 매도 | 수량 1 | 매도금액 ${fmt2(state.spot)}`,2000);
     renderAll();
 }
 
@@ -745,11 +745,11 @@ function periodStartDate(){
     case '1W': {
       const dow = simDate.getDay(); // 0 Sun .. 1 Mon
       const diffToMon = (dow + 6) % 7; // 0 if Mon, 1 if Tue ...
-      const d = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate() - diffToMon, 0,0,0);
+      const d = new Date(simDate.getFullYear(), simDate.getMonth(), 1 + diffToMon, 0,0,0);
       return d;
     }
-    case '1M': return new Date(simDate.getFullYear(), simDate.getMonth(), 1, 0,0,0);
-    case '1Y': return new Date(simDate.getFullYear(), 0, 1, 0,0,0);
+    case '1M': return new Date(simDate.getFullYear(), simDate.getMonth() - 1, simDate.getDate(), 0,0,0);
+    case '1Y': return new Date(simDate.getFullYear() - 1, simDate.getMonth(), simDate.getDate(), 0,0,0);
     default: return new Date(0);
   }
 }
@@ -804,7 +804,7 @@ function drawChart() {
     ctx.fillStyle = "#cfeaff";
     ctx.font = "12px system-ui";
     const latest = data[data.length - 1];
-    ctx.fillText(`Price: ${fmt2(latest)}`, 8, 16);
+    ctx.fillText(`현재가: ${fmt2(latest)}`, 8, 16);
     ctx.fillText(`VIX: ${fmt2(econ.vix)} σ:${fmt2(getCurrentVol())}`, 120, 16);
 
     const ret = calcPeriodReturn(dataFull);
