@@ -746,28 +746,42 @@ function periodStartDate(){
 
   switch(chartPeriod){
     case '1D': {
-      // 현재 시각에서 정확히 24시간 전
-      const d = new Date(end.getTime() - 24 * 3600 * 1000);
+      const d = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0);
       return d;
     }
 
     case '1W': {
-      // 현재 시각에서 정확히 7일(168시간) 전
       const d = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
       return d;
     }
 
     case '1M': {
-      // "정확히 1달 전" (캘린더 기준)
       const d = new Date(end);
       d.setMonth(d.getMonth() - 1);
       return d;
     }
 
+    case '3M': {
+      const d = new Date(end);
+      d.setMonth(d.getMonth() - 3);
+      return d;
+    }
+
+    case '6M': {
+      const d = new Date(end);
+      d.setMonth(d.getMonth() - 6);
+      return d;
+    }
+
     case '1Y': {
-      // "정확히 1년 전" (캘린더 기준)
       const d = new Date(end);
       d.setFullYear(d.getFullYear() - 1);
+      return d;
+    }
+      
+    case '3Y': {
+      const d = new Date(end);
+      d.setFullYear(d.getFullYear() - 3);
       return d;
     }
 
