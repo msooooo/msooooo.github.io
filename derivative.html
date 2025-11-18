@@ -1010,7 +1010,7 @@ function renderAll() {
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-    const pnl = pnlPer * f.qty * f.lev;
+    const pnl = pnlPer * f.qty;
     const pct = f.notional ? (pnl / f.notional) * 100 : 0;
 
     const el = document.createElement('div');
