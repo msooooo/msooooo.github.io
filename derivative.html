@@ -372,10 +372,10 @@ function getCurrentVol() {
 
 function getCurrentMu() {
     const a = 0.02;
-    const b = 0.04;
+    const b = 0.05;
     const c = 0.03;
     const d = 0.02;
-    const mu = BASE_MU + a * (econ.gdpGrowth - 2.0) - b * (econ.policyRate - 0.5) - c * (econ.unemployment - 5.0) - d * (econ.bondYield - 1.5);
+    const mu = BASE_MU + a * (econ.gdpGrowth - 1.5) - b * (econ.policyRate - 3.5) - c * (econ.unemployment - 5.0) - d * (econ.bondYield - 2.5);
     return Math.max(-0.8, Math.min(0.8, mu));
 }
 
@@ -446,7 +446,7 @@ function triggerWitchingEvent(source = 'system') {
 function triggerWhiteSwan(source = 'system') {
     blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
     econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = +(10 + Math.random() * 20);
+    const shockPct = +(10 + Math.random() * 10);
     const factor = 1 + shockPct / 100;
     state.spot *= factor;
     if (state.spot < 0.01) state.spot = 0.01;
@@ -457,7 +457,7 @@ function triggerWhiteSwan(source = 'system') {
 function triggerBlackSwan(source = 'system') {
     blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
     econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = -(10 + Math.random() * 20);
+    const shockPct = -(10 + Math.random() * 10);
     const factor = 1 + shockPct / 100;
     state.spot *= factor;
     if (state.spot < 0.01) state.spot = 0.01;
@@ -468,7 +468,7 @@ function triggerBlackSwan(source = 'system') {
 /* ----------------------------
    Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
-function isSpotOpenAt(d){ const h=d.getHours(); return (h>=8 && h<16); }
+function isSpotOpenAt(d){ const h=d.getHours(); return (h>=8 && h<18); }
 
 function stepMarket(){
   // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
@@ -483,6 +483,7 @@ function stepMarket(){
     if (lastTickDay === null || curDay !== lastTickDay){
       updateEconForDayChange();
       if (Math.random() < 0.0015){ triggerBlackSwan('random'); }
+      if (Math.random() < 0.0015){ triggerWhiteSwan('random'); }
     }
     if (lastTickMonth === null || curMonth !== lastTickMonth){
       updateEconForMonthChange();
@@ -1011,7 +1012,7 @@ function renderAll() {
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty;
-    const pct = f.notional ? (pnl / f.notional) * 100 : 0;
+    const pct = f.notional ? (pnl / f.notional) * 100 * f.lev : 0;
 
     const el = document.createElement('div');
     el.className = 'posItem';
