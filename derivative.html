@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Mini Derivatives Game — Full Simulator with Macro & Events (Enhanced Chart)</title>
+<title>Derivatives Game</title>
 <style>
   :root{
     --bg:#071028; --panel:#0b1730; --accent:#2fc3ff; --text:#e8eefc;
@@ -245,7 +245,7 @@
 -----------------------------*/
 const BASE_VOL = 0.20;    // base mapping when VIX base matches
 const VIX_BASE = 20.0;
-const BASE_MU = 0.00;
+const BASE_MU = 0.05;
 const R = 0.03, Q = 0.0;
 
 // simulation time
@@ -325,7 +325,32 @@ function notify(msg, ms=3000){
 }
 
 /* ----------------------------
-   Math helpers (unchanged)
+   helper: EMA (for smooth move)
+-----------------------------*/
+function _ensureEconEma(){
+  if (!econ._ema) {
+    econ._ema = {
+      vix: econ.vix,
+      policyRate: econ.policyRate,
+      bondYield: econ.bondYield,
+      gdpGrowth: econ.gdpGrowth,
+      unemployment: econ.unemployment,
+      // 감정(시장심리) 공통요인
+      sentiment: 0.0
+    };
+  }
+}
+
+function emaUpdate(key, value, alpha){
+  _ensureEconEma();
+  const prev = econ._ema[key] !== undefined ? econ._ema[key] : value;
+  const next = alpha * value + (1 - alpha) * prev;
+  econ._ema[key] = next;
+  return next;
+}
+
+/* ----------------------------
+   Math helpers (unchanged but reorganized for clarity)
 -----------------------------*/
 function erf(x) {
     const sign = x >= 0 ? 1 : -1;
@@ -368,50 +393,110 @@ function tauYearsFromExpiry(expiryDateStr) {
 }
 
 /* ----------------------------
-   Macro mapping (unchanged)
+   Macro mapping: getCurrentVol (unchanged) and getCurrentMu (REPLACED)
+   - getCurrentMu now uses smoothed econ values, a small set of weights, and caps the result.
+   - mu is scaled to realistic annual drift magnitudes.
 -----------------------------*/
 function getCurrentVol() {
+    // existing mapping kept: econ.vix scaled to BASE_VOL baseline
     let s = BASE_VOL * (econ.vix / VIX_BASE);
     if (witchingActiveTicks > 0) s *= 2.5;
     if (blackSwanActiveTicks > 0) s *= 3.5;
+    // clamp to reasonable bounds (2.0 corresponds to 200% annual sigma high cap)
     return Math.max(0.02, Math.min(2.0, s));
 }
 
 function getCurrentMu() {
-    const a = 0.02;
-    const b = 0.05;
-    const c = 0.03;
-    const d = 0.02;
-    const mu = BASE_MU + a * (econ.gdpGrowth - 1.5) - b * (econ.policyRate - 3.5) - c * (econ.unemployment - 5.0) - d * (econ.bondYield - 2.5);
-    return Math.max(-0.8, Math.min(0.8, mu));
-}
+    // 1) EMA-smooth the indicators (alpha chosen to smooth day-to-day but allow month changes)
+    const alphaDay = 0.12; // 빠르진 않지만 반응하는 수준 (0.0..1.0)
+    const svix = emaUpdate('vix', econ.vix, alphaDay);
+    const spolicy = emaUpdate('policyRate', econ.policyRate, alphaDay);
+    const sbond = emaUpdate('bondYield', econ.bondYield, alphaDay);
+    const sgdp = emaUpdate('gdpGrowth', econ.gdpGrowth, alphaDay);
+    const sunemp = emaUpdate('unemployment', econ.unemployment, alphaDay);
 
-function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
-    const tau = tauYearsFromExpiry(expiryDateStr);
-    const sigma = getCurrentVol();
-    const F = S * Math.exp((R - Q) * tau);
-    return (kind === 'Call') ? black76_call(F, K, R, sigma, tau) : black76_put(F, K, R, sigma, tau);
+    // 2) Build a common sentiment factor from smoothed VIX/GDP/Unemployment (standardize)
+    //    sentiment positive -> bullish, negative -> bearish
+    //    normalize relative to reference levels
+    const vixNorm = (svix - VIX_BASE) / VIX_BASE;             // + high means more stress -> negative to mu
+    const gdpNorm = (sgdp - 2.0) / 2.0;                      // + good GDP -> positive to mu
+    const unempNorm = (sunemp - 5.0) / 5.0;                  // + high unemp -> negative to mu
+    const sentimentRaw = ( -0.6 * vixNorm + 0.5 * gdpNorm - 0.4 * unempNorm );
+    // store smoothed sentiment in econ._ema for debugging/inspection
+    emaUpdate('sentiment', sentimentRaw, 0.08);
+
+    // 3) Map policy/bond effects (tightening monetary policy -> negative mu)
+    //    We'll interpret policyRate increase above a neutral level as drag on mu.
+    const policyNeutral = 3.5; // neutral policy rate for mapping (tunable)
+    const bondNeutral = 2.5;
+
+    const policyDiff = spolicy - policyNeutral;
+    const bondDiff = sbond - bondNeutral;
+
+    // 4) Compose mu as a weighted sum of small coefficients (kept small so mu is realistic)
+    //    These weights chosen to produce mu in typical range [-0.3, +0.3] or narrower normally ~[-0.2,0.2]
+    const wSent = 0.06;    // sentiment has primary role (scaled)
+    const wPolicy = -0.03; // tightening reduces mu
+    const wBond = -0.015;  // higher bond yields slightly reduce mu (crowding/discount)
+    const wDriftBase = 0.0; // base drift (keep near zero)
+
+    let muRaw = wDriftBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
+
+    // 5) Add a tiny momentum term from recent returns (short-run mean reversion/momentum)
+    //    If recent returns positive, small positive contribution (momentum)
+    const historyLen = Math.min(48, state.history.length); // up to last 48 hours
+    if (historyLen >= 2) {
+      const last = state.history[state.history.length - 1].price;
+      const first = state.history[Math.max(0, state.history.length - historyLen)].price;
+      const recentRet = Math.log(last / first); // log-return over window
+      muRaw += 0.5 * recentRet / (historyLen / 24 * 1); // scale to annual approx (very small)
+    }
+
+    // 6) Clamp mu to safe bounds and return
+    const muClamped = Math.max(-0.8, Math.min(0.8, muRaw));
+    return muClamped;
 }
 
 /* ----------------------------
-   Economic updates (unchanged)
+   Economic updates (REPLACED)
+   - daily updates now include a shared 'globalShock' component so VIX/GDP/Unemp/bond move with correlation
+   - monthly updates adjust policyRate with lower probability and bond yield moves as function of policy + random
 -----------------------------*/
 function updateEconForDayChange() {
-    const baseDaily = 1.5;
-    let u = 0,
-        v = 0;
+    // Shared common daily shock (market-wide sentiment shock)
+    let u = 0, v = 0;
     while (u === 0) u = Math.random();
     while (v === 0) v = Math.random();
-    const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-    econ.vix += z * baseDaily;
-    econ.vix += (20 - econ.vix) * 0.02;
-    if (Math.random() < 0.2) econ.vix += (5 + Math.random() * 5);
-    if (Math.random() < 0.020 * econ.vix) econ.vix -= (Math.random() * econ.vix * 0.2);
+    const commonZ = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+
+    // idiosyncratic z's
+    function zUnit() { let a=0,b=0; while(a===0) a=Math.random(); while(b===0) b=Math.random(); return Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b); }
+
+    // VIX: common shock plus idiosyncratic
+    const vixBaseDaily = 1.2;
+    const vixShock = commonZ * (vixBaseDaily * 0.9) + zUnit() * (vixBaseDaily * 0.5);
+    econ.vix += vixShock;
+    // mean reversion toward typical level 20
+    econ.vix += (20 - econ.vix) * 0.03;
+    // occasional small upward jump
+    if (Math.random() < 0.08) econ.vix += (2 + Math.random() * 4);
+
+    // GDP & Unemployment - daily micro noise only (slow-moving overall)
+    econ.gdpGrowth += 0.005 * zUnit(); // very small daily noise
+    econ.unemployment += 0.01 * zUnit();
+
+    // Bond yield - partly correlated with VIX and policy expectations
+    econ.bondYield += commonZ * 0.02 + zUnit() * 0.01;
+    // keep bounds
     econ.vix = Math.max(5, Math.min(120, econ.vix));
+    econ.bondYield = Math.max(0, econ.bondYield);
+    econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth));
+    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
 }
 
 function updateEconForMonthChange() {
-    const rateMoveProb = 0.99;
+    // Monthly central-bank style move (less frequent, bigger steps)
+    const rateMoveProb = 0.12; // ~12% chance
     if (Math.random() < rateMoveProb) {
         const stepOptions = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75];
         const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
@@ -419,14 +504,15 @@ function updateEconForMonthChange() {
         pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}% -> ${fmt2(econ.policyRate)}%`);
         notify(`정책금리 ${fmt2(econ.policyRate)}%`);
     }
-    const bondStep = (Math.random() * 0.6 - 0.3);
-    econ.bondYield = Math.max(econ.policyRate*1.1, econ.bondYield + bondStep);
 
-    const gdpStep = (Math.random() * 0.4 - 0.2);
-    econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth + gdpStep));
+    // Bond yield: trend toward policyRate*1.1 but with random walk
+    const bondTarget = econ.policyRate * 1.1;
+    const bondStep = (Math.random() * 0.8 - 0.4) + (bondTarget - econ.bondYield) * 0.08;
+    econ.bondYield = Math.max(0, econ.bondYield + bondStep);
 
-    const unempStep = (Math.random() * 0.4 - 0.2);
-    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + unempStep));
+    // GDP and unemployment small monthly moves
+    econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth + (Math.random() * 0.6 - 0.3)));
+    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (Math.random() * 0.6 - 0.3)));
 }
 
 /* ----------------------------
