@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.3</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.4</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1275,13 +1275,13 @@ document.getElementById('dbgGDPGrowthUP').addEventListener('click', () => {
   triggerGDPGrowthUP('debug');
   renderAll();
 });
-document.getElementById('dbgPolicyRateDOWN').addEventListener('click', () => {
+document.getElementById('dbgGDPGrowthDOWN').addEventListener('click', () => {
   triggerGDPGrowthDOWN('debug');
   renderAll();
 });
 document.getElementById('dbgShowMU').addEventListener('click', () => {
   const mu = getCurrentMU()
-  pushEventLog('현재 추세 인덱스: ${mu}');
+  pushEventLog(`🫟 현재 추세 인덱스: ${mu}`);
   renderAll();
 });
 
