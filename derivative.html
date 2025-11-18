@@ -171,7 +171,12 @@
           <button id="dbgAddCash" class="debugBtn tiny">현금 +100k</button>
           <button id="dbgWitch" class="debugBtn tiny">강제 변동성 증가</button>
           <button id="dbgWhiteSwan" class="debugBtn tiny">강제 대폭등</button>
-          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button>
+          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button><br>
+          <button id="dbgPolicyRateUP" class="debugBtn tiny">정책금리 상승</button>
+          <button id="dbgPolicyRateDOWN" class="debugBtn tiny">정책금리 하락</button>
+          <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장률 상승</button>
+          <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장률 하락</button>
+          <button id="dbgShowMU" class="debugBtn tiny">추세 인덱스</button>
         </div>
 
         <hr style="border:none;height:8px;">
@@ -508,7 +513,7 @@ function updateEconForMonthChange() {
         const stepOptions = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75];
         const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
         econ.policyRate = Math.max(0, econ.policyRate + step);
-        pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}% -> ${fmt2(econ.policyRate)}%`);
+        pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
         notify(`정책금리 ${fmt2(econ.policyRate)}%`);
     }
 
@@ -563,6 +568,32 @@ function triggerBlackSwan(source = 'system') {
     if (state.spot < 0.01) state.spot = 0.01;
     pushEventLog(`💣 대폭락(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
     notify('💣 대폭락 발생!', 6000);
+}
+
+function triggerPolicyRateUP(source = 'system') {
+    const step = 0.25
+    econ.policyRate = Math.max(0, econ.policyRate + step);
+    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
+    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
+}
+
+function triggerPolicyRateDOWN(source = 'system') {
+    const step = -0.25
+    econ.policyRate = Math.max(0, econ.policyRate + step);
+    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
+    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
+}
+
+function triggerGDPGrowthUP(source = 'system') {
+    const step = -0.25
+    econ.gdpGrowth = Math.max(0, econ.gdpGrowth + step);
+    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
+}
+
+function triggerGDPGrowthDOWN(source = 'system') {
+    const step = -0.25
+    econ.gdpGrowth = Math.max(0, econ.gdpGrowth + step);
+    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
 }
 
 /* ----------------------------
@@ -1231,6 +1262,27 @@ document.getElementById('dbgBlackSwan').addEventListener('click', () => {
   triggerBlackSwan('debug');
   renderAll();
 });
+document.getElementById('dbgPolicyRateUP').addEventListener('click', () => {
+  triggerPolicyRateUP('debug');
+  renderAll();
+});
+document.getElementById('dbgPolicyRateDOWN').addEventListener('click', () => {
+  triggerPolicyRateDOWN('debug');
+  renderAll();
+});
+document.getElementById('dbgGDPGrowthUP').addEventListener('click', () => {
+  triggerGDPGrowthUP('debug');
+  renderAll();
+});
+document.getElementById('dbgPolicyRateDOWN').addEventListener('click', () => {
+  triggerGDPGrowthDOWN('debug');
+  renderAll();
+});
+document.getElementById('dbgShowMU').addEventListener('click', () => {
+  pushEventLog('현재 추세 인덱스:',getCurrentMu());
+  renderAll();
+});
+
 
 /* ----------------------------
    Reset system (debug)
