@@ -735,30 +735,40 @@ function computeEquity() {
 /* ----------------------------
    Chart drawing (update: period semantics start->now)
 -----------------------------*/
-const canvas2 = document.getElementById('chartCanvas');
-const ctx2 = canvas2.getContext('2d');
-
 function periodStartDate(){
   const end = new Date(simDate);
+
   switch(chartPeriod){
-    case '1D': return new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate(), 0,0,0);
-    case '1W': {
-      const dow = simDate.getDay(); // 0 Sun .. 1 Mon
-      const diffToMon = (dow + 6) % 7; // 0 if Mon, 1 if Tue ...
-      const d = new Date(simDate.getFullYear(), simDate.getMonth(), 1 + diffToMon, 0,0,0);
+    case '1D': {
+      // 현재 시각에서 정확히 24시간 전
+      const d = new Date(end.getTime() - 24 * 3600 * 1000);
       return d;
     }
-    case '1M': return new Date(simDate.getFullYear(), simDate.getMonth() - 1, simDate.getDate(), 0,0,0);
-    case '1Y': return new Date(simDate.getFullYear() - 1, simDate.getMonth(), simDate.getDate(), 0,0,0);
-    default: return new Date(0);
-  }
-}
 
-function getPeriodFilteredData(){
-  if (!state.history || state.history.length===0) return [];
-  if (chartPeriod === 'ALL') return state.history.slice();
-  const start = periodStartDate();
-  return state.history.filter(h => h.t.getTime() >= start.getTime());
+    case '1W': {
+      // 현재 시각에서 정확히 7일(168시간) 전
+      const d = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
+      return d;
+    }
+
+    case '1M': {
+      // "정확히 1달 전" (캘린더 기준)
+      const d = new Date(end);
+      d.setMonth(d.getMonth() - 1);
+      return d;
+    }
+
+    case '1Y': {
+      // "정확히 1년 전" (캘린더 기준)
+      const d = new Date(end);
+      d.setFullYear(d.getFullYear() - 1);
+      return d;
+    }
+
+    default:
+      // ALL
+      return new Date(0);
+  }
 }
 
 function calcPeriodReturn(data){ if (!data || data.length<2) return null; const first = data[0].price; const last = data[data.length-1].price; const pct = (last - first) / first * 100; return pct; }
