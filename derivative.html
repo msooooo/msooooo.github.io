@@ -75,7 +75,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.0</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.1</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -171,7 +171,9 @@
           <button id="dbgAddCash" class="debugBtn tiny">현금 +100k</button>
           <button id="dbgWitch" class="debugBtn tiny">강제 변동성 증가</button>
           <button id="dbgWhiteSwan" class="debugBtn tiny">강제 대폭등</button>
-          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button><br>
+          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button>
+        </div>
+        <div id="econDebugTools" style="margin-top:10px; display:none;">
           <button id="dbgPolicyRateUP" class="debugBtn tiny">정책금리 상승</button>
           <button id="dbgPolicyRateDOWN" class="debugBtn tiny">정책금리 하락</button>
           <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장률 상승</button>
@@ -1279,7 +1281,8 @@ document.getElementById('dbgPolicyRateDOWN').addEventListener('click', () => {
   renderAll();
 });
 document.getElementById('dbgShowMU').addEventListener('click', () => {
-  pushEventLog('현재 추세 인덱스:',getCurrentMu());
+  const mu = getCurrentMU()
+  pushEventLog('현재 추세 인덱스: ${mu}');
   renderAll();
 });
 
