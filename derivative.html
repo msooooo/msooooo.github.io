@@ -738,6 +738,9 @@ function computeEquity() {
 /* ----------------------------
    Chart drawing (update: period semantics start->now)
 -----------------------------*/
+const canvas2 = document.getElementById('chartCanvas');
+const ctx2 = canvas2.getContext('2d');
+
 function periodStartDate(){
   const end = new Date(simDate);
 
