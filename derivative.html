@@ -457,6 +457,13 @@ function getCurrentMu() {
     return muClamped;
 }
 
+function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
+  const tau = tauYearsFromExpiry(expiryDateStr);
+  const sigma = getCurrentVol();
+  const F = S * Math.exp((R - Q) * tau);
+  return (kind === 'Call') ? black76_call(F, K, R, sigma, tau) : black76_put(F, K, R, sigma, tau);
+}
+
 /* ----------------------------
    Economic updates (REPLACED)
    - daily updates now include a shared 'globalShock' component so VIX/GDP/Unemp/bond move with correlation
@@ -561,7 +568,7 @@ function triggerBlackSwan(source = 'system') {
 /* ----------------------------
    Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
-function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<12); }
+function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 
 function stepMarket(){
   // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
@@ -613,7 +620,7 @@ function stepMarket(){
    Trading & expiry logic unchanged but ensure details are cleared when positions removed
 -----------------------------*/
 function buySpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 08:00~16:00만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 00:00~12:00만 거래 가능합니다',2000);
     const cost = state.spot;
     if (player.cash < cost) return notify('현금 부족',2000);
     player.cash -= cost;
@@ -626,7 +633,7 @@ function buySpot() {
 }
 
 function sellSpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 08:00~16:00만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 00:00~12:00만 거래 가능합니다',2000);
     const s = player.positions.spot;
     if (s.qty <= 0) return notify('보유 현물이 없습니다',2000);
     player.cash += state.spot;
@@ -1233,7 +1240,7 @@ function resetSystem() {
   hoursPerTick = 1;
   state.spot = 10000.0;
   state.history = [{ t: new Date(simDate), price: state.spot }];
-  econ = { vix: 20.0, policyRate: 0.5, bondYield: 1.5, gdpGrowth: 2.0, unemployment: 5.0 };
+  econ = { vix: 20.0, policyRate: 3.5, bondYield: 4.0, gdpGrowth: 2.0, unemployment: 5.0 };
   player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
   witchingActiveTicks = 0;
