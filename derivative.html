@@ -575,8 +575,8 @@ function stepMarket(){
     const curMonth = simDate.getMonth() + 1;
     if (lastTickDay === null || curDay !== lastTickDay){
       updateEconForDayChange();
-      if (Math.random() < 0.0015){ triggerBlackSwan('random'); }
-      if (Math.random() < 0.0015){ triggerWhiteSwan('random'); }
+      if (Math.random() < 0.0005){ triggerBlackSwan('random'); }
+      if (Math.random() < 0.0005){ triggerWhiteSwan('random'); }
     }
     if (lastTickMonth === null || curMonth !== lastTickMonth){
       updateEconForMonthChange();
