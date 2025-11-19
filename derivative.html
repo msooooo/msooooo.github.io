@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.8</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.9</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -507,17 +507,17 @@ function updateEconForDayChange() {
     // keep bounds
     econ.vix = Math.max(5, Math.min(100, econ.vix));
     econ.bondYield = Math.max(0, econ.bondYield);
-    econ.gdpGrowth = Math.max(-20, Math.min(20, econ.gdpGrowth));
+    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
     econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
 }
 
 function updateEconForMonthChange() {
     // Monthly central-bank style move (less frequent, bigger steps)
-    const rateMoveProb = 1 - (econ.gdpGrowth * 0.01) * 4; //
+    const rateMoveProb = 1 - (econ.gdpGrowth * 0.01) * 5; //
     if (Math.random() < rateMoveProb) {
         const stepOptions = [-0.5, -0.25, 0.25, 0.5];
-        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)] + econ.gdpGrowth * 0.01 * 5;
-        econ.policyRate = Math.max(0, econ.policyRate + step);
+        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
+        econ.policyRate = Math.min(10,Math.max(0, econ.policyRate + step) + econ.gdpGrowth * 0.01 * 5);
         pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
         notify(`정책금리 ${fmt2(econ.policyRate)}%`);
     }
@@ -528,7 +528,7 @@ function updateEconForMonthChange() {
     econ.bondYield = Math.max(0, econ.bondYield + bondStep);
 
     // GDP and unemployment small monthly moves
-    econ.gdpGrowth = Math.max(-20, Math.min(20, econ.gdpGrowth + (Math.random() * 0.7 - 0.3)));
+    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth + ((econ.policyRate - RATE_BASE) * 0.1 * 0.6 - 0.3)));
     econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (econ.gdpGrowth * 0.05 * 0.6 - 0.3)));
 }
 
