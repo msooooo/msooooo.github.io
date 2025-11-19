@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.10</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.11</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -431,7 +431,7 @@ function getCurrentMu() {
     const vixNorm = (svix - VIX_BASE) / VIX_BASE;             // + high means more stress -> negative to mu
     const gdpNorm = (sgdp - GDP_BASE) / GDP_BASE;                      // + good GDP -> positive to mu
     const unempNorm = (sunemp - UEMP_BASE) / UEMP_BASE;                  // + high unemp -> negative to mu
-    const sentimentRaw = ( -0.6 * vixNorm + 0.8 * gdpNorm - 0.6 * unempNorm );
+    const sentimentRaw = ( -0.6 * vixNorm + 1.0 * gdpNorm - 0.6 * unempNorm );
     // store smoothed sentiment in econ._ema for debugging/inspection
     emaUpdate('sentiment', sentimentRaw, 0.16);
 
@@ -445,10 +445,10 @@ function getCurrentMu() {
 
     // 4) Compose mu as a weighted sum of small coefficients (kept small so mu is realistic)
     //    These weights chosen to produce mu in typical range [-0.3, +0.3] or narrower normally ~[-0.2,0.2]
-    const wSent = 0.060;    // sentiment has primary role (scaled)
+    const wSent = 0.080;    // sentiment has primary role (scaled)
     const wPolicy = -0.040; // tightening reduces mu
     const wBond = -0.020;  // higher bond yields slightly reduce mu (crowding/discount)
-    const wDriftBase = 0.03; // base drift (keep near zero)
+    const wDriftBase = 0.05; // base drift (keep near zero)
 
     let muRaw = wDriftBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
 
@@ -463,7 +463,7 @@ function getCurrentMu() {
     }
 
     // 6) Clamp mu to safe bounds and return
-    const muClamped = Math.max(-0.8, Math.min(0.8, muRaw));
+    const muClamped = Math.max(-0.4, Math.min(0.4, muRaw));
     return muClamped;
 }
 
