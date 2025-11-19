@@ -528,7 +528,7 @@ function updateEconForMonthChange() {
     econ.bondYield = Math.max(0, econ.bondYield + bondStep);
 
     // GDP and unemployment small monthly moves
-    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth + ((econ.policyRate - RATE_BASE) * 0.1 * 0.6 - 0.03)));
+    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth + Math.random() + 0.01 + ((-econ.policyRate + RATE_BASE) * 0.1 * 0.6 - 0.03)));
     econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (econ.gdpGrowth * 0.05 * 0.6 - 0.3)));
 }
 
