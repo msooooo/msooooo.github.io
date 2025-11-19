@@ -251,8 +251,12 @@
 -----------------------------*/
 const BASE_VOL = 0.20;    // base mapping when VIX base matches
 const VIX_BASE = 20.0;
+const RATE_BASE = 2.50
+const YIELD_BASE = 3.00
+const GDP_BASE = 2.0
+const UEMP_BASE = 5.0
 const BASE_MU = 0.05;
-const R = 0.03, Q = 0.0;
+let R = 0.03, Q = 0.0;
 
 // simulation time
 let simDate = new Date("2025-01-01T08:00:00");
@@ -270,11 +274,11 @@ let hoverIndex = null; // for crosshair
 
 // macro econ indicators
 let econ = {
-  vix: 20.0,
-  policyRate: 3.50,
-  bondYield: 4.00,
-  gdpGrowth: 2.0,
-  unemployment: 5.0
+  vix: VIX_BASE,
+  policyRate: RATE_BASE,
+  bondYield: YIELD_BASE,
+  gdpGrowth: GDP_BASE,
+  unemployment: UEMP_BASE
 };
 
 // player
@@ -414,7 +418,7 @@ function getCurrentVol() {
 
 function getCurrentMu() {
     // 1) EMA-smooth the indicators (alpha chosen to smooth day-to-day but allow month changes)
-    const alphaDay = 0.12; // 빠르진 않지만 반응하는 수준 (0.0..1.0)
+    const alphaDay = 0.24; // 빠르진 않지만 반응하는 수준 (0.0..1.0)
     const svix = emaUpdate('vix', econ.vix, alphaDay);
     const spolicy = emaUpdate('policyRate', econ.policyRate, alphaDay);
     const sbond = emaUpdate('bondYield', econ.bondYield, alphaDay);
@@ -425,26 +429,26 @@ function getCurrentMu() {
     //    sentiment positive -> bullish, negative -> bearish
     //    normalize relative to reference levels
     const vixNorm = (svix - VIX_BASE) / VIX_BASE;             // + high means more stress -> negative to mu
-    const gdpNorm = (sgdp - 2.0) / 2.0;                      // + good GDP -> positive to mu
-    const unempNorm = (sunemp - 5.0) / 5.0;                  // + high unemp -> negative to mu
-    const sentimentRaw = ( -0.6 * vixNorm + 0.5 * gdpNorm - 0.4 * unempNorm );
+    const gdpNorm = (sgdp - GDP_BASE) / GDP_BASE;                      // + good GDP -> positive to mu
+    const unempNorm = (sunemp - UEMP_BASE) / UEMP_BASE;                  // + high unemp -> negative to mu
+    const sentimentRaw = ( -0.6 * vixNorm + 0.8 * gdpNorm - 0.6 * unempNorm );
     // store smoothed sentiment in econ._ema for debugging/inspection
-    emaUpdate('sentiment', sentimentRaw, 0.08);
+    emaUpdate('sentiment', sentimentRaw, 0.16);
 
     // 3) Map policy/bond effects (tightening monetary policy -> negative mu)
     //    We'll interpret policyRate increase above a neutral level as drag on mu.
-    const policyNeutral = 3.5; // neutral policy rate for mapping (tunable)
-    const bondNeutral = 2.5;
+    const policyNeutral = RATE_BASE; // neutral policy rate for mapping (tunable)
+    const bondNeutral = YIELD_BASE;
 
     const policyDiff = spolicy - policyNeutral;
     const bondDiff = sbond - bondNeutral;
 
     // 4) Compose mu as a weighted sum of small coefficients (kept small so mu is realistic)
     //    These weights chosen to produce mu in typical range [-0.3, +0.3] or narrower normally ~[-0.2,0.2]
-    const wSent = 0.06;    // sentiment has primary role (scaled)
-    const wPolicy = -0.03; // tightening reduces mu
-    const wBond = -0.015;  // higher bond yields slightly reduce mu (crowding/discount)
-    const wDriftBase = 0.0; // base drift (keep near zero)
+    const wSent = 0.060;    // sentiment has primary role (scaled)
+    const wPolicy = -0.040; // tightening reduces mu
+    const wBond = -0.020;  // higher bond yields slightly reduce mu (crowding/discount)
+    const wDriftBase = 0.03; // base drift (keep near zero)
 
     let muRaw = wDriftBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
 
@@ -501,18 +505,18 @@ function updateEconForDayChange() {
     // Bond yield - partly correlated with VIX and policy expectations
     econ.bondYield += commonZ * 0.02 + zUnit() * 0.01;
     // keep bounds
-    econ.vix = Math.max(5, Math.min(120, econ.vix));
+    econ.vix = Math.max(5, Math.min(100, econ.vix));
     econ.bondYield = Math.max(0, econ.bondYield);
-    econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth));
+    econ.gdpGrowth = Math.max(-20, Math.min(20, econ.gdpGrowth));
     econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
 }
 
 function updateEconForMonthChange() {
     // Monthly central-bank style move (less frequent, bigger steps)
-    const rateMoveProb = 0.12; // ~12% chance
+    const rateMoveProb = 1 - (econ.gdpGrowth * 0.01) * 4; //
     if (Math.random() < rateMoveProb) {
-        const stepOptions = [-0.75, -0.5, -0.25, 0.25, 0.5, 0.75];
-        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
+        const stepOptions = [-0.5, -0.25, 0.25, 0.5];
+        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)] + econ.gdpGrowth * 0.01 * 5;
         econ.policyRate = Math.max(0, econ.policyRate + step);
         pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
         notify(`정책금리 ${fmt2(econ.policyRate)}%`);
@@ -520,12 +524,12 @@ function updateEconForMonthChange() {
 
     // Bond yield: trend toward policyRate*1.1 but with random walk
     const bondTarget = econ.policyRate * 1.1;
-    const bondStep = (Math.random() * 0.8 - 0.4) + (bondTarget - econ.bondYield) * 0.08;
+    const bondStep = (Math.random() * 0.8 - 0.4) + (bondTarget - econ.bondYield) * 0.08 + econ.gdpGrowth * 0.01 * 5;
     econ.bondYield = Math.max(0, econ.bondYield + bondStep);
 
     // GDP and unemployment small monthly moves
     econ.gdpGrowth = Math.max(-5, Math.min(10, econ.gdpGrowth + (Math.random() * 0.6 - 0.3)));
-    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (Math.random() * 0.6 - 0.3)));
+    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (econ.gdpGrowth * 0.05 * 0.6 - 0.3)));
 }
 
 /* ----------------------------
@@ -1294,7 +1298,7 @@ function resetSystem() {
   hoursPerTick = 1;
   state.spot = 10000.0;
   state.history = [{ t: new Date(simDate), price: state.spot }];
-  econ = { vix: 20.0, policyRate: 3.5, bondYield: 4.0, gdpGrowth: 2.0, unemployment: 5.0 };
+  econ = { vix: VIX_BASE, policyRate: RATE_BASE, bondYield: YIELD_BASE, gdpGrowth: GDP_BASE, unemployment: UEMP_BASE };
   player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
   witchingActiveTicks = 0;
