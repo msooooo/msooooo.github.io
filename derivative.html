@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.5</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.6</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -168,16 +168,16 @@
 
         <!-- debug tools (hidden until toggled) -->
         <div id="econDebugTools" style="margin-top:10px; display:none;">
-          <button id="dbgReset" class="debugBtn tiny">리셋 (초기화)</button>
-          <button id="dbgAddCash" class="debugBtn tiny">현금 +100k</button>
-          <button id="dbgWitch" class="debugBtn tiny">강제 변동성 증가</button>
-          <button id="dbgWhiteSwan" class="debugBtn tiny">강제 대폭등</button>
-          <button id="dbgBlackSwan" class="debugBtn tiny">강제 대폭락</button><br>
-          <button id="dbgPolicyRateUP" class="debugBtn tiny">정책금리 상승</button>
-          <button id="dbgPolicyRateDOWN" class="debugBtn tiny">정책금리 하락</button>
-          <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장률 상승</button>
-          <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장률 하락</button>
-          <button id="dbgShowMU" class="debugBtn tiny">추세 인덱스</button>
+          <button id="dbgReset" class="debugBtn tiny">리셋</button>
+          <button id="dbgAddCash" class="debugBtn tiny">현금+</button>
+          <button id="dbgWitch" class="debugBtn tiny">변동+</button>
+          <button id="dbgWhiteSwan" class="debugBtn tiny">폭등</button>
+          <button id="dbgBlackSwan" class="debugBtn tiny">폭락</button><br>
+          <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
+          <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
+          <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
+          <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
+          <button id="dbgShowMU" class="debugBtn tiny">추세</button>
         </div>
 
         <hr style="border:none;height:8px;">
@@ -1281,7 +1281,7 @@ document.getElementById('dbgGDPGrowthDOWN').addEventListener('click', () => {
 });
 document.getElementById('dbgShowMU').addEventListener('click', () => {
   const mu = getCurrentMU()
-  pushEventLog(`🫟 현재 추세 인덱스: ${fmt2(mu)}`);
+  pushEventLog(`🫟 현재 추세 인덱스: ㅇ`);
   renderAll();
 });
 
