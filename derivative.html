@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.12</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.13</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -417,54 +417,62 @@ function getCurrentVol() {
 }
 
 function getCurrentMu() {
-    // 1) EMA-smooth the indicators (alpha chosen to smooth day-to-day but allow month changes)
-    const alphaDay = 0.24; // 빠르진 않지만 반응하는 수준 (0.0..1.0)
-    const svix = emaUpdate('vix', econ.vix, alphaDay);
-    const spolicy = emaUpdate('policyRate', econ.policyRate, alphaDay);
-    const sbond = emaUpdate('bondYield', econ.bondYield, alphaDay);
-    const sgdp = emaUpdate('gdpGrowth', econ.gdpGrowth, alphaDay);
-    const sunemp = emaUpdate('unemployment', econ.unemployment, alphaDay);
+  // 기준(중립) 값들 — 내부에서 정의 (외부 상수와 충돌하지 않음)
+  const policyNeutral = RATE_BASE;
+  const gdpNeutral = GDP_BASE;
+  const unempNeutral = UEMP_BASE;
+  const bondNeutral = YIELD_BASE;
 
-    // 2) Build a common sentiment factor from smoothed VIX/GDP/Unemployment (standardize)
-    //    sentiment positive -> bullish, negative -> bearish
-    //    normalize relative to reference levels
-    const vixNorm = (svix - VIX_BASE) / VIX_BASE;             // + high means more stress -> negative to mu
-    const gdpNorm = (sgdp - GDP_BASE) / GDP_BASE;                      // + good GDP -> positive to mu
-    const unempNorm = (sunemp - UEMP_BASE) / UEMP_BASE;                  // + high unemp -> negative to mu
-    const sentimentRaw = ( -0.6 * vixNorm + 1.0 * gdpNorm - 0.6 * unempNorm );
-    // store smoothed sentiment in econ._ema for debugging/inspection
-    emaUpdate('sentiment', sentimentRaw, 0.16);
+  // EMA smoothing (내부 캐시 사용) — 간단 구현
+  if (!econ._ema) econ._ema = {};
+  function emaUpdateKey(key, value, alpha){
+    if (!(key in econ._ema)) { econ._ema[key] = value; return value; }
+    econ._ema[key] = econ._ema[key] * (1-alpha) + value * alpha;
+    return econ._ema[key];
+  }
 
-    // 3) Map policy/bond effects (tightening monetary policy -> negative mu)
-    //    We'll interpret policyRate increase above a neutral level as drag on mu.
-    const policyNeutral = RATE_BASE; // neutral policy rate for mapping (tunable)
-    const bondNeutral = YIELD_BASE;
+  const alphaDay = 0.12; // 이전보다 더 느리게(과도한 반응 방지)
+  const svix = emaUpdateKey('vix', econ.vix, alphaDay);
+  const spolicy = emaUpdateKey('policyRate', econ.policyRate, alphaDay);
+  const sbond = emaUpdateKey('bondYield', econ.bondYield, alphaDay);
+  const sgdp = emaUpdateKey('gdpGrowth', econ.gdpGrowth, alphaDay);
+  const sunemp = emaUpdateKey('unemployment', econ.unemployment, alphaDay);
 
-    const policyDiff = spolicy - policyNeutral;
-    const bondDiff = sbond - bondNeutral;
+  // 표준화 (normalize) — 값 범위를 적당히 맞춰서 가중치 안정화
+  const vixNorm = (svix - VIX_BASE) / Math.max(1, VIX_BASE);
+  const gdpNorm = (sgdp - gdpNeutral) / Math.max(0.1, Math.abs(gdpNeutral));
+  const unempNorm = (sunemp - unempNeutral) / Math.max(0.1, Math.abs(unempNeutral));
 
-    // 4) Compose mu as a weighted sum of small coefficients (kept small so mu is realistic)
-    //    These weights chosen to produce mu in typical range [-0.3, +0.3] or narrower normally ~[-0.2,0.2]
-    const wSent = 0.080;    // sentiment has primary role (scaled)
-    const wPolicy = -0.040; // tightening reduces mu
-    const wBond = -0.020;  // higher bond yields slightly reduce mu (crowding/discount)
-    const wDriftBase = 0.05; // base drift (keep near zero)
+  // sentiment: VIX (neg), GDP (pos), Unemp (neg)
+  let sentimentRaw = -0.6 * vixNorm + 1.0 * gdpNorm - 0.6 * unempNorm;
+  // clamp sentiment to avoid huge swings
+  sentimentRaw = Math.max(-2, Math.min(2, sentimentRaw));
 
-    let muRaw = wDriftBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
+  // policy/bond diffs (small)
+  const policyDiff = spolicy - policyNeutral;
+  const bondDiff = sbond - bondNeutral;
 
-    // 5) Add a tiny momentum term from recent returns (short-run mean reversion/momentum)
-    //    If recent returns positive, small positive contribution (momentum)
-    const historyLen = Math.min(48, state.history.length); // up to last 48 hours
-    if (historyLen >= 2) {
-      const last = state.history[state.history.length - 1].price;
-      const first = state.history[Math.max(0, state.history.length - historyLen)].price;
-      const recentRet = Math.log(last / first); // log-return over window
-      muRaw += 0.5 * recentRet / (historyLen / 24 * 1); // scale to annual approx (very small)
-    }
+  // weights (작게 유지)
+  const wSent = 0.06;    // sentiment 기본 영향
+  const wPolicy = -0.03; // 정책금리 느린 영향
+  const wBond = -0.01;   // 채권금리 약한 영향
+  const wBase = 0.02;    // 약간의 베이스 드리프트
 
-    // 6) Clamp mu to safe bounds and return
-    const muClamped = Math.max(-0.4, Math.min(0.4, muRaw));
-    return muClamped;
+  // compose raw mu
+  let muRaw = wBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
+
+  // 작은 모멘텀(최근 로그수익률)을 아주 작게 추가 (mean reversion + 안정화)
+  const historyLen = Math.min(96, state.history.length); // up to last 96 hours
+  if (historyLen >= 6) {
+    const last = state.history[state.history.length - 1].price;
+    const first = state.history[Math.max(0, state.history.length - historyLen)].price;
+    const recentRet = Math.log(last / first); // 로그수익
+    muRaw += 0.08 * recentRet; // 아주 작은 스케일
+  }
+
+  // **댐핑 & 포화**: muRaw를 tanh로 완만히 포화시켜 크게 튀지 않게 함
+  const scaled = Math.tanh(muRaw * 1.5) * 0.25; // 최종 mu ∈ (-0.25, 0.25) 정도
+  return scaled;
 }
 
 function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
@@ -479,59 +487,78 @@ function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
    - daily updates now include a shared 'globalShock' component so VIX/GDP/Unemp/bond move with correlation
    - monthly updates adjust policyRate with lower probability and bond yield moves as function of policy + random
 -----------------------------*/
-function updateEconForDayChange() {
-    // Shared common daily shock (market-wide sentiment shock)
-    let u = 0, v = 0;
-    while (u === 0) u = Math.random();
-    while (v === 0) v = Math.random();
-    const commonZ = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+function updateEconForDayChange(){
+  // 공통 충격 + 개별 충격 결합 (공통성은 작게)
+  let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
+  const commonZ = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v) * 0.35; // 공통요인 감쇄
 
-    // idiosyncratic z's
-    function zUnit() { let a=0,b=0; while(a===0) a=Math.random(); while(b===0) b=Math.random(); return Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b); }
+  function zUnit(){ let a=0,b=0; while(a===0) a=Math.random(); while(b===0) b=Math.random(); return Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b) * 0.9; }
 
-    // VIX: common shock plus idiosyncratic
-    const vixBaseDaily = 1.2;
-    const vixShock = commonZ * (vixBaseDaily * 0.9) + zUnit() * (vixBaseDaily * 0.5);
-    econ.vix += vixShock;
-    // mean reversion toward typical level 20
-    econ.vix += (20 - econ.vix) * 0.03;
-    // occasional small upward jump
-    if (Math.random() < 0.08) econ.vix += (2 + Math.random() * 4);
+  // VIX: 공통충격 + idiosyncratic, 그리고 강한 평균회귀
+  const vixDailyVol = 1.0;
+  const vixShock = commonZ * (vixDailyVol * 0.6) + zUnit() * (vixDailyVol * 0.4);
+  econ.vix += vixShock;
+  // 강한 평균회귀으로 장기치로 돌아오게 함
+  econ.vix += (VIX_BASE - econ.vix) * 0.05;
 
-    // GDP & Unemployment - daily micro noise only (slow-moving overall)
-    econ.gdpGrowth += 0.005 * zUnit(); // very small daily noise
-    econ.unemployment += 0.01 * zUnit();
+  // GDP: 매우 작은 일별 변화 + 강한 월별 조정(월단위에서 의미있게 업데이트)
+  econ.gdpGrowth += 0.002 * zUnit(); // 아주 작음
 
-    // Bond yield - partly correlated with VIX and policy expectations
-    econ.bondYield += commonZ * 0.02 + zUnit() * 0.01;
-    // keep bounds
-    econ.vix = Math.max(5, Math.min(100, econ.vix));
-    econ.bondYield = Math.max(0, econ.bondYield);
-    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
-    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
+  // Unemployment: 일별 마이크로 노이즈
+  econ.unemployment += 0.003 * zUnit();
+
+  // Bond yield: 소폭 노이즈 + 공통성 반영, 평균회귀
+  econ.bondYield += commonZ * 0.01 + zUnit() * 0.005;
+  econ.bondYield += (econ.policyRate * 1.05 - econ.bondYield) * 0.02; // 천천히 정책금리 수준으로 수렴
+
+  // 제한
+  econ.vix = Math.max(5, Math.min(120, econ.vix));
+  econ.bondYield = Math.max(0, Math.min(20, econ.bondYield));
+  econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
+  econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
 }
 
-function updateEconForMonthChange() {
-    // Monthly central-bank style move (less frequent, bigger steps)
-    const rateMoveProb = 1 - (econ.gdpGrowth * 0.01) * 5; //
-    if (Math.random() < rateMoveProb) {
-        const stepOptions = [-0.5, -0.25, 0.25, 0.5];
-        const step = stepOptions[Math.floor(Math.random() * stepOptions.length)];
-        econ.policyRate = Math.min(10,Math.max(0, econ.policyRate + step) + econ.gdpGrowth * 0.01 * 5);
-        pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
-        notify(`정책금리 ${fmt2(econ.policyRate)}%`);
-    }
+function updateEconForMonthChange(){
+  // 안전장치: 월간 변화는 완만하게 — 변화 확률 조절
+  // policy 변경 확률은 GDP와 인플레(여기선 VIX proxy)를 함께 고려
+  const baseRateMoveProb = 0.12; // 기본 확률
+  // GDP extreme일 때만 확률이 올라가게 (정상범위에선 낮게 유지)
+  const gdpFactor = Math.max(0, Math.abs(econ.gdpGrowth - GDP_BASE) / 3.0); // 0..약값
+  const prob = Math.min(0.6, baseRateMoveProb + gdpFactor * 0.15);
 
-    // Bond yield: trend toward policyRate*1.1 but with random walk
-    const bondTarget = econ.policyRate * 1.1;
-    const bondStep = (Math.random() * 0.8 - 0.4) + (bondTarget - econ.bondYield) * 0.08 + econ.gdpGrowth * 0.01 * 5;
-    econ.bondYield = Math.max(0, econ.bondYield + bondStep);
+  if (Math.random() < prob){
+    // 작은 스텝들 위주로만
+    const stepOptions = [-0.25, -0.125, 0.125, 0.25];
+    const step = stepOptions[Math.floor(Math.random()*stepOptions.length)];
+    // DAMPENING: 금리 직접 덧셈이 아니라 목표금리(target)로 점진 이동
+    const target = Math.max(0, econ.policyRate + step);
+    econ.policyRate = econ.policyRate * 0.7 + target * 0.3; // 부드러운 이동 (70% inertia)
+    pushEventLog(`📊 정책금리 조정 (soft) -> ${fmt2(econ.policyRate)}%`);
+    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
+  }
 
-    // GDP and unemployment small monthly moves
-    econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth + Math.random() + 0.01 + ((-econ.policyRate + RATE_BASE) * 0.1 * 0.6 - 0.03)));
-    econ.unemployment = Math.max(0, Math.min(30, econ.unemployment + (econ.gdpGrowth * 0.05 * 0.6 - 0.3)));
+  // Bond yield: trend towards policy*1.05 with damping + small random
+  const bondTarget = econ.policyRate * 1.05;
+  econ.bondYield += (bondTarget - econ.bondYield) * 0.08 + (Math.random()*0.4 - 0.2);
+
+  // GDP: 적용하는 변화는 '정책금리의 장기적 영향' - 하지만 댐핑을 강하게
+  // 정책금리가 정상치보다 높으면 GDP를 소폭 낮추고, 낮으면 소폭 높인다.
+  const policyNeutral = RATE_BASE;
+  const policyEffect = (policyNeutral - econ.policyRate) * 0.03; // 작은 계수
+  // add small random monthly term and damping toward long-term trend (2.0)
+  const longTermTargetGdp = GDP_BASE;
+  econ.gdpGrowth = econ.gdpGrowth * 0.85 + (longTermTargetGdp + policyEffect) * 0.15 + (Math.random()*0.6 - 0.3) * 0.2;
+
+  // Unemployment: negative correlation with GDP, with damping
+  const unempTarget = Math.max(0, 6.5 - 0.5 * econ.gdpGrowth); // 간단한 목표식
+  econ.unemployment += (unempTarget - econ.unemployment) * 0.12 + (Math.random()*0.4 - 0.2) * 0.5;
+
+  // clamp to safe ranges
+  econ.policyRate = Math.max(0, Math.min(12, econ.policyRate));
+  econ.bondYield = Math.max(0, Math.min(20, econ.bondYield));
+  econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
+  econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
 }
-
 /* ----------------------------
    Events (unchanged)
 -----------------------------*/
