@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.28</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.29</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -691,6 +691,8 @@ function stepMarket(){
 
     // expiries: only check after hourly advancement to catch expiries that happen at 00:00
     checkExpiries();
+    // forceColse
+    liquidateFutures();
 
     // decrement temporary event counters
     if (witchingActiveTicks > 0) witchingActiveTicks--;
@@ -798,6 +800,36 @@ function tradeOption() {
     renderAll();
 }
 
+function liquidateFutures() {
+  const limitStr = document.getElementById('futCloseRate').value;
+  if (limitStr === 'inf') return; // 무한대면 강제청산 없음
+  
+  const limit = Number(limitStr); // 50 or 100
+
+  for (let i = player.positions.futures.length - 1; i >= 0; i--) {
+      const f = player.positions.futures[i];
+
+      // 현재 선물 가격 계산
+      const tau = tauYearsFromExpiry(f.expiryDate);
+      const curF = state.spot * Math.exp((R - Q) * tau);
+
+      // 손익 계산
+      const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+      const pnl = pnlPer * f.qty;
+      const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+
+      // 강제청산 조건
+      if (Math.abs(pct) >= limit) {
+          // 기존 closeFuture() 로직과 동일
+          player.cash += f.lockedMargin + pnl;
+          pushEventLog(`⚠️ 강제청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+          player.positions.futures.splice(i, 1);
+
+          // 상세 패널 초기화
+          if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+      }
+}
+
 function checkExpiries() {
     const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate());
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
@@ -869,7 +901,7 @@ function closeFuture(idx) {
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
     player.cash += f.lockedMargin + pnl;
     player.positions.futures.splice(idx, 1);
-    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin)}`);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
     if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
     renderAll();
 }
