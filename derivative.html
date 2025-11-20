@@ -883,7 +883,6 @@ function computeEquity() {
     let futPaid = 0;
     player.positions.futures.forEach(f => {
         const tau = tauYearsFromExpiry(f.expiryDate);
-        const futPaid = f.notional;
         const curF = state.spot * Math.exp((R - Q) * tau);
         const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
         futUnreal += pnlPer * f.qty;
