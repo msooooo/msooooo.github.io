@@ -86,7 +86,7 @@
           <option value="0.1">0.1x</option>
           <option value="0.25">0.25x</option>
           <option value="0.5">0.5x</option>
-          <option select value="1">1x</option>
+          <option selected value="1">1x</option>
           <option value="2">2x</option>
           <option value="4">4x</option>
           <option value="8">8x</option>
@@ -113,7 +113,7 @@
       <label>포지션</label>
       <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
       <label>레버리지 | 증거금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
+      <div style="display:flex; gap:8px; align-items:center;">
         <select id="futLev">
           <option>1</option>
           <option>2</option>
@@ -132,7 +132,7 @@
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
+      <div style="display:flex; gap:8px; align-items:center;">
         <input id="futQty" type="number" min="1" value="1" />
         <div class="dataBox" id="futTotalDisplay">0.00</div>
       </div>
@@ -146,14 +146,14 @@
       <label>포지션</label>
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
       <label>행사가 | 프리미엄</label>
-      <div style="display:flex; gap:12px; align-items:center;">
+      <div style="display:flex; gap:8px; align-items:center;">
         <input id="optK" type="number" value="10000" step="10" />
         <div class="dataBox" id="optPremiumDisplay">0.00</div>
       </div>
       <label>만기</label>
       <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
+      <div style="display:flex; gap:8px; align-items:center;">
         <input id="optQty" type="number" min="1" value="1" />
         <div class="dataBox" id="optTotalDisplay">0.00</div>
       </div>
