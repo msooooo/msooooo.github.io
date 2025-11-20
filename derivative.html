@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.37</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.38</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -657,7 +657,7 @@ function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 
 function stepMarket(){
   // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
-  for (let step=0; step<Math.max(1,hoursPerTick); step++){
+  for (let step=0; step<Math.max(0,hoursPerTick); step++){
     // advance by 1 hour
     const prevDate = new Date(simDate);
     simDate = new Date(simDate.getTime() + 1*3600*1000);
