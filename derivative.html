@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.39</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.40</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -174,8 +174,8 @@
       <div id="econPanel">
         <div id="econHeader">
           <div>
-            <h3 style="margin:0">경제 지표 (Macro Indicators)</h3>
-            <div class="small muted">이 지표가 σ(변동성)·μ(드리프트)에 영향을 줍니다.</div>
+            <h3 style="margin:0">경제 지표 (Economic Indicators)</h3>
+            <div class="small muted">변동성과 추세를 나타내는 지표</div>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
             <button id="toggleDebug" class="tiny debugBtn">⚙ Debug</button>
@@ -225,7 +225,7 @@
 
       <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
       <div id="details">
-        <div class="small muted">오른쪽 보유목록에서 종목을 클릭하면, <br> 이곳에 실시간 세부 정보가 표시됩니다.</div>
+        <div class="small muted">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>
       </div>
     </div>
   </div>
@@ -736,6 +736,7 @@ function openFuture() {
     const months = Number(document.getElementById('futExp').value) || 1;
     const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
     const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const tradeDate = simDate.slice(0,10);
     const tau = tauYearsFromExpiry(expiryDate);
     const entry = state.spot * Math.exp((R - Q) * tau);
     const notional = entry * qty;
@@ -749,6 +750,7 @@ function openFuture() {
         entry,
         lev,
         expiryDate,
+        tradeDate,
         lockedMargin: margin,
         notional,
         closeRate
@@ -770,6 +772,7 @@ function tradeOption() {
     const months = Number(document.getElementById('optExp').value) || 1;
     const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
     const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const tradeDate = simDate.slice(0,10);
     const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
     if (side === 'Long') {
         const total = prem * qty;
@@ -782,7 +785,8 @@ function tradeOption() {
             K,
             entryPremium: prem,
             openDate: new Date(simDate),
-            expiryDate
+            expiryDate,
+            tradeDate
         });
         pushEventLog(`🟢 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
     } else {
@@ -794,7 +798,8 @@ function tradeOption() {
             K,
             entryPremium: prem,
             openDate: new Date(simDate),
-            expiryDate
+            expiryDate,
+            tradeDate
         });
         pushEventLog(`🔴 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
     }
@@ -823,7 +828,7 @@ function liquidateFutures() {
       if (Math.abs(pct) >= limit) {
           // 기존 closeFuture() 로직과 동일
           player.cash += f.lockedMargin + pnl;
-          pushEventLog(`⚠️ 강제청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+          pushEventLog(`⚠️ 강제청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
           player.positions.futures.splice(i, 1);
 
           // 상세 패널 초기화
@@ -904,7 +909,7 @@ function closeFuture(idx) {
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
     player.cash += f.lockedMargin + pnl;
     player.positions.futures.splice(idx, 1);
-    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
     if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
     renderAll();
 }
@@ -1174,7 +1179,7 @@ function updateDetails() {
   const details = document.getElementById('details');
 
   if (!selectedDetail) {
-    details.innerHTML = `<div class="small muted">오른쪽 보유목록에서 종목을 클릭하면, <br> 이곳에 실시간 세부 정보가 표시됩니다.</div>`;
+    details.innerHTML = `<div class="small muted">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>`;
     return;
   }
 
@@ -1206,6 +1211,7 @@ function updateDetails() {
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${f.expiryDate}</div></div>
+      <div class="indRow"><div class="small muted">거래일</div><div>${f.tradeDate}</div></div>
       <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
     `;
   } else if (type === 'Option') {
@@ -1233,6 +1239,7 @@ function updateDetails() {
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${o.expiryDate}</div></div>
+      <div class="indRow"><div class="small muted">거래일</div><div>${o.tradeDate}</div></div>
       <div style="margin-top:10px;"><button onclick="closeOption(${idx})">즉시 청산</button></div>
     `;
   }
