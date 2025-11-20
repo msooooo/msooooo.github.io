@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.19</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.20</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -309,7 +309,10 @@ let lastTickMonth = null;
 /* ----------------------------
    Utilities (unchanged)
 -----------------------------*/
-function fmt2(x){ return Number(x).toFixed(2); }
+function fmt2(x){
+  if (isNaN(x) || x === undefined || x === null) return "0.00";
+  return Number(x).toFixed(2);
+}
 function nowStr(d){
   const Y=d.getFullYear(), M=String(d.getMonth()+1).padStart(2,'0'), D=String(d.getDate()).padStart(2,'0'),
         h=String(d.getHours()).padStart(2,'0'), m=String(d.getMinutes()).padStart(2,'0');
@@ -1224,7 +1227,7 @@ function renderAll() {
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty;
-    const pct = f.notional ? (pnl / f.notional) * 100 * f.lev : 0;
+    const pct = f.notional ? (pnl / f.notional) * 100 : 0;
 
     const el = document.createElement('div');
     el.className = 'posItem';
