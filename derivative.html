@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.26</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.27</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -106,15 +106,16 @@
     <div class="section">
       <h3 style="margin:0">선물 (Futures)</h3>
       <div style="display:flex; gap:8px; align-items:center;">
-        <div class="half">
+        <div>
           <label>포지션</label>
-          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
-        </div>
-        <div class="half">
           <label>레버리지</label>
-          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+          <label> </label>
         </div>
-        <div class="small muted" id="futMarginDisplay">증거금<br>0.00</div>
+        <div>
+          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+          <div class="small muted" id="futMarginDisplay">증거금<br>0.00</div>
+        </div>
       </div>
       <label>손익비 한계치</label>
       <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
