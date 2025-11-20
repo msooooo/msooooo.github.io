@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.22</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.23</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -105,10 +105,20 @@
 
     <div class="section">
       <h3 style="margin:0">선물 (Futures)</h3>
-      <label>포지션</label>
-      <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
-      <label>레버리지</label>
-      <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div>
+          <label>포지션</label>
+          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+        </div>
+        <div>
+          <label>레버리지</label>
+          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
+        <div class="small muted" id="futMarginDisplay">증거금: 0.00</div>
+      </div>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
@@ -124,7 +134,7 @@
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
       <label>행사가 (Strike)</label>
       <div style="display:flex; gap:8px; align-items:center;">
-        <input id="optK" type="number" value="10000" step="0.01" />
+        <input id="optK" type="number" value="10000" step="10" />
         <div class="small muted" id="optPremiumDisplay">프리미엄: 0.00</div>
       </div>
       <label>만기</label>
@@ -193,7 +203,7 @@
         <div class="small muted">설명</div>
         <ul class="small muted">
           <li>VIX: 매일 작게 변동, 값이 클수록 σ 증가</li>
-          <li>Policy Rate: 월 단위 큰 스텝(중앙은행)</li>
+          <li>Policy Rate: 월 단위 스텝(중앙은행)</li>
           <li>Bond Yield: 월 단위 시장 보행</li>
           <li>GDP/Unemp: 느리게 변하며 μ를 좌우</li>
         </ul>
@@ -1197,6 +1207,7 @@ function renderAll() {
   document.getElementById('indGdp').innerText = fmt2(econ.gdpGrowth);
   document.getElementById('indUnemp').innerText = fmt2(econ.unemployment);
 
+  updateFutMarginDisplay();
   updateOptPremiumDisplay();
   drawChart();
 
@@ -1269,8 +1280,15 @@ function renderAll() {
 }
 
 /* ----------------------------
-   Opt premium display helper
+   Fut margin & Opt premium display helper
 -----------------------------*/
+function updateFutMarginDisplay() {
+  const lev = Number(document.getElementById('futLev').value;
+  const entry = state.spot * Math.exp((R - Q) * tau);
+  const margin = entry / lev;
+  document.getElementById('futMarginDisplay').innerText = `증거금: ${fmt2(margin)}`;
+}
+
 function updateOptPremiumDisplay() {
   const K = Number(document.getElementById('optK').value || state.spot);
   const months = Number(document.getElementById('optExp').value || 1);
