@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.45</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.46</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -736,7 +736,7 @@ function openFuture() {
     const months = Number(document.getElementById('futExp').value) || 1;
     const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
     const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
-    const tradeDate = simDate.toISOString().slice(0,10);
+    const tradeDate = document.getElementById('datetime').value.slice(0,10);
     const tau = tauYearsFromExpiry(expiryDate);
     const entry = state.spot * Math.exp((R - Q) * tau);
     const notional = entry * qty;
@@ -772,7 +772,7 @@ function tradeOption() {
     const months = Number(document.getElementById('optExp').value) || 1;
     const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
     const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
-    const tradeDate = simDate.toISOString().slice(0,10);
+    const tradeDate = document.getElementById('datetime').value.slice(0,10);
     const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
     if (side === 'Long') {
         const total = prem * qty;
