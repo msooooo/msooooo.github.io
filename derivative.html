@@ -472,7 +472,7 @@ function getCurrentMu() {
   const bondDiff = sbond - bondNeutral;
 
   // weights (작게 유지)
-  const wSent = 0.5;    // sentiment 기본 영향
+  const wSent = 0.05;    // sentiment 기본 영향
   const wPolicy = -0.03; // 정책금리 느린 영향
   const wBond = -0.02;   // 채권금리 약한 영향
   const wBase = 0.05;    // 약간의 베이스 드리프트
