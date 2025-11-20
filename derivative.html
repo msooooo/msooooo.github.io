@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.30</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.31</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -105,26 +105,19 @@
 
     <div class="section">
       <h3 style="margin:0">선물 (Futures)</h3>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <div>
-          <label>포지션</label>
-          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
-        </div>
-        <div>
-          <label>레버리지</label>
-          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
-        </div>
-        <div>
-          <label> </label>
-          <div class="small muted" id="futMarginDisplay">증거금<br>0.00</div>
-        </div>
+      <label>포지션</label>
+      <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+      <label>레버리지</label>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+        <div class="small muted" id="futMarginDisplay">증거금<br>0.00</div>
       </div>
       <label>손익비 한계치</label>
       <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="futQty" type="number" min="1" value="1" />
         <div class="small muted" id="futTotalDisplay">거래금<br>0.00</div>
       </div>
@@ -138,14 +131,14 @@
       <label>포지션</label>
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
       <label>행사가 (Strike)</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="optK" type="number" value="10000" step="10" />
         <div class="small muted" id="optPremiumDisplay">프리미엄<br>0.00</div>
       </div>
       <label>만기</label>
       <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="optQty" type="number" min="1" value="1" />
         <div class="small muted" id="optTotalDisplay">거래금<br>0.00</div>
       </div>
@@ -179,7 +172,7 @@
             <h3 style="margin:0">경제 지표 (Macro Indicators)</h3>
             <div class="small muted">이 지표가 σ(변동성)·μ(드리프트)에 영향을 줍니다.</div>
           </div>
-          <div style="display:flex; align-items:center; gap:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
             <button id="toggleDebug" class="tiny debugBtn">⚙ Debug</button>
           </div>
         </div>
