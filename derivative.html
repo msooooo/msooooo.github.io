@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.17</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.18</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -876,20 +876,22 @@ function closeOption(idx) {
 function computeEquity() {
     const s = player.positions.spot;
     const spotVal = s.qty * state.spot;
-    const futPaid = f.notional;
     let futUnreal = 0;
+    let futPaid = 0;
     player.positions.futures.forEach(f => {
         const tau = tauYearsFromExpiry(f.expiryDate);
+        const futPaid = f.notional;
         const curF = state.spot * Math.exp((R - Q) * tau);
         const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-        futUnreal += pnlPer * f.qty * f.lev;
+        futUnreal += pnlPer * f.qty;
+        futPaid += f.notional;
     });
-    const optPaid = o.entryPremium * o.qty;
     let optUnreal = 0;
+    let optPaid = 0;
     player.positions.options.forEach(o => {
         const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
-        if (o.side === 'Long') optUnreal += (cur - o.entryPremium) * o.qty;
-        else optUnreal += (o.entryPremium - cur) * o.qty;
+        if (o.side === 'Long') { optUnreal += (cur - o.entryPremium) * o.qty; optPaid += o.entryPremium * o.qty; };
+        else { optUnreal += (o.entryPremium - cur) * o.qty; optPaid -= o.entryPremium * o.qty; };
     });
     const total = player.cash + spotVal + futUnreal + futPaid + optUnreal + optPaid;
     return {
