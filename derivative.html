@@ -113,18 +113,8 @@
       <label>포지션</label>
       <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
       <label>레버리지 | 증거금</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <select id="futLev">
-          <option>1</option>
-          <option>2</option>
-          <option>5</option>
-          <option selected>10</option>
-          <option>20</option>
-          <option>50</option>
-          <option>100</option>
-          <option>200</option>
-          <option>500</option>
-        </select>
+      <div style="display:flex; gap:12px; align-items:center;">
+        <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option><option>500</option></select>
         <div class="dataBox" id="futMarginDisplay">0.00</div>
       </div>
       <label>손익비 한계치</label>
@@ -132,7 +122,7 @@
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="futQty" type="number" min="1" value="1" />
         <div class="dataBox" id="futTotalDisplay">0.00</div>
       </div>
@@ -146,14 +136,14 @@
       <label>포지션</label>
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
       <label>행사가 | 프리미엄</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="optK" type="number" value="10000" step="10" />
         <div class="dataBox" id="optPremiumDisplay">0.00</div>
       </div>
       <label>만기</label>
       <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:8px; align-items:center;">
+      <div style="display:flex; gap:12px; align-items:center;">
         <input id="optQty" type="number" min="1" value="1" />
         <div class="dataBox" id="optTotalDisplay">0.00</div>
       </div>
@@ -562,6 +552,7 @@ function updateEconForMonthChange(){
     // DAMPENING: 금리 직접 덧셈이 아니라 목표금리(target)로 점진 이동
     const target = Math.max(0, econ.policyRate + step);
     econ.policyRate = econ.policyRate * 0.7 + target * 0.3; // 부드러운 이동 (70% inertia)
+    R = econ.policyRate;
     pushEventLog(`📊 정책금리 조정 (soft) -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
   }
@@ -634,6 +625,7 @@ function triggerBlackSwan(source = 'system') {
 function triggerPolicyRateUP(source = 'system') {
     const step = 0.25
     econ.policyRate = Math.max(0, econ.policyRate + step);
+    R = econ.policyRate;
     pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
 }
@@ -641,6 +633,7 @@ function triggerPolicyRateUP(source = 'system') {
 function triggerPolicyRateDOWN(source = 'system') {
     const step = -0.25
     econ.policyRate = Math.max(0, econ.policyRate + step);
+    R = econ.policyRate;
     pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
 }
@@ -674,8 +667,8 @@ function stepMarket(){
     const curMonth = simDate.getMonth() + 1;
     if (lastTickDay === null || curDay !== lastTickDay){
       updateEconForDayChange();
-      if (Math.random() < 0.0003){ triggerBlackSwan('random'); }
-      if (Math.random() < 0.0003){ triggerWhiteSwan('random'); }
+      if (Math.random() < 0.0005){ triggerBlackSwan('random'); }
+      if (Math.random() < 0.0005){ triggerWhiteSwan('random'); }
     }
     if (lastTickMonth === null || curMonth !== lastTickMonth){
       updateEconForMonthChange();
@@ -685,7 +678,6 @@ function stepMarket(){
     // compute dt for 1 hour
     const dt = 1 / (24*365);
     const sigma = getCurrentVol();
-    R = sigma;
     const mu = getCurrentMu();
     // gaussian
     let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
@@ -1056,7 +1048,7 @@ function drawChart() {
         ctx.fillStyle = "#cfeaff";
         ctx.font = "12px system-ui";
         ctx.fillText("가격 차트 준비 중...", 8, 16);
-        document.getElementById('periodReturn').innerText = `+0.00%`;
+        document.getElementById('periodReturn').innerText = `증감률 +0.00%`;
         return;
     }
 
@@ -1081,13 +1073,13 @@ function drawChart() {
     ctx.fillStyle = "#cfeaff";
     ctx.font = "12px system-ui";
     const latest = data[data.length - 1];
-    ctx.fillText('현재가: ${fmt2(latest)}', 8, 16);
-    ctx.fillText('VIX: ${fmt2(econ.vix)}', 120, 16);
+    ctx.fillText(`현재가: ${fmt2(latest)}`, 8, 16);
+    ctx.fillText(`VIX: ${fmt2(econ.vix)}`, 120, 16);
 
     const ret = calcPeriodReturn(dataFull);
     if (ret !== null) {
         const el = document.getElementById('periodReturn');
-        el.innerText = '${ret>=0?'+':''}${fmt2(ret)}%';
+        el.innerText = `${ret>=0?'+':''}${fmt2(ret)}%`;
         el.style.color = ret >= 0 ? 'var(--profit)' : 'var(--loss)';
     }
 
@@ -1419,7 +1411,7 @@ document.getElementById('dbgShowMU').addEventListener('click', () => {
    Reset system (debug)
 -----------------------------*/
 function resetSystem() {
-  simDate = new Date("2025-01-01T08:00:00");
+  simDate = new Date("2025-01-01T00:00:00");
   hoursPerTick = 1;
   state.spot = 10000.0;
   state.history = [{ t: new Date(simDate), price: state.spot }];
