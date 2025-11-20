@@ -115,6 +115,7 @@
           <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
         </div>
       </div>
+      <label>손익비 한계치</label>
       <div style="display:flex; gap:8px; align-items:center;">
         <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
         <div class="small muted" id="futMarginDisplay">증거금: 0.00</div>
@@ -741,9 +742,9 @@ function openFuture() {
         notional
     });
     if (side === 'Long') {
-      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 x${lev}`);
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 ${lev}x`);
     } else {
-      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 x${lev}`);
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 ${lev}x`);
     }
     
     
@@ -1283,7 +1284,7 @@ function renderAll() {
    Fut margin & Opt premium display helper
 -----------------------------*/
 function updateFutMarginDisplay() {
-  const lev = Number(document.getElementById('futLev').value;
+  const lev = Number(document.getElementById('futLev').value) || 1;
   const entry = state.spot * Math.exp((R - Q) * tau);
   const margin = entry / lev;
   document.getElementById('futMarginDisplay').innerText = `증거금: ${fmt2(margin)}`;
