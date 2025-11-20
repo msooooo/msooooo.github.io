@@ -25,7 +25,7 @@
   .muted{ color:var(--muted); font-size:12px; }
   .inline{ display:flex; gap:8px; align-items:center; }
   .small{ font-size:12px; color:var(--muted); }
-  #dataBox { min-width: 90px; padding: 10px 6px; background: #0c2747; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3;}
+  .dataBox { min-width: 90px; padding: 10px 6px; background: #0c2747; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3;}
   /* CENTER - chart + econ/details row */
   #center{ flex:1; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
   #chartWrap{ height:34%; background:#081226; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; }
@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.32</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.33</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -108,19 +108,19 @@
       <h3 style="margin:0">선물 (Futures)</h3>
       <label>포지션</label>
       <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
-      <label>레버리지</label>
+      <label>레버리지 | 증거금</label>
       <div style="display:flex; gap:12px; align-items:center;">
         <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
-        <div class="dataBox" id="futMarginDisplay">증거금<br>0.00</div>
+        <div class="dataBox" id="futMarginDisplay">0.00</div>
       </div>
       <label>손익비 한계치</label>
       <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
-      <label>수량</label>
+      <label>수량 | 예상 거래금</label>
       <div style="display:flex; gap:12px; align-items:center;">
         <input id="futQty" type="number" min="1" value="1" />
-        <div class="dataBox" id="futTotalDisplay">거래금<br>0.00</div>
+        <div class="dataBox" id="futTotalDisplay">0.00</div>
       </div>
       <button id="openFut">포지션 열기</button>
     </div>
@@ -131,17 +131,17 @@
       <select id="optType"><option value="Call">Call</option><option value="Put">Put</option></select>
       <label>포지션</label>
       <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
-      <label>행사가 (Strike)</label>
+      <label>행사가 | 프리미엄</label>
       <div style="display:flex; gap:12px; align-items:center;">
         <input id="optK" type="number" value="10000" step="10" />
-        <div class="dataBox" id="optPremiumDisplay">프리미엄<br>0.00</div>
+        <div class="dataBox" id="optPremiumDisplay">0.00</div>
       </div>
       <label>만기</label>
       <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
-      <label>수량</label>
+      <label>수량 | 예상 거래금</label>
       <div style="display:flex; gap:12px; align-items:center;">
         <input id="optQty" type="number" min="1" value="1" />
-        <div class="dataBox" id="optTotalDisplay">거래금<br>0.00</div>
+        <div class="dataBox" id="optTotalDisplay">0.00</div>
       </div>
       <button id="tradeOpt">옵션 거래</button>
     </div>
@@ -1329,8 +1329,8 @@ function updateFutMarginDisplay() {
   const entry = state.spot * Math.exp((R - Q) * tau);
   const margin = entry / lev;
   const total = margin * qty;
-  document.getElementById('futMarginDisplay').innerHTML = `증거금<br>${fmt2(margin)}`;
-  document.getElementById('futTotalDisplay').innerHTML = `거래금<br>${fmt2(total)}`;
+  document.getElementById('futMarginDisplay').innerHTML = `${fmt2(margin)}`;
+  document.getElementById('futTotalDisplay').innerHTML = `${fmt2(total)}`;
 }
 
 function updateOptPremiumDisplay() {
@@ -1341,8 +1341,8 @@ function updateOptPremiumDisplay() {
   const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
   const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
   const total = prem * qty
-  document.getElementById('optPremiumDisplay').innerHTML = `프리미엄<br>${fmt2(prem)}`;
-  document.getElementById('optTotalDisplay').innerHTML = `거래금<br>${fmt2(total)}`;
+  document.getElementById('optPremiumDisplay').innerHTML = `${fmt2(prem)}`;
+  document.getElementById('optTotalDisplay').innerHTML = `${fmt2(total)}`;
 
 }
 
