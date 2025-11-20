@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.29</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.30</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -828,6 +828,8 @@ function liquidateFutures() {
           // 상세 패널 초기화
           if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
       }
+   }
+   renderAll();
 }
 
 function checkExpiries() {
