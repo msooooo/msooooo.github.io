@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.38</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.39</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -165,7 +165,7 @@
         <button class="periodBtn" data-period="1Y">1Y</button>
         <button class="periodBtn" data-period="3Y">3Y</button>
         <button class="periodBtn active" data-period="ALL">ALL</button>
-        <div id="periodReturn">+0.00%</div>
+        <div class=dataBox id="periodReturn">+0.00%</div>
       </div>
     </div>
 
@@ -199,25 +199,25 @@
         <hr style="border:none;height:8px;">
 
         <!-- indicator rows -->
-        <div class="indRow"><div class="indName">VIX (vol index)</div><div class="indValue" id="indVix">20.0</div></div>
-        <div class="indRow"><div class="indName">Policy Rate (%)</div><div class="indValue" id="indPolicy">0.50</div></div>
-        <div class="indRow"><div class="indName">Bond Yield (%)</div><div class="indValue" id="indBond">1.50</div></div>
-        <div class="indRow"><div class="indName">GDP Growth (%)</div><div class="indValue" id="indGdp">2.00</div></div>
-        <div class="indRow"><div class="indName">Unemployment (%)</div><div class="indValue" id="indUnemp">5.00</div></div>
+        <div class="indRow"><div class="indName">VIX (변동성 지수)</div><div class="indValue" id="indVix">20.0</div></div>
+        <div class="indRow"><div class="indName">정책금리 (%)</div><div class="indValue" id="indPolicy">2.50</div></div>
+        <div class="indRow"><div class="indName">채권금리 (%)</div><div class="indValue" id="indBond">3.00</div></div>
+        <div class="indRow"><div class="indName">GDP 성장률 (%)</div><div class="indValue" id="indGdp">2.00</div></div>
+        <div class="indRow"><div class="indName">비고용률 (%)</div><div class="indValue" id="indUnemp">5.00</div></div>
 
         <hr style="border:none;height:8px;">
         <div class="small muted">설명</div>
         <ul class="small muted">
-          <li>VIX: 매일 작게 변동, 값이 클수록 σ 증가</li>
-          <li>Policy Rate: 월 단위 스텝(중앙은행)</li>
-          <li>Bond Yield: 월 단위 시장 보행</li>
-          <li>GDP/Unemp: 느리게 변하며 μ를 좌우</li>
+          <li>VIX: 매일 변하며, 값이 클수록 변동성 증가</li>
+          <li>정책금리: 경제 상황에 따라 매월 결정</li>
+          <li>채권금리: 정책금리와 경제 상황에 따라 변함</li>
+          <li>GDP/비고용률: 느리게 변하며 추세에 영향</li>
         </ul>
 
         <!-- Moved Event Log here so it matches econ panel width -->
         <div style="margin-top:32px;">
-          <h4 style="margin:6px 0 4px 0">시장 이벤트 로그</h4>
-          <div class="small muted">최근 이벤트 및 주요 알림 (최대 100)</div>
+          <h4 style="margin:6px 0 4px 0">게임 이벤트 로그</h4>
+          <div class="small muted">최근 시장 이벤트 및 거래기록</div>
           <div id="eventLog" style="margin-top:6px;"></div>
         </div>
 
@@ -1423,7 +1423,7 @@ function resetSystem() {
   lastTickDay = null;
   lastTickMonth = null;
   selectedDetail = null;
-  pushEventLog('🔁 시스템 초기화 (Debug)');
+  pushEventLog('🔁 시스템 초기화 완료');
   renderAll();
 }
 
@@ -1437,7 +1437,7 @@ document.getElementById('tradeOpt').addEventListener('click', tradeOption);
 document.getElementById('optK').addEventListener('input', updateOptPremiumDisplay);
 document.getElementById('optType').addEventListener('change', updateOptPremiumDisplay);
 document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
-document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = Number(e.target.value); });
+document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = e.target.value; });
 
 const periodButtons = document.querySelectorAll('.periodBtn');
 periodButtons.forEach(b => {
@@ -1453,7 +1453,7 @@ periodButtons.forEach(b => {
    Initialization & main loop
 -----------------------------*/
 state.history.push({ t: new Date(simDate), price: state.spot });
-pushEventLog('🚀 시뮬레이터 시작 (spot 10,000)');
+pushEventLog('🚀 미니 파생상품 게임 시작 (현물 시작가: 10,000)');
 renderAll();
 drawChart();
 setInterval(() => { stepMarket(); }, 1000);
