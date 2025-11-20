@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.27</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.28</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -108,12 +108,14 @@
       <div style="display:flex; gap:8px; align-items:center;">
         <div>
           <label>포지션</label>
-          <label>레버리지</label>
-          <label> </label>
+          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
         </div>
         <div>
-          <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+          <label>레버리지</label>
           <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
+        </div>
+        <div>
+          <label> </label>
           <div class="small muted" id="futMarginDisplay">증거금<br>0.00</div>
         </div>
       </div>
@@ -1299,8 +1301,8 @@ function updateFutMarginDisplay() {
   const entry = state.spot * Math.exp((R - Q) * tau);
   const margin = entry / lev;
   const total = margin * qty;
-  document.getElementById('futMarginDisplay').innerText = `증거금<br>${fmt2(margin)}`;
-  document.getElementById('futTotalDisplay').innerText = `거래금<br>${fmt2(total)}`;
+  document.getElementById('futMarginDisplay').innerHTML = `증거금<br>${fmt2(margin)}`;
+  document.getElementById('futTotalDisplay').innerHTML = `거래금<br>${fmt2(total)}`;
 }
 
 function updateOptPremiumDisplay() {
@@ -1311,8 +1313,8 @@ function updateOptPremiumDisplay() {
   const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
   const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
   const total = prem * qty
-  document.getElementById('optPremiumDisplay').innerText = `프리미엄<br>${fmt2(prem)}`;
-  document.getElementById('optTotalDisplay').innerText = `거래금<br>${fmt2(total)}`;
+  document.getElementById('optPremiumDisplay').innerHTML = `프리미엄<br>${fmt2(prem)}`;
+  document.getElementById('optTotalDisplay').innerHTML = `거래금<br>${fmt2(total)}`;
 
 }
 
