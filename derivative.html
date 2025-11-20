@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.36</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.37</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1437,7 +1437,7 @@ document.getElementById('tradeOpt').addEventListener('click', tradeOption);
 document.getElementById('optK').addEventListener('input', updateOptPremiumDisplay);
 document.getElementById('optType').addEventListener('change', updateOptPremiumDisplay);
 document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
-document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = Number(e.target.value) || 1; });
+document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = Number(e.target.value); });
 
 const periodButtons = document.querySelectorAll('.periodBtn');
 periodButtons.forEach(b => {
