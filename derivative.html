@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.23</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.24</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -114,16 +114,17 @@
           <label>레버리지</label>
           <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option></select>
         </div>
-      </div>
-      <label>손익비 한계치</label>
-      <div style="display:flex; gap:8px; align-items:center;">
-        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
         <div class="small muted" id="futMarginDisplay">증거금: 0.00</div>
       </div>
+      <label>손익비 한계치</label>
+      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
-      <input id="futQty" type="number" min="1" value="1" />
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="futQty" type="number" min="1" value="1" />
+        <div class="small muted" id="futNotionalDisplay">거래금: 0.00</div>
+      </div>
       <button id="openFut">포지션 열기</button>
     </div>
 
@@ -141,7 +142,10 @@
       <label>만기</label>
       <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량</label>
-      <input id="optQty" type="number" min="1" value="1" />
+      <div style="display:flex; gap:8px; align-items:center;">
+        <input id="optQty" type="number" min="1" value="1" />
+        <div class="small muted" id="optTotalDisplay">거래금: 0.00</div>
+      </div>
       <button id="tradeOpt">옵션 거래</button>
     </div>
 
@@ -1292,7 +1296,9 @@ function updateFutMarginDisplay() {
   const tau = tauYearsFromExpiry(expiryDate);
   const entry = state.spot * Math.exp((R - Q) * tau);
   const margin = entry / lev;
+  const notional = margin * qty;
   document.getElementById('futMarginDisplay').innerText = `증거금: ${fmt2(margin)}`;
+  document.getElementById('futNotionalDisplay').innerText = `거래금: ${fmt2(notional)}`;
 }
 
 function updateOptPremiumDisplay() {
@@ -1301,7 +1307,11 @@ function updateOptPremiumDisplay() {
   const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
   const kind = document.getElementById('optType').value;
   const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
+  const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
+  const total = prem * qty
   document.getElementById('optPremiumDisplay').innerText = `프리미엄: ${fmt2(prem)}`;
+  document.getElementById('optTotalDisplay').innerText = `거래금: ${fmt2(total)}`;
+
 }
 
 /* ----------------------------
