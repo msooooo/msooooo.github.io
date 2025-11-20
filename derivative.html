@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.35</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.36</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -674,8 +674,8 @@ function stepMarket(){
     const curMonth = simDate.getMonth() + 1;
     if (lastTickDay === null || curDay !== lastTickDay){
       updateEconForDayChange();
-      if (Math.random() < 0.0005){ triggerBlackSwan('random'); }
-      if (Math.random() < 0.0005){ triggerWhiteSwan('random'); }
+      if (Math.random() < 0.0003){ triggerBlackSwan('random'); }
+      if (Math.random() < 0.0003){ triggerWhiteSwan('random'); }
     }
     if (lastTickMonth === null || curMonth !== lastTickMonth){
       updateEconForMonthChange();
@@ -685,6 +685,7 @@ function stepMarket(){
     // compute dt for 1 hour
     const dt = 1 / (24*365);
     const sigma = getCurrentVol();
+    R = sigma;
     const mu = getCurrentMu();
     // gaussian
     let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
@@ -1055,7 +1056,7 @@ function drawChart() {
         ctx.fillStyle = "#cfeaff";
         ctx.font = "12px system-ui";
         ctx.fillText("가격 차트 준비 중...", 8, 16);
-        document.getElementById('periodReturn').innerText = `증감률 +0.00%`;
+        document.getElementById('periodReturn').innerText = `+0.00%`;
         return;
     }
 
@@ -1081,7 +1082,7 @@ function drawChart() {
     ctx.font = "12px system-ui";
     const latest = data[data.length - 1];
     ctx.fillText('현재가: ${fmt2(latest)}', 8, 16);
-    ctx.fillText('VIX: ${fmt2(econ.vix)}', 8, 16);
+    ctx.fillText('VIX: ${fmt2(econ.vix)}', 120, 16);
 
     const ret = calcPeriodReturn(dataFull);
     if (ret !== null) {
