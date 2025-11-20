@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.18</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.19</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -890,8 +890,14 @@ function computeEquity() {
     let optPaid = 0;
     player.positions.options.forEach(o => {
         const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
-        if (o.side === 'Long') { optUnreal += (cur - o.entryPremium) * o.qty; optPaid += o.entryPremium * o.qty; };
-        else { optUnreal += (o.entryPremium - cur) * o.qty; optPaid -= o.entryPremium * o.qty; };
+        if (o.side === 'Long') {
+          optUnreal += (cur - o.entryPremium) * o.qty;
+          optPaid += o.entryPremium * o.qty;
+        }
+        else { 
+          optUnreal += (o.entryPremium - cur) * o.qty; 
+          optPaid -= o.entryPremium * o.qty;
+        }
     });
     const total = player.cash + spotVal + futUnreal + futPaid + optUnreal + optPaid;
     return {
