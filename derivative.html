@@ -1285,6 +1285,11 @@ function renderAll() {
 -----------------------------*/
 function updateFutMarginDisplay() {
   const lev = Number(document.getElementById('futLev').value) || 1;
+  const months = Number(document.getElementById('futExp').value) || 1;
+  const months = Number(document.getElementById('futExp').value) || 1;
+  const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
+  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+  const tau = tauYearsFromExpiry(expiryDate);
   const entry = state.spot * Math.exp((R - Q) * tau);
   const margin = entry / lev;
   document.getElementById('futMarginDisplay').innerText = `증거금: ${fmt2(margin)}`;
