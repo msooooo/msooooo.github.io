@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.14</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.15</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -843,9 +843,10 @@ function closeFuture(idx) {
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty;
+    const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
     player.cash += f.lockedMargin + pnl;
     player.positions.futures.splice(idx, 1);
-    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pnlPer/curF)}%) | 정산금 ${fmt2(f.lockedMargin)}`);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin)}`);
     if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
     renderAll();
 }
@@ -860,9 +861,11 @@ function closeOption(idx) {
     } else {
       pnl = (o.entryPremium - cur) * o.qty;
       player.cash += pnl - o.entryPremium * o.qty;
-    } 
+    }
+    const totalPaid = o.entryPremium * o.qty
+    const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
     player.positions.options.splice(idx, 1);
-    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)} (${fmt2(pnl/(o.entryPremium*o.qty))}%)`);
+    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%)`);
     if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
     renderAll();
 }
@@ -873,6 +876,7 @@ function closeOption(idx) {
 function computeEquity() {
     const s = player.positions.spot;
     const spotVal = s.qty * state.spot;
+    const futPaid = f.notional
     let futUnreal = 0;
     player.positions.futures.forEach(f => {
         const tau = tauYearsFromExpiry(f.expiryDate);
@@ -880,18 +884,21 @@ function computeEquity() {
         const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
         futUnreal += pnlPer * f.qty * f.lev;
     });
+    const optPaid = o.entryPremium * o.qty
     let optUnreal = 0;
     player.positions.options.forEach(o => {
         const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
         if (o.side === 'Long') optUnreal += (cur - o.entryPremium) * o.qty;
         else optUnreal += (o.entryPremium - cur) * o.qty;
     });
-    const total = player.cash + spotVal + futUnreal + optUnreal;
+    const total = player.cash + spotVal + futUnreal + futPaid + optUnreal + optPaid;
     return {
         total,
         spotVal,
         futUnreal,
-        optUnreal
+        futPaid,
+        optUnreal,
+        optPaid
     };
 }
 
