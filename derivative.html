@@ -76,7 +76,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.13</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.14</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -842,10 +842,10 @@ function closeFuture(idx) {
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
-    const pnl = pnlPer * f.qty * f.lev;
+    const pnl = pnlPer * f.qty;
     player.cash += f.lockedMargin + pnl;
     player.positions.futures.splice(idx, 1);
-    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} | 정산금 ${fmt2(f.lockedMargin)}`);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} | 수익금 ${fmt2(pnl)} (${fmt2(pnlPer/curF)}%) | 정산금 ${fmt2(f.lockedMargin)}`);
     if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
     renderAll();
 }
@@ -862,7 +862,7 @@ function closeOption(idx) {
       player.cash += pnl - o.entryPremium * o.qty;
     } 
     player.positions.options.splice(idx, 1);
-    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)}`);
+    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)} (${fmt2(pnl/(o.entryPremium*o.qty))}%)`);
     if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
     renderAll();
 }
