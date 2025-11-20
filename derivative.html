@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.40</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.41</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1274,7 +1274,7 @@ function renderAll() {
   } else {
     const pnl = (state.spot - s.avg) * s.qty;
     const pct = s.avg > 0 ? (pnl / (s.avg * s.qty)) * 100 : 0;
-    spotEl.innerHTML = `<div>보유 ${s.qty} | avg ${fmt2(s.avg)}</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>`;
+    spotEl.innerHTML = `<div>수량 ${s.qty} | 평균단가 ${fmt2(s.avg)}</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>`;
   }
 
   // futures list
