@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.50</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.51</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -680,7 +680,7 @@ function stepMarket(){
     const sigma = getCurrentVol() * 0.05;
     const muCurrentRaw = getCurrentMu();
     const K_REVERT = 0.03; // 권장값 0.02~0.06
-    const avgPrice = 10000 * (1 + (simdate.getFullYear() - 2024) * muCurrentRaw);
+    const avgPrice = 10000 * (1 + (simDate.getFullYear() - 2024) * muCurrentRaw);
     const logRel = Math.log(state.spot / avgPrice);
     const mu = (muCurrentRaw - K_REVERT * logRel);
     // gaussian
