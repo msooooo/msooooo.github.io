@@ -77,7 +77,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.52</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.53</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -552,7 +552,7 @@ function updateEconForMonthChange(){
     // soft target approach: move toward target slowly
     const target = Math.max(0, econ.policyRate + step);
     econ.policyRate = econ.policyRate * 0.85 + target * 0.15; // 더 강한 관성(85% 이전 값)
-    R = econ.policyRate;
+    R = econ.policyRate * 0.01;
     pushEventLog(`📊 정책금리 (soft adjust) -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
   }
@@ -625,7 +625,7 @@ function triggerBlackSwan(source = 'system') {
 function triggerPolicyRateUP(source = 'system') {
     const step = 0.25
     econ.policyRate = Math.max(0, econ.policyRate + step);
-    R = econ.policyRate;
+    R = econ.policyRate * 0.01;
     pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
 }
@@ -633,7 +633,7 @@ function triggerPolicyRateUP(source = 'system') {
 function triggerPolicyRateDOWN(source = 'system') {
     const step = -0.25
     econ.policyRate = Math.max(0, econ.policyRate + step);
-    R = econ.policyRate;
+    R = econ.policyRate * 0.01;
     pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
 }
