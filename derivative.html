@@ -603,23 +603,23 @@ function triggerWitchingEvent(source = 'system') {
 function triggerWhiteSwan(source = 'system') {
     blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
     econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = +(10 + Math.random() * 10);
+    const shockPct = +(5 + Math.random() * 5);
     const factor = 1 + shockPct / 100;
     state.spot *= factor;
     if (state.spot < 0.01) state.spot = 0.01;
-    pushEventLog(`🌟 대폭등(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급등, VIX 급등`);
-    notify('🌟 대폭등 발생!', 6000);
+    pushEventLog(`🌟 폭등(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급등, VIX 급등`);
+    notify('🌟 폭등 발생!', 6000);
 }
 
 function triggerBlackSwan(source = 'system') {
     blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
     econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = -(10 + Math.random() * 10);
+    const shockPct = -(5 + Math.random() * 5);
     const factor = 1 + shockPct / 100;
     state.spot *= factor;
     if (state.spot < 0.01) state.spot = 0.01;
-    pushEventLog(`💣 대폭락(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
-    notify('💣 대폭락 발생!', 6000);
+    pushEventLog(`💣 폭락(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
+    notify('💣 폭락 발생!', 6000);
 }
 
 function triggerPolicyRateUP(source = 'system') {
