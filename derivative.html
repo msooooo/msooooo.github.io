@@ -39,14 +39,13 @@
   #below{ display:flex; gap:10px; flex:1; min-height:180px; }
   #econPanel{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
-  #econDebugTools1{ display:none; margin-top:8px; gap:8px; }
-  #econDebugTools2{ display:none; margin-top:8px; gap:8px; }
+  #econDebugTools{ display:none; margin-top:8px; gap:8px; }
   #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
   #logs{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
   #right{ width:32%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
-  .posList{ max-height:280px; overflow:auto; }
+  .posList{ max-height:35%; overflow:auto; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
   .posItem:hover{ background:#092135; }
   .profit{ color:var(--profit); font-weight:700; }
@@ -189,11 +188,13 @@
           <button id="dbgWitch" class="debugBtn tiny">변동+</button>
           <button id="dbgWhiteSwan" class="debugBtn tiny">폭등</button>
           <button id="dbgBlackSwan" class="debugBtn tiny">폭락</button><br>
+          <!--
           <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
           <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
           <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
           <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
           <button id="dbgShowMU" class="debugBtn tiny">추세</button>
+          -->
         </div>
 
         <hr style="border:none;height:8px;">
