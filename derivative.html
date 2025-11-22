@@ -218,16 +218,16 @@
 
       <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
       <div id="details">
-        <div class="small muted">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>
+        <div class="small muted" align-items="center">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>
       </div>
     </div>
     
     <div id="logs">
     <!-- Moved Event Log here so it matches econ panel width -->
-      <div style="margin-top:32px;">
-        <h4 style="margin:0px 0 4px 0">게임 이벤트 로그</h4>
+      <div style="margin-top:0">
+        <h3 style="margin:0">게임 이벤트 로그</h3>
         <div class="small muted">최근 시장 이벤트 및 거래기록</div>
-        <div id="eventLog" style="margin-top:6px;"></div>
+        <div id="eventLog" style="margin-top:8px;"></div>
       </div>
     </div>
   </div>
@@ -1193,7 +1193,7 @@ function updateDetails() {
   const details = document.getElementById('details');
 
   if (!selectedDetail) {
-    details.innerHTML = `<div class="small muted">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>`;
+    details.innerHTML = `<div class="small muted" align-items="center">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>`;
     return;
   }
 
