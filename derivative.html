@@ -849,14 +849,17 @@ function checkExpiries() {
         const exp = new Date(f.expiryDate + 'T00:00:00');
         if (today >= exp) {
             if (f.side === 'Long') {
-                const pay = f.entry * f.qty;
-                player.cash -= pay;
-                const s = player.positions.spot;
-                const prevTotal = s.qty * s.avg;
-                s.qty += f.qty;
-                s.avg = (s.qty > 0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
                 player.cash += f.lockedMargin;
-                pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty} | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                const pay = f.entry * f.qty;
+                if (player.cash >= pay) {
+                    player.cash -= pay;
+                    const s = player.positions.spot;
+                    const prevTotal = s.qty * s.avg;
+                    s.qty += f.qty;
+                    s.avg = (s.qty > 0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
+                    pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty} | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                } else {
+                    pushEventLog(`📦 선물 Long 만기 :: 환급금 ${fmt2(f.lockedMargin)} | 현물 인수를 위한 현금 부족 | 만기 시점 현물 가격 ${fmt2(curF)}`);
             } else {
                 const receive = f.entry * f.qty;
                 const s = player.positions.spot;
