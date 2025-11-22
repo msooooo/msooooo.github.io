@@ -1219,7 +1219,7 @@ function updateDetails() {
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
 
     details.innerHTML = `
-      <h3 style="margin:0">선물 상세정보</h3>
+      <h3 style="margin:8">선물 상세정보</h3>
       <div class="indRow"><div class="small muted">포지션</div><div>${f.side} ${f.lev}x</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 선물 가격</div><div>${fmt2(f.entry)}</div></div>
@@ -1251,7 +1251,7 @@ function updateDetails() {
     const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
 
     details.innerHTML = `
-      <h3 style="margin:0">옵션 상세정보</h3>
+      <h3 style="margin:8">옵션 상세정보</h3>
       <div class="indRow"><div class="small muted">종류</div><div>${o.kind} (${o.side})</div></div>
       <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(o.entrySpot)}</div></div>
