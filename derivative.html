@@ -15,7 +15,7 @@
   /* LEFT - controls & econ indicators & logs */
   #left{ width:24%; height:100%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
   .topRow{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
-  #datetime{ font-weight:700; font-size:14px; }
+  #datetime{ font-weight:700; width:60%; font-size:14px; }
   .xwrap{ white-space: nowrap; }
   #marketStatus{ font-size:13px; color:#cfeaff; }
   #speedSelect{ background:#06223f; color:var(--text); border-radius:6px; padding:4px; border:1px solid rgba(255,255,255,0.03); }
@@ -78,9 +78,9 @@
   <!-- LEFT: controls + econ snapshot + log -->
   <div id="left">
     <div class="topRow">
-      <div>
+      <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted xwrap">1초 = 1시간 • 현물 시작가: 10000.00 • ver 1.0.56</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.56</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
