@@ -29,7 +29,7 @@
   .dataBox{ min-width: 90px; padding: 10px 6px; background: #0c2747; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3;}
   .cenText{ text-align: center; }
   /* CENTER - chart + econ/details row */
-  #center{ width:52%; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
+  #center{ flex:1; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
   #chartWrap{ height:34%; background:#081226; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; }
   #chartCanvas{ width:100%; height:100%; display:block; border-radius:6px; background:#041026; }
   #chartControls{ display:flex; gap:8px; align-items:center; margin-top:8px; }
@@ -44,7 +44,7 @@
   #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
   #logs{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
-  #right{ width:24%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
+  #right{ width:32%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
   .posList{ max-height:280px; overflow:auto; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
@@ -1219,8 +1219,8 @@ function updateDetails() {
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
 
     details.innerHTML = `
-      <h3 style="margin:8">선물 상세정보</h3>
-      <div class="indRow"><div class="small muted">포지션</div><div>${f.side} ${f.lev}x</div></div>
+      <h3 style="margin:0">선물 상세정보</h3>
+      <div class="indRow"><div class="small muted" style="margin-top:8px;>포지션</div><div>${f.side} ${f.lev}x</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 선물 가격</div><div>${fmt2(f.entry)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(f.entrySpot)}</div></div>
@@ -1251,8 +1251,8 @@ function updateDetails() {
     const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
 
     details.innerHTML = `
-      <h3 style="margin:8">옵션 상세정보</h3>
-      <div class="indRow"><div class="small muted">종류</div><div>${o.kind} (${o.side})</div></div>
+      <h3 style="margin:0">옵션 상세정보</h3>
+      <div class="indRow"><div class="small muted" style="margin-top:8px;>종류</div><div>${o.kind} (${o.side})</div></div>
       <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(o.entrySpot)}</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${o.qty}</div></div>
