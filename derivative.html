@@ -13,7 +13,7 @@
   html,body{ height:100%; margin:0; }
   body{ font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Helvetica,Arial; background:var(--bg); color:var(--text); display:flex; height:100vh; box-sizing:border-box; }
   /* LEFT - controls & econ indicators & logs */
-  #left{ width:24%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
+  #left{ width:24%; height:100%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
   .topRow{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
   #datetime{ font-weight:700; font-size:14px; }
   #marketStatus{ font-size:13px; color:#cfeaff; }
@@ -39,10 +39,10 @@
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
   #econDebugTools1{ display:none; margin-top:8px; gap:8px; }
   #econDebugTools2{ display:none; margin-top:8px; gap:8px; }
-  #details{ flex:1; background:#07162a; border-radius:10px; padding:10px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
-  #logs{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
+  #logs{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
-  #right{ width:30%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
+  #right{ width:24%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
   .posList{ max-height:280px; overflow:auto; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
@@ -78,7 +78,7 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.54</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.55</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -269,10 +269,10 @@
 -----------------------------*/
 const BASE_VOL = 0.20;    // base mapping when VIX base matches
 const VIX_BASE = 20.0;
-const RATE_BASE = 2.50
-const YIELD_BASE = 3.00
-const GDP_BASE = 2.0
-const UEMP_BASE = 5.0
+const RATE_BASE = 2.50;
+const YIELD_BASE = 3.00;
+const GDP_BASE = 2.0;
+const UEMP_BASE = 5.0;
 const BASE_MU = 0.05;
 let R = RATE_BASE * 0.01, Q = 0.0;
 
@@ -1217,15 +1217,15 @@ function updateDetails() {
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
 
     details.innerHTML = `
-      <h3>선물 상세 (실시간)</h3>
+      <h3>선물 상세정보</h3>
       <div class="indRow"><div class="small muted">포지션</div><div>${f.side} ${f.lev}x</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 선물 가격</div><div>${fmt2(f.entry)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(curS)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 베이시스</div><div>${fmt2(f.entryBasis)}</div></div>
       <div class="indRow"><div class="small muted">현재 선물 가격</div><div>${fmt2(curF)}</div></div>
-      <div class="indRow"><div class="small muted">현재 현물 가격</div><div>${fmt2(curBasis)}</div></div>
-      <div class="indRow"><div class="small muted">현재 베이시스</div><div>${fmt2(f.entrySpot)}</div></div>
+      <div class="indRow"><div class="small muted">현재 현물 가격</div><div>${fmt2(curS)}</div></div>
+      <div class="indRow"><div class="small muted">현재 베이시스</div><div>${fmt2(curBasis)}</div></div>
       <div class="indRow"><div class="small muted">총 명목가치</div><div>${fmt2(f.notional)}</div></div>
       <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
       <div class="indRow"><div class="small muted">미실현 손익</div>
@@ -1249,7 +1249,7 @@ function updateDetails() {
     const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
 
     details.innerHTML = `
-      <h3>옵션 상세 (실시간)</h3>
+      <h3>옵션 상세정보</h3>
       <div class="indRow"><div class="small muted">종류</div><div>${o.kind} (${o.side})</div></div>
       <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
       <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(o.entrySpot)}</div></div>
@@ -1339,10 +1339,9 @@ function renderAll() {
     const el = document.createElement('div');
     el.className = 'posItem';
     el.innerHTML = `
-      <div><strong>${o.side} ${o.kind}</strong> | 수량 ${o.qty} | 행사가 ${fmt2(o.K)}</div>
+      <div><strong>${o.side} ${o.kind}</strong> | 수량 ${o.qty} | 행사가 ${fmt2(o.K)} | 만기 ${o.expiryDate}</div>
       <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
       <div class="small muted">총 프리미엄 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
-      <div class="small muted">만기 ${o.expiryDate}</div>
     `;
     el.onclick = () => { selectedDetail = { type: 'Option', index: i }; updateDetails(); };
     optEl.appendChild(el);
