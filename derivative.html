@@ -740,7 +740,7 @@ function openFuture() {
     const entryBasis = entry - entrySpot;
     const notional = entry * qty;
     const margin = notional / lev;
-    const closeRate = document.getElementById('futExp').value;
+    const closeRate = document.getElementById('futCloseRate').value;
     if (player.cash < margin) return notify(`증거금 부족: ${fmt2(margin)}`,2000);
     player.cash -= margin;
     player.positions.futures.push({
@@ -811,13 +811,11 @@ function tradeOption() {
 }
 
 function liquidateFutures() {
-  const limitStr = document.getElementById('futCloseRate').value;
-  if (limitStr === 'inf') return; // 무한대면 강제청산 없음
-  
-  const limit = Number(limitStr); // 50 or 100
-
   for (let i = player.positions.futures.length - 1; i >= 0; i--) {
       const f = player.positions.futures[i];
+
+      if (f.futCloseRate === 'inf') return;
+      const limit = f.futCloseRate;
 
       // 현재 선물 가격 계산
       const tau = tauYearsFromExpiry(f.expiryDate);
