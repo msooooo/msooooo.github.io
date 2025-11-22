@@ -35,11 +35,12 @@
   .periodBtn.active{ background:var(--accent); color:#022; }
   #periodReturn{ margin-left:12px; font-weight:700; }
   #below{ display:flex; gap:10px; flex:1; min-height:180px; }
-  #econPanel{ flex:2; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #econPanel{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
   #econDebugTools1{ display:none; margin-top:8px; gap:8px; }
   #econDebugTools2{ display:none; margin-top:8px; gap:8px; }
   #details{ flex:1; background:#07162a; border-radius:10px; padding:10px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
+  #logs{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
   #right{ width:30%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
@@ -77,15 +78,12 @@
     <div class="topRow">
       <div>
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.53</div>
+        <div class="small muted">1초 = 1시간 · 현물 시작가 10,000 · ver 1.0.54</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
         <select id="speedSelect" title="시뮬레이션 배속" style="margin-top:6px;">
           <option value="0">정지</option>
-          <option value="0.1">0.1x</option>
-          <option value="0.25">0.25x</option>
-          <option value="0.5">0.5x</option>
           <option selected value="1">1x</option>
           <option value="2">2x</option>
           <option value="4">4x</option>
@@ -101,7 +99,7 @@
     <div class="section">
       <h3 style="margin:0">현물 (Spot)</h3>
       <div class="small muted">현재가</div>
-      <div style="font-size:20px; font-weight:700;" id="spotPrice">10000.00</div>
+      <div style="font-size:20px; font-weight:700;" id="spotPrice">데이터 준비 중...</div>
       <div class="inline" style="margin-top:8px;">
         <button id="buySpot">시장가 매수</button>
         <button id="sellSpot">시장가 매도</button>
@@ -118,7 +116,7 @@
         <div class="dataBox" id="futMarginDisplay">0.00</div>
       </div>
       <label>손익비 한계치</label>
-      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option></select>
+      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option><option value="200">±200%</option><option value="300">±300%</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option></select>
       <label>수량 | 예상 거래금</label>
@@ -214,12 +212,7 @@
           <li>GDP/비고용률: 느리게 변하며 추세에 영향</li>
         </ul>
 
-        <!-- Moved Event Log here so it matches econ panel width -->
-        <div style="margin-top:32px;">
-          <h4 style="margin:6px 0 4px 0">게임 이벤트 로그</h4>
-          <div class="small muted">최근 시장 이벤트 및 거래기록</div>
-          <div id="eventLog" style="margin-top:6px;"></div>
-        </div>
+        
 
       </div>
 
@@ -228,13 +221,22 @@
         <div class="small muted">오른쪽 보유목록에서 종목을 클릭하여<br>이곳에 실시간 세부 정보를 표시</div>
       </div>
     </div>
+    
+    <div id="logs">
+    <!-- Moved Event Log here so it matches econ panel width -->
+      <div style="margin-top:32px;">
+        <h4 style="margin:6px 0 4px 0">게임 이벤트 로그</h4>
+        <div class="small muted">최근 시장 이벤트 및 거래기록</div>
+        <div id="eventLog" style="margin-top:6px;"></div>
+      </div>
+    </div>
   </div>
 
   <!-- RIGHT: player info & positions -->
   <div id="right">
     <h2>플레이어 정보</h2>
-    <div class="indRow"><div class="small muted">현금 (Cash)</div><div id="cash" style="font-weight:700">100000.00</div></div>
-    <div class="indRow"><div class="small muted">평가금액 (Equity)</div><div id="equity" style="font-weight:700">100000.00</div></div>
+    <div class="indRow"><div class="small muted">현금 (Cash)</div><div id="cash" style="font-weight:700">데이터 준비 중...</div></div>
+    <div class="indRow"><div class="small muted">평가금액 (Equity)</div><div id="equity" style="font-weight:700">데이터 준비 중...</div></div>
 
     <div class="section">
       <h3 style="margin:0">현물 보유</h3>
@@ -272,7 +274,7 @@ const YIELD_BASE = 3.00
 const GDP_BASE = 2.0
 const UEMP_BASE = 5.0
 const BASE_MU = 0.05;
-let R = 0.03, Q = 0.0;
+let R = RATE_BASE * 0.01, Q = 0.0;
 
 // simulation time
 let simDate = new Date("2025-01-01T00:00:00");
@@ -299,7 +301,7 @@ let econ = {
 
 // player
 let player = {
-  cash: 100000.0,
+  cash: 10000.0,
   positions: {
     spot: { qty: 0, avg: 0 },
     futures: [], // {side, qty, entry, lev, expiryDate, lockedMargin, notional}
@@ -607,7 +609,7 @@ function triggerWhiteSwan(source = 'system') {
     const factor = 1 + shockPct / 100;
     state.spot *= factor;
     if (state.spot < 0.01) state.spot = 0.01;
-    pushEventLog(`🌟 폭등(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급등, VIX 급등`);
+    pushEventLog(`🌟 폭등(${source}) 발생 — 가격 +${fmt2(shockPct)}% 급등, VIX 급등`);
     notify('🌟 폭등 발생!', 6000);
 }
 
@@ -626,7 +628,7 @@ function triggerPolicyRateUP(source = 'system') {
     const step = 0.25
     econ.policyRate = Math.max(0, econ.policyRate + step);
     R = econ.policyRate * 0.01;
-    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
+    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} +${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
 }
 
@@ -641,7 +643,7 @@ function triggerPolicyRateDOWN(source = 'system') {
 function triggerGDPGrowthUP(source = 'system') {
     const step = 0.25
     econ.gdpGrowth = Math.max(0, econ.gdpGrowth + step);
-    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
+    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} +${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
 }
 
 function triggerGDPGrowthDOWN(source = 'system') {
@@ -743,6 +745,8 @@ function openFuture() {
     const tradeDate = nowStr(simDate).slice(0,10);
     const tau = tauYearsFromExpiry(expiryDate);
     const entry = state.spot * Math.exp((R - Q) * tau);
+    const entrySpot = state.spot;
+    const entryBasis = entry - entrySpot;
     const notional = entry * qty;
     const margin = notional / lev;
     const closeRate = document.getElementById('futExp').value;
@@ -752,6 +756,8 @@ function openFuture() {
         side,
         qty,
         entry,
+        entrySpot,
+        entryBasis,
         lev,
         expiryDate,
         tradeDate,
@@ -773,6 +779,7 @@ function tradeOption() {
     const kind = document.getElementById('optType').value;
     const side = document.getElementById('optSide').value;
     const K = Number(document.getElementById('optK').value) || state.spot;
+    const entrySpot = state.spot;
     const months = Number(document.getElementById('optExp').value) || 1;
     const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
     const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
@@ -787,6 +794,7 @@ function tradeOption() {
             side,
             qty,
             K,
+            entrySpot,
             entryPremium: prem,
             openDate: new Date(simDate),
             expiryDate,
@@ -800,6 +808,7 @@ function tradeOption() {
             side,
             qty,
             K,
+            entrySpot,
             entryPremium: prem,
             openDate: new Date(simDate),
             expiryDate,
@@ -844,6 +853,7 @@ function liquidateFutures() {
 
 function checkExpiries() {
     const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate());
+    const curF = state.spot;
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
         const exp = new Date(f.expiryDate + 'T00:00:00');
@@ -856,7 +866,7 @@ function checkExpiries() {
                 s.qty += f.qty;
                 s.avg = (s.qty > 0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
                 player.cash += f.lockedMargin;
-                pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty}`);
+                pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty} | 만기 시점 현물 가격 ${fmt2(curF)}`);
             } else {
                 const receive = f.entry * f.qty;
                 const s = player.positions.spot;
@@ -865,13 +875,13 @@ function checkExpiries() {
                     if (s.qty === 0) s.avg = 0;
                     player.cash += receive;
                     player.cash += f.lockedMargin;
-                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 잔여량 ${s.qty} | 정산금 ${fmt2(receive)}`);
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 잔여량 ${s.qty} | 정산금 ${fmt2(receive)} | 만기 시점 현물 가격 ${fmt2(curF)}`);
                 } else {
                     const buyCost = state.spot * f.qty;
                     player.cash += receive;
                     player.cash -= buyCost;
                     player.cash += f.lockedMargin;
-                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 매수금 ${fmt2(buyCost)} | 정산금 ${fmt2(receive - buyCost)}`);
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 매수금 ${fmt2(buyCost)} | 정산금 ${fmt2(receive - buyCost)} | 만기 시점 현물 가격 ${fmt2(curF)}`);
                 }
             }
             witchingActiveTicks = Math.max(witchingActiveTicks, 4);
@@ -1199,7 +1209,9 @@ function updateDetails() {
 
     const f = player.positions.futures[idx];
     const tau = tauYearsFromExpiry(f.expiryDate);
-    const curF = state.spot * Math.exp((R - Q) * tau);
+    const curS = state.spot;
+    const curF = curS * Math.exp((R - Q) * tau);
+    const curBasis = curF - curS;
     const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
     const pnl = pnlPer * f.qty;
     const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
@@ -1208,9 +1220,13 @@ function updateDetails() {
       <h3>선물 상세 (실시간)</h3>
       <div class="indRow"><div class="small muted">포지션</div><div>${f.side} ${f.lev}x</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
-      <div class="indRow"><div class="small muted">진입가</div><div>${fmt2(f.entry)}</div></div>
-      <div class="indRow"><div class="small muted">현재가</div><div>${fmt2(curF)}</div></div>
-      <div class="indRow"><div class="small muted">총 거래금액</div><div>${fmt2(f.notional)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 선물 가격</div><div>${fmt2(f.entry)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(curS)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 베이시스</div><div>${fmt2(f.entryBasis)}</div></div>
+      <div class="indRow"><div class="small muted">현재 선물 가격</div><div>${fmt2(curF)}</div></div>
+      <div class="indRow"><div class="small muted">현재 현물 가격</div><div>${fmt2(curBasis)}</div></div>
+      <div class="indRow"><div class="small muted">현재 베이시스</div><div>${fmt2(f.entrySpot)}</div></div>
+      <div class="indRow"><div class="small muted">총 명목가치</div><div>${fmt2(f.notional)}</div></div>
       <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
@@ -1236,9 +1252,10 @@ function updateDetails() {
       <h3>옵션 상세 (실시간)</h3>
       <div class="indRow"><div class="small muted">종류</div><div>${o.kind} (${o.side})</div></div>
       <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(o.entrySpot)}</div></div>
       <div class="indRow"><div class="small muted">수량</div><div>${o.qty}</div></div>
-      <div class="indRow"><div class="small muted">지불 프리미엄</div><div>${fmt2(paidPer)}</div></div>
-      <div class="indRow"><div class="small muted">총 거래금액</div><div>${fmt2(totalPaid)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 프리미엄</div><div>${fmt2(paidPer)}</div></div>
+      <div class="indRow"><div class="small muted">총 프리미엄</div><div>${fmt2(totalPaid)}</div></div>
       <div class="indRow"><div class="small muted">현재 프리미엄</div><div>${fmt2(cur)}</div></div>
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
@@ -1300,7 +1317,7 @@ function renderAll() {
     el.innerHTML = `
       <div><strong>${f.side}</strong> ${f.lev}x | 수량 ${f.qty} | 진입가 ${fmt2(f.entry)} | 만기 ${f.expiryDate}</div>
       <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
-      <div class="small muted">거래금 ${fmt2(f.notional)} | 증거금 ${fmt2(f.lockedMargin)}</div>
+      <div class="small muted">총 명목가치 ${fmt2(f.notional)} | 증거금 ${fmt2(f.lockedMargin)}</div>
     `;
     el.onclick = () => { selectedDetail = { type: 'Future', index: i }; updateDetails(); };
     futEl.appendChild(el);
@@ -1324,7 +1341,7 @@ function renderAll() {
     el.innerHTML = `
       <div><strong>${o.side} ${o.kind}</strong> | 수량 ${o.qty} | 행사가 ${fmt2(o.K)}</div>
       <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
-      <div class="small muted">거래금 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
+      <div class="small muted">총 프리미엄 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
       <div class="small muted">만기 ${o.expiryDate}</div>
     `;
     el.onclick = () => { selectedDetail = { type: 'Option', index: i }; updateDetails(); };
