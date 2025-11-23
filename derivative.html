@@ -37,10 +37,10 @@
   .periodBtn.active{ background:var(--accent); color:#022; }
   #periodReturn{ margin-left:12px; font-weight:700; }
   #below{ display:flex; gap:10px; flex:1; min-height:180px; }
-  #econPanel{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #econPanel{ height:25%; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
   #econDebugTools{ display:none; margin-top:8px; gap:8px; }
-  #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
+  #details{ height:25%; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
   #logs{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
   #right{ width:32%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
@@ -63,7 +63,7 @@
   .tiny{ font-size:12px; padding:6px; }
   /* responsive */
   @media (max-width:1080px){
-    #left{ display:25%; }
+    #left{ width:25%; }
     #right{ width:25%; }
     #center{ padding:8px; }
   }
