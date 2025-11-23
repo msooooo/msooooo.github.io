@@ -842,7 +842,7 @@ function liquidateFutures() {
 
 function checkExpiries() {
     const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate());
-    const curF = state.spot;
+    const curS = state.spot;
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
         const exp = new Date(f.expiryDate + 'T00:00:00');
@@ -856,9 +856,9 @@ function checkExpiries() {
                     const prevTotal = s.qty * s.avg;
                     s.qty += f.qty;
                     s.avg = (s.qty > 0) ? ((prevTotal + f.qty * f.entry) / s.qty) : 0;
-                    pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty} | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                    pushEventLog(`📦 선물 Long 만기 :: 지불금 ${fmt2(pay)} | 현물 인수량 ${f.qty} | 만기 시점 현물 가격 ${fmt2(curS)}`);
                 } else {
-                    pushEventLog(`📦 선물 Long 만기 :: 환급금 ${fmt2(f.lockedMargin)} | 현물 인수를 위한 현금 부족 | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                    pushEventLog(`📦 선물 Long 만기 :: 환급금 ${fmt2(f.lockedMargin)} | 현물 인수를 위한 현금 부족 | 만기 시점 현물 가격 ${fmt2(curS)}`);
                 }
             } else {
                 const receive = f.entry * f.qty;
@@ -868,13 +868,13 @@ function checkExpiries() {
                     if (s.qty === 0) s.avg = 0;
                     player.cash += receive;
                     player.cash += f.lockedMargin;
-                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 잔여량 ${s.qty} | 정산금 ${fmt2(receive)} | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 잔여량 ${s.qty} | 정산금 ${fmt2(receive)} | 만기 시점 현물 가격 ${fmt2(curS)}`);
                 } else {
                     const buyCost = state.spot * f.qty;
                     player.cash += receive;
                     player.cash -= buyCost;
                     player.cash += f.lockedMargin;
-                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 매수금 ${fmt2(buyCost)} | 정산금 ${fmt2(receive - buyCost)} | 만기 시점 현물 가격 ${fmt2(curF)}`);
+                    pushEventLog(`📦 선물 Short 만기 :: 현물 인도량 ${f.qty} | 현물 매수금 ${fmt2(buyCost)} | 정산금 ${fmt2(receive - buyCost)} | 만기 시점 현물 가격 ${fmt2(curS)}`);
                 }
             }
             witchingActiveTicks = Math.max(witchingActiveTicks, 4);
