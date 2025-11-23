@@ -848,7 +848,6 @@ function checkExpiries() {
         const exp = new Date(f.expiryDate + 'T00:00:00');
         if (today >= exp) {
             player.cash += f.lockedMargin;
-            const pnlPer
             const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
             const pnl = pnlPer * f.qty;
             const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
