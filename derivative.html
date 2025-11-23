@@ -544,7 +544,7 @@ function updateEconForMonthChange(){
     const step = stepOptions[Math.floor(Math.random()*stepOptions.length)];
     // soft target approach: move toward target slowly
     const target = Math.max(0, econ.policyRate + step);
-    econ.policyRate = econ.policyRate * 0.85 + target * 0.15; // 더 강한 관성(85% 이전 값)
+    econ.policyRate = target; // 더 강한 관성(85% 이전 값)
     R = econ.policyRate * 0.01;
     pushEventLog(`📊 정책금리 (soft adjust) -> ${fmt2(econ.policyRate)}%`);
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
