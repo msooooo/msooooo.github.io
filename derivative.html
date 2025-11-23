@@ -45,7 +45,7 @@
   /* RIGHT - player info */
   #right{ width:32%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
-  .posList{ max-height:35%; overflow:auto; }
+  .posList{ max-height:500px; overflow:auto; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
   .posItem:hover{ background:#092135; }
   .profit{ color:var(--profit); font-weight:700; }
@@ -184,8 +184,8 @@
         <!-- debug tools (hidden until toggled) -->
         <div id="econDebugTools" style="margin-top:10px; display:none;">
           <button id="dbgReset" class="debugBtn tiny">리셋</button>
-          <button id="dbgAddCash" class="debugBtn tiny">현금+</button>
-          <button id="dbgWitch" class="debugBtn tiny">변동+</button>
+          <button id="dbgAddCash" class="debugBtn tiny">현금</button>
+          <button id="dbgWitch" class="debugBtn tiny">변동</button>
           <button id="dbgWhiteSwan" class="debugBtn tiny">폭등</button>
           <button id="dbgBlackSwan" class="debugBtn tiny">폭락</button>
           <!--
