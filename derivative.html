@@ -329,7 +329,7 @@ function nowStr(d){
 }
 function addMonthsToFirst(d, months){
   const out = new Date(d.getTime());
-  out.setMonth(out.getMomth()+months);
+  out.setMonth(out.getMonth()+months);
   out.setDate(1);
   out.setHours(0,0,0,0);
   return out;
