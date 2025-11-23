@@ -188,13 +188,13 @@
           <button id="dbgWitch" class="debugBtn tiny">변동+</button>
           <button id="dbgWhiteSwan" class="debugBtn tiny">폭등</button>
           <button id="dbgBlackSwan" class="debugBtn tiny">폭락</button>
-          
+          <!--
           <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
           <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
           <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
           <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
           <button id="dbgShowMU" class="debugBtn tiny">추세</button>
-          
+          -->
         </div>
 
         <hr style="border:none;height:8px;">
@@ -1404,6 +1404,7 @@ document.getElementById('dbgBlackSwan').addEventListener('click', () => {
   triggerBlackSwan('debug');
   renderAll();
 });
+/*
 document.getElementById('dbgPolicyRateUP').addEventListener('click', () => {
   triggerPolicyRateUP('debug');
   renderAll();
@@ -1425,6 +1426,7 @@ document.getElementById('dbgShowMU').addEventListener('click', () => {
   pushEventLog(`🫟 현재 추세 인덱스: ${fmt2(mu)}`);
   renderAll();
 });
+*/
 
 
 /* ----------------------------
