@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.58</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.59</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -116,8 +116,8 @@
         <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option><option>500</option></select>
         <div class="dataBox" id="futMarginDisplay">0.00</div>
       </div>
-      <label>손익비 한계치</label>
-      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">±50%</option><option value="100">±100%</option><option value="200">±200%</option><option value="300">±300%</option></select>
+      <label>손실 한계치</label>
+      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">-50%</option><option value="100">-100%</option><option value="200">-200%</option><option value="300">-300%</option></select>
       <label>만기</label>
       <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
       <label>수량 | 예상 거래금</label>
@@ -740,7 +740,9 @@ function openFuture() {
     const entryBasis = entry - entrySpot;
     const notional = entry * qty;
     const margin = notional / lev;
+    const marginPer = margin / qty;
     const closeRate = document.getElementById('futCloseRate').value;
+    const closePrice = (closeRate === 'inf') ? '무제한' : entry + (closeRate * -0.01) * marginPer;
     if (player.cash < margin) return notify(`증거금 부족: ${fmt2(margin)}`,2000);
     player.cash -= margin;
     player.positions.futures.push({
@@ -754,7 +756,8 @@ function openFuture() {
         tradeDate,
         lockedMargin: margin,
         notional,
-        closeRate
+        closeRate,
+        closePrice
     });
     if (side === 'Long') {
       pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 ${lev}x`);
@@ -826,9 +829,9 @@ function liquidateFutures() {
           const pnl = pnlPer * f.qty;
           const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
    
-          // forceClose condition
-          if (Math.abs(pct) >= limit) {
-              // 기존 closeFuture() 로직과 동일
+          // forceClose condition : under limit
+          if (pct <= -limit) {
+              // same as close fut
               player.cash += f.lockedMargin + pnl;
               pushEventLog(`⚠️ 선물 강제청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
               player.positions.futures.splice(i, 1);
@@ -1200,6 +1203,7 @@ function updateDetails() {
       <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
+      <div class="indRow"><div class="small muted">청산 선물 가격</div><div>${fmt2(f.closePrice)} - ${fmt2(f.closeRate)}</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${f.expiryDate}</div></div>
       <div class="indRow"><div class="small muted">거래일</div><div>${f.tradeDate}</div></div>
       <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
