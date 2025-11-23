@@ -540,7 +540,7 @@ function updateEconForMonthChange(){
 
   if (Math.random() < prob){
     // 작은 스텝 위주(±0.125, ±0.25)
-    const stepOptions = [-0.25, -0.125, 0.125, 0.25];
+    const stepOptions = [-0.50, -0.25, 0.25, 0.50];
     const step = stepOptions[Math.floor(Math.random()*stepOptions.length)];
     // soft target approach: move toward target slowly
     const target = Math.max(0, econ.policyRate + step);
