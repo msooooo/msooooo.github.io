@@ -846,10 +846,10 @@ function checkExpiries() {
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
         if (today >= exp) {
-            player.cash += f.lockedMargin;
             const pnlPer = (curS - f.entry) * (f.side === 'Long' ? 1 : -1);
             const pnl = pnlPer * f.qty;
             const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+            player.cash += f.lockedMargin + pnl;
             pushEventLog(`📦 선물 만기 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
           
             witchingActiveTicks = Math.max(witchingActiveTicks, 4);
