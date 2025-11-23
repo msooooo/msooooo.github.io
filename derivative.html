@@ -841,7 +841,7 @@ function liquidateFutures() {
 }
 
 function checkExpiries() {
-    const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate(), simDate.getHour());
+    const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate(), simDate.getHours());
     const curS = state.spot;
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
