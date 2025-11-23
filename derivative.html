@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.59</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.60</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1203,7 +1203,7 @@ function updateDetails() {
       <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
       <div class="indRow"><div class="small muted">미실현 손익</div>
         <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
-      <div class="indRow"><div class="small muted">청산 선물 가격</div><div>${fmt2(f.closePrice)} - ${fmt2(f.closeRate)}</div></div>
+      <div class="indRow"><div class="small muted">청산 선물 가격</div><div>${f.closePrice}</div></div>
       <div class="indRow"><div class="small muted">만기</div><div>${f.expiryDate}</div></div>
       <div class="indRow"><div class="small muted">거래일</div><div>${f.tradeDate}</div></div>
       <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
