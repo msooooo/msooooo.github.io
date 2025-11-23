@@ -845,6 +845,7 @@ function checkExpiries() {
     const curS = state.spot;
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
+        const exp = new Date(o.expiryDate + 'T12:00:00');
         if (today >= exp) {
             const pnlPer = (curS - f.entry) * (f.side === 'Long' ? 1 : -1);
             const pnl = pnlPer * f.qty;
@@ -859,7 +860,7 @@ function checkExpiries() {
     }
     for (let i = player.positions.options.length - 1; i >= 0; i--) {
         const o = player.positions.options[i];
-        const exp = new Date(o.expiryDate + 'T00:00:00');
+        const exp = new Date(o.expiryDate + 'T12:00:00');
         if (today >= exp) {
             const S = state.spot;
             let payoffPer = 0;
