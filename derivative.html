@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.61</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.62</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -818,7 +818,7 @@ function liquidateFutures() {
       const f = player.positions.futures[i];
 
       if (f.futCloseRate !== 'inf') {
-          const limit = f.futCloseRate;
+          const limit = f.closeRate;
 
           // calculate current futures price
           const tau = tauYearsFromExpiry(f.expiryDate);
@@ -835,9 +835,7 @@ function liquidateFutures() {
               player.cash += f.lockedMargin + pnl;
               pushEventLog(`⚠️ 선물 강제청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
               player.positions.futures.splice(i, 1);
-  
-          // reset detail
-          if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+              if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
           }
       }
    }
