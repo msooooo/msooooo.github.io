@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.62</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.63</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1024,6 +1024,35 @@ function calcPeriodReturn(data){ if (!data || data.length<2) return null; const 
 
 let isHovering = false; let hoverPos = null;
 
+// 단순 이동평균 (SMA)
+function calcSMA(data, period) {
+  const out = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      out.push(null); // 아직 계산 불가
+    } else {
+      let sum = 0;
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j];
+      }
+      out.push(sum / period);
+    }
+  }
+  return out;
+}
+
+// 지수 이동평균 (EMA)
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const out = [];
+  let ema = data[0];
+  for (let i = 0; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    out.push(ema);
+  }
+  return out;
+}
+  
 function drawChart() {
     const canvas = canvas2;
     const ctx = ctx2;
@@ -1043,6 +1072,12 @@ function drawChart() {
     }
 
     const data = dataFull.map(d => d.price);
+  
+    // 이동평균 계산
+    const ma20 = calcSMA(data, 20);
+    const ma60 = calcSMA(data, 60);
+    // const ema20 = calcEMA(data, 20);
+  
     const max = Math.max(...data),
         min = Math.min(...data);
     const range = (max - min) || 1;
@@ -1088,6 +1123,35 @@ function drawChart() {
         ctx.moveTo(0, py);
         ctx.lineTo(canvas.width, py);
         ctx.stroke();
+
+        // === MA20 ===
+        ctx.beginPath();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#ffd166";   // 노란색
+        for (let i = 0; i < ma20.length; i++) {
+          if (ma20[i] === null) continue;
+          const x = (i / (ma20.length - 1)) * canvas.width;
+          const y = canvas.height - ((ma20[i] - min) / range) * canvas.height;
+          if (i === 0 || ma20[i-1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // === MA60 ===
+        ctx.beginPath();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#9bf6ff";   // 하늘색
+        for (let i = 0; i < ma60.length; i++) {
+          if (ma60[i] === null) continue;
+          const x = (i / (ma60.length - 1)) * canvas.width;
+          const y = canvas.height - ((ma60[i] - min) / range) * canvas.height;
+          if (i === 0 || ma60[i-1] === null) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+
+      
         const h = dataFull[i];
         if (h) {
             const boxW = 180,
