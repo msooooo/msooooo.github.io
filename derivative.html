@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.67</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.68</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1391,6 +1391,7 @@ function renderAll() {
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
   drawChart();
+  drawCandles();
 
   document.getElementById('cash').innerText = fmt2(player.cash);
   const eq = computeEquity();
