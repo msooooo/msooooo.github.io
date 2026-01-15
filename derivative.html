@@ -156,14 +156,11 @@
     <div id="chartWrap">
       <canvas id="chartCanvas"></canvas>
       <div id="chartControls">
-        <button class="periodBtn" data-period="1D">1D</button>
-        <button class="periodBtn" data-period="1W">1W</button>
-        <button class="periodBtn" data-period="1M">1M</button>
-        <button class="periodBtn" data-period="3M">3M</button>
-        <button class="periodBtn" data-period="6M">6M</button>
-        <button class="periodBtn" data-period="1Y">1Y</button>
-        <button class="periodBtn" data-period="3Y">3Y</button>
-        <button class="periodBtn active" data-period="ALL">ALL</button>
+        <button class="periodBtn active" data-type="1H">1H</button>
+        <button class="periodBtn" data-type="1D">1D</button>
+        <button class="periodBtn" data-type="1W">1W</button>
+        <button class="periodBtn" data-type="1M">1M</button>
+        <button class="periodBtn" data-type="1Y">1Y</button>
         <div class=dataBox id="periodReturn">+0.00%</div>
       </div>
     </div>
@@ -274,11 +271,15 @@ let hoursPerTick = 1; // controlled by UI speed
 // market state
 let state = {
   spot: 10000.0,
-  history: [] // [{t:Date, price:number}]
+  history: [], // [{t:Date, price:number}]
+  candles: {}
 };
 
 // chart period state
-let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
+// let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
+let candleType = '1H'; // '1H' | '1D' | '1W'  ...
+let candleOffset = 0; // 왼쪽으로 밀린 봉 수
+let visibleCount = 80; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
 // macro econ indicators
@@ -683,6 +684,7 @@ function stepMarket(){
     state.spot *= factor; if (state.spot < 0.01) state.spot = 0.01;
     // record this hourly price
     state.history.push({ t: new Date(simDate), price: state.spot });
+    updateCandles(state.spot, simDate);
 
     // scheduled witching check at 08:00
     if (isWitchingDay(simDate) && simDate.getHours() === 8 && Math.random() < 0.9){ triggerWitchingEvent('scheduled'); }
@@ -957,6 +959,51 @@ function computeEquity() {
     };
 }
 
+
+function getCandleKey(date, type) {
+  const d = new Date(date);
+
+  if (type === '1H') {
+    d.setMinutes(0, 0, 0);
+  }
+  else if (type === '1D') {
+    d.setHours(0, 0, 0, 0);
+  }
+  else if (type === '1W') {
+    const day = d.getDay();
+    const diff = (day === 0 ? -6 : 1) - day; // 월요일 기준
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+  }
+
+  return d.getTime();
+}
+
+function updateCandles(price, time) {
+  ['1H', '1D', '1W'].forEach(type => {
+    const key = getCandleKey(time, type);
+    const arr = state.candles[type];
+
+    let c = arr[arr.length - 1];
+
+    if (!c || c.time !== key) {
+      // 새 봉
+      arr.push({
+        time: key,
+        open: price,
+        high: price,
+        low: price,
+        close: price
+      });
+    } else {
+      // 기존 봉 업데이트
+      c.high = Math.max(c.high, price);
+      c.low  = Math.min(c.low, price);
+      c.close = price;
+    }
+  });
+}
+
 /* ----------------------------
    Chart drawing (update: period semantics start->now)
 -----------------------------*/
@@ -1180,6 +1227,62 @@ function drawChart() {
     }
 }
 
+function getActiveCandles() {
+  return state.candles[candleType];
+}
+
+
+  
+function drawCandles() {
+  const canvas = canvas2;
+  const ctx = ctx2;
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#041426";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const candles = getActiveCandles();
+  if (candles.length === 0) return;
+
+  const slice = candles.slice(
+    Math.max(0, candles.length - visibleCount - candleOffset),
+    candles.length - candleOffset
+  );
+
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const range = max - min || 1;
+
+  const candleW = canvas.width / slice.length;
+
+  slice.forEach((c, i) => {
+    const x = i * candleW + candleW * 0.5;
+
+    const yHigh = canvas.height - (c.high - min) / range * canvas.height;
+    const yLow  = canvas.height - (c.low  - min) / range * canvas.height;
+    const yOpen = canvas.height - (c.open - min) / range * canvas.height;
+    const yClose= canvas.height - (c.close- min) / range * canvas.height;
+
+    // wick
+    ctx.strokeStyle = "#cfeaff";
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
+
+    // body
+    const up = c.close >= c.open;
+    ctx.fillStyle = up ? "#39ff88" : "#ff6b6b";
+
+    const bodyY = Math.min(yOpen, yClose);
+    const bodyH = Math.max(1, Math.abs(yOpen - yClose));
+    ctx.fillRect(x - candleW * 0.3, bodyY, candleW * 0.6, bodyH);
+  });
+}
+
 // canvas hover handlers - similar but using period-aware mapping
 canvas2.addEventListener('mousemove', (ev) => {
   const rect = canvas2.getBoundingClientRect();
@@ -1328,7 +1431,8 @@ function renderAll() {
 
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
-  drawChart();
+  // drawChart();
+  drawCandles();
 
   document.getElementById('cash').innerText = fmt2(player.cash);
   const eq = computeEquity();
@@ -1521,6 +1625,14 @@ periodButtons.forEach(b => {
     chartPeriod = b.getAttribute('data-period');
     drawChart();
   });
+});
+
+document.querySelectorAll('.periodBtn').forEach(btn => {
+  btn.onclick = () => {
+    candleType = btn.dataset.type;
+    candleOffset = 0;
+    drawCandles();
+  };
 });
 
 /* ----------------------------
