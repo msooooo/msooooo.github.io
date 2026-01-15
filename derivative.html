@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.0</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.1</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1058,6 +1058,18 @@ function calcEMA(data, period) {
   }
   return out;
 }
+
+function getMAValues(closes, index) {
+  const ema5 = calcEMA(closes, 5);
+  const ema20 = calcEMA(closes, 20);
+  const ema60 = calcEMA(closes, 60);
+
+  return {
+    ema5: ema5[index] ?? null,
+    ema20: ema20[index] ?? null,
+    ema60: ema60[index] ?? null
+  };
+}
   
 function drawChart() {
   const canvas = canvas2;
@@ -1089,8 +1101,14 @@ function drawChart() {
   // 2️⃣ 이동평균 (close 기준)
   const closes = slice.map(c => c.close);
   drawMA(closes, min, max, candleW);
+
+  if (isHovering && hoverPos?.candle) {
+    drawHoverInfo(hoverPos);
+  }
 }
 
+
+  
 function getActiveCandles() {
   return state.candles[candleType];
 }
@@ -1153,6 +1171,47 @@ function drawMA(closes, min, max, candleW) {
   line(ema60, "#ff0000");
 }
 
+function drawHoverInfo(hover) {
+  const ctx = ctx2;
+  const canvas = canvas2;
+
+  const c = hover.candle;
+
+  // 현재 slice 기준 close 배열
+  const candles = getActiveCandles();
+  const sliceStart = Math.max(0, candles.length - visibleCount - candleOffset);
+  const slice = candles.slice(sliceStart, candles.length - candleOffset);
+  const closes = slice.map(c => c.close);
+
+  const idx = hover.index;
+  const ma = getMAValues(closes, idx);
+
+  ctx.save();
+  ctx.font = "12px system-ui";
+  ctx.fillStyle = "#cfeaff";
+
+  const x = 8;
+  let y = 18;
+  const lh = 16;
+
+  ctx.fillText(`가격: ${fmt2(c.close)}`, x, y); y += lh;
+  if (ma.ma20 != null) ctx.fillText(`MA20: ${fmt2(ma.ma20)}`, x, y), y += lh;
+  if (ma.ma60 != null) ctx.fillText(`MA60: ${fmt2(ma.ma60)}`, x, y);
+
+  ctx.restore();
+
+  drawCandleReturn(c);
+}
+
+function drawCandleReturn(c) {
+  const el = document.getElementById('periodReturn');
+  if (!el) return;
+
+  const ret = ((c.close - c.open) / c.open) * 100;
+  el.innerText = `${ret >= 0 ? '+' : ''}${fmt2(ret)}%`;
+  el.style.color = ret >= 0 ? 'var(--profit)' : 'var(--loss)';
+}
+  
 // canvas hover handlers — candle-aware
 canvas2.addEventListener('mousemove', (ev) => {
   const rect = canvas2.getBoundingClientRect();
@@ -1203,25 +1262,32 @@ canvas2.addEventListener('mousemove', (ev) => {
 
   const h = hoverPos.candle;
   if (h) {
-    const boxW = 200, boxH = 64;
+    const boxW = 180, boxH = 80;
     const bx = Math.min(canvas2.width - boxW - 10, hoverPos.x + 12);
     const by = Math.max(8, Math.min(canvas2.height - boxH - 8, hoverPos.y - boxH / 2));
-    ctx.fillStyle = 'rgba(6,18,36,0.95)';
+
+    ctx.fillStyle = 'rgba(6,18,36,0.95)'; 
     ctx.fillRect(bx, by, boxW, boxH);
     ctx.strokeStyle = 'rgba(47,195,255,0.15)';
     ctx.strokeRect(bx, by, boxW, boxH);
+  
     ctx.fillStyle = '#cfeaff';
     ctx.font = '12px system-ui';
-    const dt = new Date(h.time);
-    const label = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:00`;
-    ctx.fillText(label, bx + 8, by + 18);
-    ctx.fillText(`O:${fmt2(h.open)} H:${fmt2(h.high)} L:${fmt2(h.low)} C:${fmt2(h.close)}`, bx + 8, by + 36);
+
+    let ty = by + 18;
+    const lh = 14;
+
+    ctx.fillText(`O: ${fmt2(h.open)}`, bx + 8, ty); ty += lh;
+    ctx.fillText(`H: ${fmt2(h.high)}`, bx + 8, ty); ty += lh;
+    ctx.fillText(`L: ${fmt2(h.low)}`,  bx + 8, ty); ty += lh;
+    ctx.fillText(`C: ${fmt2(h.close)}`,bx + 8, ty);
   }
 });
 
 canvas2.addEventListener('mouseout', () => {
   isHovering = false;
   hoverPos = null;
+  updatePeriodReturn?.();
   drawChart();
 });
 
