@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.69</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.70</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1059,108 +1059,19 @@ function calcEMA(data, period) {
   return out;
 }
   
-
 function drawChart() {
-  // draw candles then overlay MAs / labels
-  drawCandles();
-
   const canvas = canvas2;
   const ctx = ctx2;
   canvas.width = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
 
-  const candles = getActiveCandles();
-  if (!candles || candles.length === 0) {
-    ctx.fillStyle = "#cfeaff";
-    ctx.font = "12px system-ui";
-    ctx.fillText("가격 차트 준비 중...", 8, 16);
-    document.getElementById('periodReturn').innerText = `+0.00%`;
-    return;
-  }
-
-  // same slice logic as drawCandles()
-  const sliceStart = Math.max(0, candles.length - visibleCount - candleOffset);
-  const slice = candles.slice(sliceStart, candles.length - candleOffset);
-
-  // compute min/max for overlay scaling
-  const prices = slice.flatMap(c => [c.high, c.low]);
-  const max = Math.max(...prices);
-  const min = Math.min(...prices);
-  const range = max - min || 1;
-  const candleW = canvas.width / (slice.length || 1);
-
-  // get close price array for MA
-  const closes = slice.map(c => c.close);
-
-  // compute EMA lines (or SMA) on closes
-  const emaShort = calcEMA(closes, Math.min(5, Math.max(1, Math.floor(closes.length/20) || 5)));
-  const emaMid   = calcEMA(closes, 20);
-  const emaLong  = calcEMA(closes, 60);
-
-  // helper to map value->y
-  const valToY = (v) => canvas.height - ((v - min) / range) * canvas.height;
-
-  // draw EMA lines
-  function drawLine(arr, strokeStyle, lineWidth=1.2) {
-    ctx.beginPath();
-    ctx.lineWidth = lineWidth;
-    ctx.strokeStyle = strokeStyle;
-    for (let i = 0; i < arr.length; i++) {
-      const v = arr[i];
-      if (v === null || v === undefined) continue;
-      const x = i * candleW + candleW * 0.5;
-      const y = valToY(v);
-      if (i === 0 || arr[i-1] === null) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
-
-  // overlay: choose colors consistent with theme
-  drawLine(emaShort, "#9bf6ff", 1.2);
-  drawLine(emaMid,   "#ffd166", 1.2);
-  drawLine(emaLong,  "#ff9b9b", 1.2);
-
-  // top-left labels: latest price and VIX
-  ctx.fillStyle = "#cfeaff";
-  ctx.font = "12px system-ui";
-  const last = slice[slice.length - 1];
-  if (last) {
-    ctx.fillText(`현재가: ${fmt2(last.close)}`, 8, 16);
-  }
-  ctx.fillText(`VIX: ${fmt2(econ.vix)}`, 120, 16);
-
-  // periodReturn computed over visible slice (close-to-close)
-  if (slice.length >= 2) {
-    const first = slice[0].close;
-    const lastC = slice[slice.length - 1].close;
-    const pct = ((lastC - first) / first) * 100;
-    const el = document.getElementById('periodReturn');
-    el.innerText = `${pct>=0?'+':''}${fmt2(pct)}%`;
-    el.style.color = pct >= 0 ? 'var(--profit)' : 'var(--loss)';
-  }
-}
-
-  
-
-function getActiveCandles() {
-  return state.candles[candleType];
-}
-
-
-  
-function drawCandles() {
-  const canvas = canvas2;
-  const ctx = ctx2;
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
-
+  // 배경은 여기서 단 한 번만
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#041426";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const candles = getActiveCandles();
-  if (candles.length === 0) return;
+  if (!candles.length) return;
 
   const slice = candles.slice(
     Math.max(0, candles.length - visibleCount - candleOffset),
@@ -1170,9 +1081,25 @@ function drawCandles() {
   const prices = slice.flatMap(c => [c.high, c.low]);
   const max = Math.max(...prices);
   const min = Math.min(...prices);
-  const range = max - min || 1;
-
   const candleW = canvas.width / slice.length;
+
+  // 1️⃣ 캔들
+  drawCandles(slice, min, max, candleW);
+
+  // 2️⃣ 이동평균 (close 기준)
+  const closes = slice.map(c => c.close);
+  drawMA(closes, min, max, candleW);
+}
+
+function getActiveCandles() {
+  return state.candles[candleType];
+}
+  
+  
+function drawCandles(slice, min, max, candleW) {
+  const canvas = canvas2;
+  const ctx = ctx2;
+  const range = max - min || 1;
 
   slice.forEach((c, i) => {
     const x = i * candleW + candleW * 0.5;
@@ -1197,6 +1124,30 @@ function drawCandles() {
     const bodyH = Math.max(1, Math.abs(yOpen - yClose));
     ctx.fillRect(x - candleW * 0.3, bodyY, candleW * 0.6, bodyH);
   });
+}
+
+function drawMA(closes, min, max, candleW) {
+  const ctx = ctx2;
+  const range = max - min || 1;
+
+  const ma20 = calcSMA(closes, 20);
+  const ma60 = calcSMA(closes, 60);
+
+  function line(arr, color) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    arr.forEach((v, i) => {
+      if (v == null) return;
+      const x = i * candleW + candleW * 0.5;
+      const y = canvas2.height - (v - min) / range * canvas2.height;
+      i === 0 || arr[i-1] == null ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  line(ma20, "#ffd166");
+  line(ma60, "#9bf6ff");
 }
 
 // canvas hover handlers — candle-aware
