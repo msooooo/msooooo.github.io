@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.70</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.0</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1131,8 +1131,9 @@ function drawMA(closes, min, max, candleW) {
   const ctx = ctx2;
   const range = max - min || 1;
 
-  const ma20 = calcSMA(closes, 20);
-  const ma60 = calcSMA(closes, 60);
+  const ema5 = calcEMA(closes, 5)
+  const ema20 = calcEMA(closes, 20);
+  const ema60 = calcEMA(closes, 60);
 
   function line(arr, color) {
     ctx.beginPath();
@@ -1147,8 +1148,9 @@ function drawMA(closes, min, max, candleW) {
     ctx.stroke();
   }
 
-  line(ma20, "#ffd166");
-  line(ma60, "#9bf6ff");
+  line(ema5, "#00ff00");
+  line(ema20, "#0000ff");
+  line(ema60, "#ff0000");
 }
 
 // canvas hover handlers — candle-aware
