@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.65</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.66</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -980,7 +980,7 @@ function getCandleKey(date, type) {
 }
 
 function updateCandles(price, time) {
-  ['1H', '1D', '1W'].forEach(type => {
+  ['1H', '1D', '1W', '1M', '1Y'].forEach(type => {
     const key = getCandleKey(time, type);
     const arr = state.candles[type];
 
