@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.1</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.2</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1166,9 +1166,9 @@ function drawMA(closes, min, max, candleW) {
     ctx.stroke();
   }
 
-  line(ema5, "#00ff00");
-  line(ema20, "#0000ff");
-  line(ema60, "#ff0000");
+  line(ema5, "#15a33b");
+  line(ema20, "#cc7810");
+  line(ema60, "#8a2be2");
 }
 
 function drawHoverInfo(hover) {
@@ -1184,7 +1184,7 @@ function drawHoverInfo(hover) {
   const closes = slice.map(c => c.close);
 
   const idx = hover.index;
-  const ma = getMAValues(closes, idx);
+  const ema = getMAValues(closes, idx);
 
   ctx.save();
   ctx.font = "12px system-ui";
@@ -1195,8 +1195,9 @@ function drawHoverInfo(hover) {
   const lh = 16;
 
   ctx.fillText(`가격: ${fmt2(c.close)}`, x, y); y += lh;
-  if (ma.ma20 != null) ctx.fillText(`MA20: ${fmt2(ma.ma20)}`, x, y), y += lh;
-  if (ma.ma60 != null) ctx.fillText(`MA60: ${fmt2(ma.ma60)}`, x, y);
+  if (ema.ema5 != null) ctx.fillText(`EMA5: ${fmt2(ema.ema5)}`, x, y), y += lh;
+  if (ema.ema20 != null) ctx.fillText(`EMA20: ${fmt2(ema.ema20)}`, x, y), y += lh;
+  if (ema.ema60 != null) ctx.fillText(`EMA60: ${fmt2(ema.ema60)}`, x, y);
 
   ctx.restore();
 
@@ -1262,7 +1263,7 @@ canvas2.addEventListener('mousemove', (ev) => {
 
   const h = hoverPos.candle;
   if (h) {
-    const boxW = 180, boxH = 80;
+    const boxW = 100, boxH = 70;
     const bx = Math.min(canvas2.width - boxW - 10, hoverPos.x + 12);
     const by = Math.max(8, Math.min(canvas2.height - boxH - 8, hoverPos.y - boxH / 2));
 
@@ -1277,10 +1278,11 @@ canvas2.addEventListener('mousemove', (ev) => {
     let ty = by + 18;
     const lh = 14;
 
-    ctx.fillText(`O: ${fmt2(h.open)}`, bx + 8, ty); ty += lh;
-    ctx.fillText(`H: ${fmt2(h.high)}`, bx + 8, ty); ty += lh;
-    ctx.fillText(`L: ${fmt2(h.low)}`,  bx + 8, ty); ty += lh;
-    ctx.fillText(`C: ${fmt2(h.close)}`,bx + 8, ty);
+    ctx.fillText(`날짜: ${nowStr(simDate)}`, bx + 8, ty); ty += lh;
+    ctx.fillText(`시가: ${fmt2(h.open)}`, bx + 8, ty); ty += lh;
+    ctx.fillText(`고가: ${fmt2(h.high)}`, bx + 8, ty); ty += lh;
+    ctx.fillText(`저가: ${fmt2(h.low)}`,  bx + 8, ty); ty += lh;
+    ctx.fillText(`종가: ${fmt2(h.close)}`,bx + 8, ty);
   }
 });
 
