@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.66</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.67</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -268,11 +268,17 @@ let R = RATE_BASE * 0.01, Q = 0.0;
 let simDate = new Date("2025-01-01T00:00:00");
 let hoursPerTick = 1; // controlled by UI speed
 
-// market state
+// market state — initialize candle arrays so updateCandles() won't fail
 let state = {
   spot: 10000.0,
   history: [], // [{t:Date, price:number}]
-  candles: {}
+  candles: {
+    '1H': [],
+    '1D': [],
+    '1W': [],
+    '1M': [],
+    '1Y': []
+  }
 };
 
 // chart period state
@@ -959,8 +965,8 @@ function computeEquity() {
     };
 }
 
-
 function getCandleKey(date, type) {
+  // returns ms timestamp representing the normalized start time for given candle type
   const d = new Date(date);
 
   if (type === '1H') {
@@ -970,9 +976,21 @@ function getCandleKey(date, type) {
     d.setHours(0, 0, 0, 0);
   }
   else if (type === '1W') {
-    const day = d.getDay();
-    const diff = (day === 0 ? -6 : 1) - day; // 월요일 기준
+    // normalize to Monday 00:00 (week starts Monday)
+    const day = d.getDay(); // 0=Sun,1=Mon...
+    const diff = (day === 0 ? -6 : 1) - day; // move to Monday
     d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+  }
+  else if (type === '1M') {
+    // normalize to first day of month 00:00
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+  }
+  else if (type === '1Y') {
+    // normalize to Jan 1st 00:00 of the year
+    d.setMonth(0);
+    d.setDate(1);
     d.setHours(0, 0, 0, 0);
   }
 
@@ -980,14 +998,16 @@ function getCandleKey(date, type) {
 }
 
 function updateCandles(price, time) {
-  ['1H', '1D', '1W', '1M', '1Y'].forEach(type => {
+  // ensure arrays exist and update OHLC for each type
+  const types = ['1H', '1D', '1W', '1M', '1Y'];
+  types.forEach(type => {
+    if (!Array.isArray(state.candles[type])) state.candles[type] = [];
     const key = getCandleKey(time, type);
     const arr = state.candles[type];
+    const last = arr.length ? arr[arr.length - 1] : null;
 
-    let c = arr[arr.length - 1];
-
-    if (!c || c.time !== key) {
-      // 새 봉
+    if (!last || last.time !== key) {
+      // new candle
       arr.push({
         time: key,
         open: price,
@@ -995,11 +1015,13 @@ function updateCandles(price, time) {
         low: price,
         close: price
       });
+      // optional: cap stored candles to reasonable length to avoid memory blowup
+      if (arr.length > 20000) arr.splice(0, arr.length - 20000);
     } else {
-      // 기존 봉 업데이트
-      c.high = Math.max(c.high, price);
-      c.low  = Math.min(c.low, price);
-      c.close = price;
+      // update existing candle OHLC
+      last.high = Math.max(last.high, price);
+      last.low  = Math.min(last.low, price);
+      last.close = price;
     }
   });
 }
@@ -1009,63 +1031,6 @@ function updateCandles(price, time) {
 -----------------------------*/
 const canvas2 = document.getElementById('chartCanvas');
 const ctx2 = canvas2.getContext('2d');
-
-function periodStartDate(){
-  const end = new Date(simDate);
-
-  switch(chartPeriod){
-    case '1D': {
-      const d = new Date(end.getFullYear(), end.getMonth(), end.getDate(), 0, 0, 0);
-      return d;
-    }
-
-    case '1W': {
-      const d = new Date(end.getTime() - 7 * 24 * 3600 * 1000);
-      return d;
-    }
-
-    case '1M': {
-      const d = new Date(end);
-      d.setMonth(d.getMonth() - 1);
-      return d;
-    }
-
-    case '3M': {
-      const d = new Date(end);
-      d.setMonth(d.getMonth() - 3);
-      return d;
-    }
-
-    case '6M': {
-      const d = new Date(end);
-      d.setMonth(d.getMonth() - 6);
-      return d;
-    }
-
-    case '1Y': {
-      const d = new Date(end);
-      d.setFullYear(d.getFullYear() - 1);
-      return d;
-    }
-      
-    case '3Y': {
-      const d = new Date(end);
-      d.setFullYear(d.getFullYear() - 3);
-      return d;
-    }
-
-    default:
-      // ALL
-      return new Date(0);
-  }
-}
-
-function getPeriodFilteredData(){
-  if (!state.history || state.history.length===0) return [];
-  if (chartPeriod === 'ALL') return state.history.slice();
-  const start = periodStartDate();
-  return state.history.filter(h => h.t.getTime() >= start.getTime());
-}
 
 function calcPeriodReturn(data){ if (!data || data.length<2) return null; const first = data[0].price; const last = data[data.length-1].price; const pct = (last - first) / first * 100; return pct; }
 
@@ -1100,132 +1065,89 @@ function calcEMA(data, period) {
   return out;
 }
   
+
 function drawChart() {
-    const canvas = canvas2;
-    const ctx = ctx2;
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#041426";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // draw candles then overlay MAs / labels
+  drawCandles();
 
-    const dataFull = getPeriodFilteredData();
-    if (!dataFull || dataFull.length < 2) {
-        ctx.fillStyle = "#cfeaff";
-        ctx.font = "12px system-ui";
-        ctx.fillText("가격 차트 준비 중...", 8, 16);
-        document.getElementById('periodReturn').innerText = `+0.00%`;
-        return;
-    }
+  const canvas = canvas2;
+  const ctx = ctx2;
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
 
-    const data = dataFull.map(d => d.price);
-  
-    // 이동평균 계산
-    const ema5 = calcEMA(data, 5)
-    const ema20 = calcEMA(data, 20);
-    const ema60 = calcEMA(data, 60);
-  
-    const max = Math.max(...data),
-        min = Math.min(...data);
-    const range = (max - min) || 1;
-
-    ctx.beginPath();
-    ctx.lineWidth = 0.5;
-    if (blackSwanActiveTicks > 0) ctx.strokeStyle = "#ff6b6b";
-    else if (witchingActiveTicks > 0) ctx.strokeStyle = "#ffd166";
-    else ctx.strokeStyle = "#2fc3ff";
-    for (let i = 0; i < data.length; i++) {
-        const x = (i / (data.length - 1)) * canvas.width;
-        const y = canvas.height - ((data[i] - min) / range) * canvas.height;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // === EMA5 ===
-    ctx.beginPath();
-    ctx.lineWidth = 1.0;
-    ctx.strokeStyle = "#03fc20";
-    for (let i = 0; i < ema5.length; i++) {
-      if (ema5[i] === null) continue;
-      const x = (i / (ema5.length - 1)) * canvas.width;
-      const y = canvas.height - ((ema5[i] - min) / range) * canvas.height;
-      if (i === 0 || ema5[i-1] === null) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  
-    // === EMA20 ===
-    ctx.beginPath();
-    ctx.lineWidth = 1.0;
-    ctx.strokeStyle = "#fccf03";
-    for (let i = 0; i < ema20.length; i++) {
-      if (ema20[i] === null) continue;
-      const x = (i / (ema20.length - 1)) * canvas.width;
-      const y = canvas.height - ((ema20[i] - min) / range) * canvas.height;
-      if (i === 0 || ema20[i-1] === null) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // === EMA60 ===
-    ctx.beginPath();
-    ctx.lineWidth = 1.0;
-    ctx.strokeStyle = "#fc2403";
-    for (let i = 0; i < ema60.length; i++) {
-      if (ema60[i] === null) continue;
-      const x = (i / (ema60.length - 1)) * canvas.width;
-      const y = canvas.height - ((ema60[i] - min) / range) * canvas.height;
-      if (i === 0 || ema60[i-1] === null) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) {
     ctx.fillStyle = "#cfeaff";
     ctx.font = "12px system-ui";
-    const latest = data[data.length - 1];
-    ctx.fillText(`현재가: ${fmt2(latest)}`, 8, 16);
-    ctx.fillText(`VIX: ${fmt2(econ.vix)}`, 120, 16);
+    ctx.fillText("가격 차트 준비 중...", 8, 16);
+    document.getElementById('periodReturn').innerText = `+0.00%`;
+    return;
+  }
 
-    const ret = calcPeriodReturn(dataFull);
-    if (ret !== null) {
-        const el = document.getElementById('periodReturn');
-        el.innerText = `${ret>=0?'+':''}${fmt2(ret)}%`;
-        el.style.color = ret >= 0 ? 'var(--profit)' : 'var(--loss)';
-    }
+  // same slice logic as drawCandles()
+  const sliceStart = Math.max(0, candles.length - visibleCount - candleOffset);
+  const slice = candles.slice(sliceStart, candles.length - candleOffset);
 
-    // hover crosshair
-    if (isHovering && hoverPos && data.length > 0) {
-        const i = hoverPos.index;
-        const px = hoverPos.x;
-        const py = hoverPos.y;
-        ctx.strokeStyle = 'rgba(200,230,255,0.25)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(px, 0);
-        ctx.lineTo(px, canvas.height);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, py);
-        ctx.lineTo(canvas.width, py);
-        ctx.stroke();
-        const h = dataFull[i];
-        if (h) {
-            const boxW = 180,
-                boxH = 48;
-            const bx = Math.min(canvas.width - boxW - 10, px + 8);
-            const by = Math.max(8, Math.min(canvas.height - boxH - 8, py - boxH / 2));
-            ctx.fillStyle = 'rgba(6,18,36,0.95)';
-            ctx.fillRect(bx, by, boxW, boxH);
-            ctx.strokeStyle = 'rgba(47,195,255,0.15)';
-            ctx.strokeRect(bx, by, boxW, boxH);
-            ctx.fillStyle = '#cfeaff';
-            ctx.font = '12px system-ui';
-            ctx.fillText(`${h.t.getFullYear()}-${String(h.t.getMonth()+1).padStart(2,'0')}-${String(h.t.getDate()).padStart(2,'0')} ${String(h.t.getHours()).padStart(2,'0')}:${String(h.t.getMinutes()).padStart(2,'0')}`, bx + 8, by + 18);
-            ctx.fillText(`Price: ${fmt2(h.price)}`, bx + 8, by + 36);
-        }
+  // compute min/max for overlay scaling
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const range = max - min || 1;
+  const candleW = canvas.width / (slice.length || 1);
+
+  // get close price array for MA
+  const closes = slice.map(c => c.close);
+
+  // compute EMA lines (or SMA) on closes
+  const emaShort = calcEMA(closes, Math.min(5, Math.max(1, Math.floor(closes.length/20) || 5)));
+  const emaMid   = calcEMA(closes, 20);
+  const emaLong  = calcEMA(closes, 60);
+
+  // helper to map value->y
+  const valToY = (v) => canvas.height - ((v - min) / range) * canvas.height;
+
+  // draw EMA lines
+  function drawLine(arr, strokeStyle, lineWidth=1.2) {
+    ctx.beginPath();
+    ctx.lineWidth = lineWidth;
+    ctx.strokeStyle = strokeStyle;
+    for (let i = 0; i < arr.length; i++) {
+      const v = arr[i];
+      if (v === null || v === undefined) continue;
+      const x = i * candleW + candleW * 0.5;
+      const y = valToY(v);
+      if (i === 0 || arr[i-1] === null) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
+    ctx.stroke();
+  }
+
+  // overlay: choose colors consistent with theme
+  drawLine(emaShort, "#9bf6ff", 1.2);
+  drawLine(emaMid,   "#ffd166", 1.2);
+  drawLine(emaLong,  "#ff9b9b", 1.2);
+
+  // top-left labels: latest price and VIX
+  ctx.fillStyle = "#cfeaff";
+  ctx.font = "12px system-ui";
+  const last = slice[slice.length - 1];
+  if (last) {
+    ctx.fillText(`현재가: ${fmt2(last.close)}`, 8, 16);
+  }
+  ctx.fillText(`VIX: ${fmt2(econ.vix)}`, 120, 16);
+
+  // periodReturn computed over visible slice (close-to-close)
+  if (slice.length >= 2) {
+    const first = slice[0].close;
+    const lastC = slice[slice.length - 1].close;
+    const pct = ((lastC - first) / first) * 100;
+    const el = document.getElementById('periodReturn');
+    el.innerText = `${pct>=0?'+':''}${fmt2(pct)}%`;
+    el.style.color = pct >= 0 ? 'var(--profit)' : 'var(--loss)';
+  }
 }
+
+  
 
 function getActiveCandles() {
   return state.candles[candleType];
@@ -1283,33 +1205,70 @@ function drawCandles() {
   });
 }
 
-// canvas hover handlers - similar but using period-aware mapping
+// canvas hover handlers — candle-aware
 canvas2.addEventListener('mousemove', (ev) => {
   const rect = canvas2.getBoundingClientRect();
   const x = ev.clientX - rect.left;
   const y = ev.clientY - rect.top;
 
-  const dataFull = getPeriodFilteredData();
-  if (!dataFull || dataFull.length === 0) return;
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) return;
 
-  const idx = Math.round((x / canvas2.width) * (dataFull.length - 1));
-  const clamped = Math.max(0, Math.min(dataFull.length - 1, idx));
+  // compute slice used for rendering (same as drawCandles/drawChart)
+  const sliceStart = Math.max(0, candles.length - visibleCount - candleOffset);
+  const slice = candles.slice(sliceStart, candles.length - candleOffset);
+  if (slice.length === 0) return;
 
-  const prices = dataFull.map(d => d.price);
+  const candleW = canvas2.width / slice.length;
+  let idx = Math.floor(x / candleW);
+  idx = Math.max(0, Math.min(slice.length - 1, idx));
+
+  // compute y for the hovered candle's close
+  const prices = slice.flatMap(c => [c.high, c.low]);
   const max = Math.max(...prices);
   const min = Math.min(...prices);
-  const range = (max - min) || 1;
-
-  const py = canvas2.height - ((prices[clamped] - min) / range) * canvas2.height;
+  const range = max - min || 1;
+  const py = canvas2.height - ((slice[idx].close - min) / range) * canvas2.height;
 
   isHovering = true;
   hoverPos = {
-    x: (clamped / (dataFull.length - 1)) * canvas2.width,
+    x: idx * candleW + candleW * 0.5,
     y: py,
-    index: clamped
+    index: idx,
+    candle: slice[idx]
   };
 
   drawChart();
+
+  // draw crosshair and tooltip (after redraw)
+  const ctx = ctx2;
+  ctx.strokeStyle = 'rgba(200,230,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(hoverPos.x, 0);
+  ctx.lineTo(hoverPos.x, canvas2.height);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0, hoverPos.y);
+  ctx.lineTo(canvas2.width, hoverPos.y);
+  ctx.stroke();
+
+  const h = hoverPos.candle;
+  if (h) {
+    const boxW = 200, boxH = 64;
+    const bx = Math.min(canvas2.width - boxW - 10, hoverPos.x + 12);
+    const by = Math.max(8, Math.min(canvas2.height - boxH - 8, hoverPos.y - boxH / 2));
+    ctx.fillStyle = 'rgba(6,18,36,0.95)';
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.strokeStyle = 'rgba(47,195,255,0.15)';
+    ctx.strokeRect(bx, by, boxW, boxH);
+    ctx.fillStyle = '#cfeaff';
+    ctx.font = '12px system-ui';
+    const dt = new Date(h.time);
+    const label = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} ${String(dt.getHours()).padStart(2,'0')}:00`;
+    ctx.fillText(label, bx + 8, by + 18);
+    ctx.fillText(`O:${fmt2(h.open)} H:${fmt2(h.high)} L:${fmt2(h.low)} C:${fmt2(h.close)}`, bx + 8, by + 36);
+  }
 });
 
 canvas2.addEventListener('mouseout', () => {
@@ -1431,8 +1390,7 @@ function renderAll() {
 
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
-  // drawChart();
-  drawCandles();
+  drawChart();
 
   document.getElementById('cash').innerText = fmt2(player.cash);
   const eq = computeEquity();
@@ -1617,22 +1575,22 @@ document.getElementById('optType').addEventListener('change', updateOptPremiumDi
 document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
 document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = e.target.value; });
 
-const periodButtons = document.querySelectorAll('.periodBtn');
-periodButtons.forEach(b => {
-  b.addEventListener('click', () => {
-    periodButtons.forEach(x => x.classList.remove('active'));
-    b.classList.add('active');
-    chartPeriod = b.getAttribute('data-period');
-    drawChart();
-  });
-});
-
+// bind candle type buttons
 document.querySelectorAll('.periodBtn').forEach(btn => {
-  btn.onclick = () => {
-    candleType = btn.dataset.type;
-    candleOffset = 0;
-    drawCandles();
-  };
+  btn.addEventListener('click', () => {
+    // toggle active class
+    document.querySelectorAll('.periodBtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const t = btn.dataset.type;
+    if (t && ['1H','1D','1W','1M','1Y'].includes(t)) {
+      candleType = t;
+      candleOffset = 0; // reset scroll
+      visibleCount = (t === '1H') ? 200 : (t === '1D') ? 140 : (t === '1W') ? 100 : (t === '1M') ? 80 : 60;
+      // keep visibleCount heuristic; adjust to taste
+      renderAll();
+    }
+  });
 });
 
 /* ----------------------------
