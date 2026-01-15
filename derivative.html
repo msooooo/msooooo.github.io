@@ -79,7 +79,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.0.68</div>
+        <div class="small muted">1초 = 1시간 • ver 1.0.69</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1067,11 +1067,56 @@ function calcEMA(data, period) {
   
 
 function drawChart() {
+  
   // draw candles then overlay MAs / labels
-  drawCandles();
-
   const canvas = canvas2;
   const ctx = ctx2;
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#041426";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const candles = getActiveCandles();
+  if (candles.length === 0) return;
+
+  const slice = candles.slice(
+    Math.max(0, candles.length - visibleCount - candleOffset),
+    candles.length - candleOffset
+  );
+
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const range = max - min || 1;
+
+  const candleW = canvas.width / slice.length;
+
+  slice.forEach((c, i) => {
+    const x = i * candleW + candleW * 0.5;
+
+    const yHigh = canvas.height - (c.high - min) / range * canvas.height;
+    const yLow  = canvas.height - (c.low  - min) / range * canvas.height;
+    const yOpen = canvas.height - (c.open - min) / range * canvas.height;
+    const yClose= canvas.height - (c.close- min) / range * canvas.height;
+
+    // wick
+    ctx.strokeStyle = "#cfeaff";
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
+
+    // body
+    const up = c.close >= c.open;
+    ctx.fillStyle = up ? "#39ff88" : "#ff6b6b";
+
+    const bodyY = Math.min(yOpen, yClose);
+    const bodyH = Math.max(1, Math.abs(yOpen - yClose));
+    ctx.fillRect(x - candleW * 0.3, bodyY, candleW * 0.6, bodyH);
+  });
+  
   canvas.width = canvas.clientWidth;
   canvas.height = canvas.clientHeight;
 
@@ -1155,55 +1200,7 @@ function getActiveCandles() {
 
 
   
-function drawCandles() {
-  const canvas = canvas2;
-  const ctx = ctx2;
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#041426";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  const candles = getActiveCandles();
-  if (candles.length === 0) return;
-
-  const slice = candles.slice(
-    Math.max(0, candles.length - visibleCount - candleOffset),
-    candles.length - candleOffset
-  );
-
-  const prices = slice.flatMap(c => [c.high, c.low]);
-  const max = Math.max(...prices);
-  const min = Math.min(...prices);
-  const range = max - min || 1;
-
-  const candleW = canvas.width / slice.length;
-
-  slice.forEach((c, i) => {
-    const x = i * candleW + candleW * 0.5;
-
-    const yHigh = canvas.height - (c.high - min) / range * canvas.height;
-    const yLow  = canvas.height - (c.low  - min) / range * canvas.height;
-    const yOpen = canvas.height - (c.open - min) / range * canvas.height;
-    const yClose= canvas.height - (c.close- min) / range * canvas.height;
-
-    // wick
-    ctx.strokeStyle = "#cfeaff";
-    ctx.beginPath();
-    ctx.moveTo(x, yHigh);
-    ctx.lineTo(x, yLow);
-    ctx.stroke();
-
-    // body
-    const up = c.close >= c.open;
-    ctx.fillStyle = up ? "#39ff88" : "#ff6b6b";
-
-    const bodyY = Math.min(yOpen, yClose);
-    const bodyH = Math.max(1, Math.abs(yOpen - yClose));
-    ctx.fillRect(x - candleW * 0.3, bodyY, candleW * 0.6, bodyH);
-  });
-}
 
 // canvas hover handlers — candle-aware
 canvas2.addEventListener('mousemove', (ev) => {
@@ -1391,7 +1388,6 @@ function renderAll() {
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
   drawChart();
-  drawCandles();
 
   document.getElementById('cash').innerText = fmt2(player.cash);
   const eq = computeEquity();
@@ -1552,6 +1548,7 @@ function resetSystem() {
   hoursPerTick = 1;
   state.spot = 10000.0;
   state.history = [{ t: new Date(simDate), price: state.spot }];
+  state.candles = {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []};
   econ = { vix: VIX_BASE, policyRate: RATE_BASE, bondYield: YIELD_BASE, gdpGrowth: GDP_BASE, unemployment: UEMP_BASE };
   player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
