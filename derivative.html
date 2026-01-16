@@ -1696,7 +1696,7 @@ document.querySelectorAll('.periodBtn').forEach(btn => {
     if (t && ['1H','1D','1W','1M','1Y'].includes(t)) {
       candleType = t;
       candleOffset = 0; // reset scroll
-      visibleCount = (t === '1H') ? 480 : (t === '1D') ? 150 : (t === '1W') ? 120 : (t === '1M') ? 80 : 60;
+      visibleCount = (t === '1H') ? 480 : (t === '1D') ? 120 : (t === '1W') ? 100 : (t === '1M') ? 60 : 60;
       // keep visibleCount heuristic; adjust to taste
       renderAll();
     }
