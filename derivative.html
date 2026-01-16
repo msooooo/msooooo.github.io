@@ -1190,107 +1190,34 @@ function drawMA(maAll, startIndex, min, max, candleW, sliceLen) {
 }
 
 function drawHoverInfo(hover) {
-  if (!hover || !hover.candle) return;
-
   const ctx = ctx2;
   const canvas = canvas2;
   const c = hover.candle;
 
-  // slice 기준 index → 전체 캔들 기준 index
+  // global index for hovered candle
   const globalIndex = chartStartIndex + hover.index;
 
-  // === 이동평균 값 (전체 MA 배열에서 직접 조회) ===
-  const ema5  = maAll.ema5?.[globalIndex]  ?? null;
-  const ema20 = maAll.ema20?.[globalIndex] ?? null;
-  const ema60 = maAll.ema60?.[globalIndex] ?? null;
-
-  // === 날짜 포맷 ===
-  const d = new Date(c.time);
-  const dateStr =
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
-    `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  // read MA from global arrays (already computed in drawChart)
+  const ema5Val  = maAll.ema5[globalIndex]  ?? null;
+  const ema20Val = maAll.ema20[globalIndex] ?? null;
+  const ema60Val = maAll.ema60[globalIndex] ?? null;
 
   ctx.save();
   ctx.font = "12px system-ui";
-  ctx.textBaseline = "top";
+  ctx.fillStyle = "#cfeaff";
 
-  /* =========================
-     1️⃣ 좌측 상단 정보 박스
-     ========================= */
-  let x = 8;
-  let y = 8;
+  const x = 8;
+  let y = 18;
   const lh = 16;
 
-  ctx.fillStyle = "#cfeaff";
-  ctx.fillText(`시각: ${dateStr}`, x, y); y += lh;
-
   ctx.fillText(`가격: ${fmt2(c.close)}`, x, y); y += lh;
-
-  if (ema5 !== null) {
-    ctx.fillStyle = "#0af7ef";
-    ctx.fillText(`EMA 5: ${fmt2(ema5)}`, x, y);
-    y += lh;
-  }
-  if (ema20 !== null) {
-    ctx.fillStyle = "#f7c80a";
-    ctx.fillText(`EMA 20: ${fmt2(ema20)}`, x, y);
-    y += lh;
-  }
-  if (ema60 !== null) {
-    ctx.fillStyle = "#8a2be2";
-    ctx.fillText(`EMA 60: ${fmt2(ema60)}`, x, y);
-    y += lh;
-  }
-
-  /* =========================
-     2️⃣ 캔들 근처 OHLC 툴팁
-     ========================= */
-  const tooltipW = 140;
-  const tooltipH = 84;
-  const bx = Math.min(hover.x + 12, canvas.width - tooltipW - 4);
-  const by = Math.min(hover.y + 12, canvas.height - tooltipH - 4);
-
-  ctx.fillStyle = "rgba(10, 20, 40, 0.92)";
-  ctx.fillRect(bx, by, tooltipW, tooltipH);
-
-  ctx.strokeStyle = "#3a5a8c";
-  ctx.strokeRect(bx, by, tooltipW, tooltipH);
-
-  ctx.fillStyle = "#ffffff";
-  let ty = by + 6;
-
-  ctx.fillText(`시가  ${fmt2(c.open)}`,  bx + 8, ty); ty += lh;
-  ctx.fillText(`고가  ${fmt2(c.high)}`,  bx + 8, ty); ty += lh;
-  ctx.fillText(`저가  ${fmt2(c.low)}`,   bx + 8, ty); ty += lh;
-  ctx.fillText(`종가  ${fmt2(c.close)}`, bx + 8, ty);
-
-  /* =========================
-     3️⃣ 우측 하단 수익률 박스
-     ========================= */
-  const ret =
-    c.open !== 0
-      ? ((c.close - c.open) / c.open) * 100
-      : 0;
-
-  const boxW = 120;
-  const boxH = 36;
-  const rx = canvas.width - boxW - 8;
-  const ry = canvas.height - boxH - 8;
-
-  ctx.fillStyle = "rgba(10, 20, 40, 0.92)";
-  ctx.fillRect(rx, ry, boxW, boxH);
-
-  ctx.strokeStyle = "#3a5a8c";
-  ctx.strokeRect(rx, ry, boxW, boxH);
-
-  ctx.fillStyle = ret >= 0 ? "#4cff9b" : "#ff6b6b";
-  ctx.fillText(
-    `수익률 ${ret >= 0 ? "+" : ""}${ret.toFixed(2)}%`,
-    rx + 8,
-    ry + 10
-  );
+  if (ema5Val  != null) ctx.fillText(`EMA5: ${fmt2(ema5Val)}`, x, y), y += lh;
+  if (ema20Val != null) ctx.fillText(`EMA20: ${fmt2(ema20Val)}`, x, y), y += lh;
+  if (ema60Val != null) ctx.fillText(`EMA60: ${fmt2(ema60Val)}`, x, y);
 
   ctx.restore();
+
+  drawCandleReturn(c);
 }
 
 function drawCandleReturn(c) {
