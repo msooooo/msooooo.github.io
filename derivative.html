@@ -69,39 +69,38 @@
   }
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
-  /* chart-attached scrollbars */
-  .hScroll {
-    position: absolute;
-    left: 0;
-    right: 14px;           /* 세로 스크롤 공간 */
-    bottom: 0;
-    height: 14px;
-    -webkit-appearance: none;
-    background: rgba(255,255,255,0.05);
-    transform: rotate(0deg);
-    transform-origin: center;
-  }
+/* chart-attached scrollbars */
+.hScroll {
+  position: absolute;
+  left: 0;
+  right: 14px;           /* 세로 스크롤 공간 */
+  bottom: 0;
+  height: 14px;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.05);
+}
 
-  .vScroll {
-    position: absolute;
-    top: 0;
-    bottom: 14px;          /* 가로 스크롤 공간 */
-    right: 0;
-    width: 14px;
-    -webkit-appearance: none;
-    background: rgba(255,255,255,0.05);
-    transform: rotate(-90deg);
-    transform-origin: center;
-  }
+.vScroll {
+  position: absolute;
+  top: 0;
+  bottom: 14px;          /* 가로 스크롤 공간 */
+  right: 0;
+  width: 14px;
+  -webkit-appearance: none;
+  background: rgba(255,255,255,0.05);
+  transform: rotate(0deg);
+  transform-origin: center;
+}
 
-  /* thumb */
-  .hScroll::-webkit-slider-thumb,
-  .vScroll::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
+/* thumb */
+.hScroll::-webkit-slider-thumb,
+.vScroll::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+}
   }
 </style>
 </head>
@@ -115,7 +114,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.10</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.11</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -224,7 +223,7 @@
             <div class="small muted">변동성과 추세를 나타내는 지표</div>
           </div>
           <div style="display:flex; align-items:center; gap:12px;">
-            <button id="toggleDebug" class="tiny debugBtn">⚙ Debug</button>
+            <button id="toggleDebug" class="tinyd debugBtn">⚙ Debug</button>
           </div>
         </div>
 
