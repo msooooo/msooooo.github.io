@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.23</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.24</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1511,12 +1511,12 @@ function initChartControls() {
   zoomOutBtn = document.getElementById('zoomOutBtn');
 
   if (panRangeEl) {
-    panRangeEl.addEventListener('input', () => {
+    panRangeEl.addEventListener('input', (e) => {
+      const candles = getActiveCandles();
       const maxOffset = Math.max(0, candles.length - visibleCount);
 
-      // UI → 내부 논리 변환 (반전)
-      candleOffset = maxOffset - Number(panRangeEl.value);
-
+      // 오른쪽 = 현재 / 왼쪽 = 과거
+      candleOffset = maxOffset - parseInt(e.target.value || '0', 10);
       drawChart();
     });
   }
