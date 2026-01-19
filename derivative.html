@@ -114,7 +114,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.11</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.12</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -189,14 +189,32 @@
   <!-- CENTER -->
   <div id="center">  
     <div id="chartWrap">
-      <canvas id="chartCanvas">
-        <!-- 가로 스크롤 (하단 전체) -->
-        <input id="panRange" type="range" min="0" max="0" value="0" class="hScroll" />
 
-        <!-- 세로 스크롤 (오른쪽 전체) -->
-        <input id="vpanRange" type="range" min="0" max="100" value="50" class="vScroll" />
-        </canvas>
+      <!-- 차트 캔버스 -->
+      <canvas id="chartCanvas"></canvas>
+
+      <!-- 가로 스크롤 (차트 하단 전체) -->
+      <input
+        id="panRange"
+        type="range"
+        min="0"
+        max="0"
+        value="0"
+        class="hScroll"
+      />
+
+      <!-- 세로 스크롤 (차트 오른쪽 전체) -->
+      <input
+        id="vpanRange"
+        type="range"
+        min="0"
+        max="100"
+        value="50"
+        class="vScroll"
+      />
+
     </div>
+
     <div id="chartControls">
       <button class="periodBtn active" data-type="1H">1H</button>
       <button class="periodBtn" data-type="1D">1D</button>
@@ -204,16 +222,15 @@
       <button class="periodBtn" data-type="1M">1M</button>
       <button class="periodBtn" data-type="1Y">1Y</button>
 
-      <!-- ZOOM controls for tablet (small) -->
+      <!-- ZOOM controls -->
       <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
         <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
         <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
       </div>
 
       <div class="dataBox" id="periodReturn">+0.00%</div>
-      </div>
     </div>
-
+  
     <div id="below">
       <!-- ECON panel (left half of below) -->
       <div id="econPanel">
