@@ -99,7 +99,7 @@
     bottom: 6px;
     height: 18px;
     -webkit-appearance: none;
-    background: rgba(255,255,255,0.03);
+    background: var(--accent);
     z-index: 40;
     pointer-events: auto;
   }
@@ -113,20 +113,10 @@
     transform: rotate(-90deg);
     transform-origin: center;
     -webkit-appearance: none;
-    background: rgba(255,255,255,0.03);
+    background: var(--accent);
     z-index: 40;
     pointer-events: auto;
     }
-
-  /* thumb */
-  .hScroll::-webkit-slider-thumb,
-  .vScroll::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
 </style>
 </head>
 <body>
@@ -139,7 +129,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.14</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.15</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
