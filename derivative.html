@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.28</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.29</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1814,7 +1814,7 @@ function renderAll() {
       <div class="small muted">총 명목가치 ${fmt2(f.notional)} | 증거금 ${fmt2(f.lockedMargin)}</div>
     `;
     el.onclick = () => {
-      if(selectedDetail.type === 'Future' && selectedDetail.index === i) {
+      if(selectedDetail && selectedDetail.type === 'Future' && selectedDetail.index === i) {
         selectedDetail = null;
       } else {
         selectedDetail = { type: 'Future', index: i };
@@ -1844,7 +1844,14 @@ function renderAll() {
       <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
       <div class="small muted">총 프리미엄 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
     `;
-    el.onclick = () => { selectedDetail = { type: 'Option', index: i }; updateDetails(); };
+    el.onclick = () => {
+      if(selectedDetail && selectedDetail.type === 'Option' && selectedDetail.index === i) {
+        selectedDetail = null;
+      } else {
+        selectedDetail = { type: 'Option', index: i };
+      }
+      updateDetails();
+    };
     optEl.appendChild(el);
   });
 
