@@ -92,31 +92,36 @@
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
   /* chart-attached scrollbars */
+  /* hScroll: 차트 하단 전체, 오른쪽 여유 확보 (vScroll과 겹치지 않도록 right 여유) */
   .hScroll {
     position: absolute;
     left: 8px;
-    right: 8px;           /* 세로 스크롤(14px) 영역 제외할 필요 없으면 8px -> 14px adjust */
+    right: 32px;       /* <-- 세로 스크롤 영역(약 18px) + margin(약 6~8px) 확보 */
     bottom: 6px;
-    height: 18px;
+    height: 14px;
     -webkit-appearance: none;
     background: rgba(255,255,255,0.03);
-    z-index: 40;
+   z-index: 40;
     pointer-events: auto;
   }
 
-    .vScroll {
+  /* vScroll: 기본 배치는 간단하게, 실제 길이(=width)와 위치는 JS가 설정 */
+  .vScroll {
     position: absolute;
-    top: 50%;
-    right: -40px;             /* 중요: 회전하면 튀어나오므로 보정 */
-    width: 150%; /* ← 실제 길이는 width가 됨 */
-    height: 18px;
-    transform: rotate(-90deg);
-    transform-origin: center;
+    /* 임시 기본값: JS에서 실제 width / transform 을 설정할 예정 */
+    top: 8px;
+    right: 6px;
+    width: 180px;      /* 회전 전 길이 (JS에서 업데이트) */
+    height: 18px;      /* 슬라이더 두께 */
     -webkit-appearance: none;
     background: rgba(255,255,255,0.03);
     z-index: 40;
     pointer-events: auto;
-    }
+
+    /* 회전: 가로형 input을 -90deg 회전시켜 세로형으로 보이게 함 */
+    transform: rotate(-90deg);
+    transform-origin: center;
+  }
 </style>
 </head>
 <body>
@@ -129,7 +134,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.17</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.18</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1511,6 +1516,7 @@ function updatePanRangeMax() {
     panRangeEl.max = String(maxOffset);
     panRangeEl.value = String(maxOffset - candleOffset);
   }
+  positionVScroll();
 }
 
 // initialize controls (call once)
@@ -1540,6 +1546,39 @@ function initChartControls() {
       drawChart();
     });
   }
+
+  // ---------- 추가: 세로 스크롤(회전형) 길이/위치 보정 ----------
+  function positionVScroll() {
+    const wrap = document.getElementById('chartWrap');
+    const v = document.getElementById('vpanRange');
+    const h = document.getElementById('panRange');
+    if (!wrap || !v || !h) return;
+
+    // wrapper 내부의 사용 가능한 높이 (패딩 8px 양쪽 고려)
+    const pad = 16; // chartWrap padding top+bottom (8 + 8)
+    const availH = Math.max(120, wrap.clientHeight - pad); // 최소값 보장
+
+    // 'input[type=range]'는 회전 전에 'width'가 길이 역할을 함 -> 회전시켜 세로 슬라이더 됨
+    v.style.width = (availH) + 'px';
+
+    // 회전(transform: rotate(-90deg)) 후에 input의 시각적 중심이 문서상에서 이동하므로
+    // 오른쪽 여유(6px)는 CSS로 유지하고, translation으로 세로 중앙 정렬 보정
+    // translateY 보정량: (wrap.clientHeight - availH)/2
+    const translateY = Math.round((wrap.clientHeight - availH) / 2);
+    v.style.transform = `rotate(-90deg) translateY(${translateY}px)`;
+    v.style.transformOrigin = 'center';
+  
+    // hScroll의 right는 vScroll 두께+여유와 맞춰 둔다(겹치지 않도록)
+    // 여기선 vScroll 두께(thumb 영역 포함)를 18px로 가정해 right를 32px로 고정시켰음 (CSS와 동일)
+    if (h) {
+      h.style.right = '32px';
+    }
+  }
+
+  // 초기 호출 및 리사이즈시 보정
+  positionVScroll();
+  window.addEventListener('resize', positionVScroll);
+  
   if (zoomInBtn) zoomInBtn.onclick = () => { setVisibleCount(Math.max(10, Math.floor(visibleCount*0.8)), null); updatePanRangeMax(); };
   if (zoomOutBtn) zoomOutBtn.onclick = () => { setVisibleCount(Math.min( getActiveCandles().length, Math.ceil(visibleCount*1.25) ), null); updatePanRangeMax(); };
 }
