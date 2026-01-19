@@ -92,35 +92,17 @@
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
   /* chart-attached scrollbars */
-  /* hScroll: 차트 하단 전체, 오른쪽 여유 확보 (vScroll과 겹치지 않도록 right 여유) */
+  /* hScroll: 차트 하단 전체, 오른쪽은 조금 남겨서 화면 끝과 겹치지 않게 함 */
   .hScroll {
     position: absolute;
     left: 8px;
-    right: 32px;       /* <-- 세로 스크롤 영역(약 18px) + margin(약 6~8px) 확보 */
+    right: 8px;       /* <-- 세로 스크롤 제거했으니 right를 줄임(기본 8px 여유) */
     bottom: 6px;
     height: 14px;
     -webkit-appearance: none;
     background: rgba(255,255,255,0.03);
-   z-index: 40;
-    pointer-events: auto;
-  }
-
-  /* vScroll: 기본 배치는 간단하게, 실제 길이(=width)와 위치는 JS가 설정 */
-  .vScroll {
-    position: absolute;
-    /* 임시 기본값: JS에서 실제 width / transform 을 설정할 예정 */
-    top: 8px;
-    right: 6px;
-    width: 180px;      /* 회전 전 길이 (JS에서 업데이트) */
-    height: 18px;      /* 슬라이더 두께 */
-    -webkit-appearance: none;
-    background: rgba(255,255,255,0.03);
     z-index: 40;
     pointer-events: auto;
-
-    /* 회전: 가로형 input을 -90deg 회전시켜 세로형으로 보이게 함 */
-    transform: rotate(-90deg);
-    transform-origin: center;
   }
 </style>
 </head>
@@ -134,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.18</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.19</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -209,10 +191,8 @@
   <!-- CENTER -->
   <div id="center">  
     <div id="chartWrap">
-
       <!-- 차트 캔버스 -->
       <canvas id="chartCanvas"></canvas>
-
       <!-- 가로 스크롤 (차트 하단 전체) -->
       <input
         id="panRange"
@@ -222,17 +202,6 @@
         value="0"
         class="hScroll"
       />
-
-      <!-- 세로 스크롤 (차트 오른쪽 전체) -->
-      <input
-        id="vpanRange"
-        type="range"
-        min="0"
-        max="100"
-        value="50"
-        class="vScroll"
-      />
-
     </div>
 
     <div id="chartControls">
@@ -372,12 +341,8 @@ const chartMarginBottom = 28;
 const chartMarginTop = 8;
 const chartMarginRight = 10;
 
-// vertical pan percent (-0.5 .. 0.5) => shifts chart up/down
-let pricePanPercent = 0.0; // controlled by vpanRange input
-
 // pan slider dom refs will be set later
 let panRangeEl = null;
-let vpanRangeEl = null;
 let zoomInBtn = null;
 let zoomOutBtn = null;
 
@@ -1219,20 +1184,8 @@ function drawChart() {
   const innerW = Math.max(20, cw - chartMarginLeft - chartMarginRight);
   const innerH = Math.max(20, ch - chartMarginTop - chartMarginBottom);
 
-  // compute price range (from slice). We'll allow vertical pan by shifting center
-  const prices = slice.flatMap(c => [c.high, c.low]);
-  const maxP = Math.max(...prices);
-  const minP = Math.min(...prices);
-  const rangeP = Math.max(1e-6, maxP - minP);
-
-  // apply pricePanPercent: shift center by percent of innerH (positive moves chart down)
-  const centerP = (maxP + minP) / 2;
-  const shiftPx = pricePanPercent * innerH; // fraction of innerH
-  // translate shiftPx to price units
-  const pricePerPx = rangeP / innerH;
-  const centerP_shifted = centerP - shiftPx * pricePerPx;
-  const min = centerP_shifted - rangeP / 2;
-  const max = centerP_shifted + rangeP / 2;
+  // compute price range (from visible slice) - auto Y scale
+  const { min: min, max: max } = computeAutoYRange(slice);
 
   // candle width on innerW
   const candleW = innerW / slice.length;
@@ -1315,6 +1268,19 @@ function drawMA(maAll, startIndex, min, max, candleW, sliceLen, innerX, innerY, 
   drawOne(maAll.ema60, "#8a2be2");
 }
 
+// --- 자동 Y 범위 계산 (보이는 slice 기준) ---
+function computeAutoYRange(slice) {
+  if (!slice || slice.length === 0) return { min: 0, max: 1 };
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  let maxP = Math.max(...prices);
+  let minP = Math.min(...prices);
+  if (!isFinite(minP) || !isFinite(maxP)) { minP = 0; maxP = 1; }
+
+  // padding: 범위의 5% 또는 최소 1 단위
+  const padding = Math.max((maxP - minP) * 0.05, Math.abs(maxP) * 0.005, 1e-6);
+  return { min: minP - padding, max: maxP + padding };
+}
+  
 // draw left Y axis labels (clean minimalist)
 function drawYAxis(ctx, innerX, innerY, innerW, innerH, min, max){
   ctx.save();
@@ -1516,13 +1482,11 @@ function updatePanRangeMax() {
     panRangeEl.max = String(maxOffset);
     panRangeEl.value = String(maxOffset - candleOffset);
   }
-  positionVScroll();
 }
 
 // initialize controls (call once)
 function initChartControls() {
   panRangeEl = document.getElementById('panRange');
-  vpanRangeEl = document.getElementById('vpanRange');
   zoomInBtn = document.getElementById('zoomInBtn');
   zoomOutBtn = document.getElementById('zoomOutBtn');
 
@@ -1536,48 +1500,6 @@ function initChartControls() {
       drawChart();
     });
   }
-  if (vpanRangeEl) {
-    // vpanRange: 0 (아래, 낮은 가격) ~ 100 (위, 높은 가격)
-    vpanRangeEl.addEventListener('input', (e) => {
-      const v = parseInt(e.target.value || '50', 10);
-
-      // 0~100 → -0.5~+0.5 (위가 +)
-      pricePanPercent = (v - 50) / 100;
-      drawChart();
-    });
-  }
-
-  // ---------- 추가: 세로 스크롤(회전형) 길이/위치 보정 ----------
-  function positionVScroll() {
-    const wrap = document.getElementById('chartWrap');
-    const v = document.getElementById('vpanRange');
-    const h = document.getElementById('panRange');
-    if (!wrap || !v || !h) return;
-
-    // wrapper 내부의 사용 가능한 높이 (패딩 8px 양쪽 고려)
-    const pad = 16; // chartWrap padding top+bottom (8 + 8)
-    const availH = Math.max(120, wrap.clientHeight - pad); // 최소값 보장
-
-    // 'input[type=range]'는 회전 전에 'width'가 길이 역할을 함 -> 회전시켜 세로 슬라이더 됨
-    v.style.width = (availH) + 'px';
-
-    // 회전(transform: rotate(-90deg)) 후에 input의 시각적 중심이 문서상에서 이동하므로
-    // 오른쪽 여유(6px)는 CSS로 유지하고, translation으로 세로 중앙 정렬 보정
-    // translateY 보정량: (wrap.clientHeight - availH)/2
-    const translateY = Math.round((wrap.clientHeight - availH) / 2);
-    v.style.transform = `rotate(-90deg) translateY(${translateY}px)`;
-    v.style.transformOrigin = 'center';
-  
-    // hScroll의 right는 vScroll 두께+여유와 맞춰 둔다(겹치지 않도록)
-    // 여기선 vScroll 두께(thumb 영역 포함)를 18px로 가정해 right를 32px로 고정시켰음 (CSS와 동일)
-    if (h) {
-      h.style.right = '32px';
-    }
-  }
-
-  // 초기 호출 및 리사이즈시 보정
-  positionVScroll();
-  window.addEventListener('resize', positionVScroll);
   
   if (zoomInBtn) zoomInBtn.onclick = () => { setVisibleCount(Math.max(10, Math.floor(visibleCount*0.8)), null); updatePanRangeMax(); };
   if (zoomOutBtn) zoomOutBtn.onclick = () => { setVisibleCount(Math.min( getActiveCandles().length, Math.ceil(visibleCount*1.25) ), null); updatePanRangeMax(); };
