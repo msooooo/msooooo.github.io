@@ -69,10 +69,38 @@
   }
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
-  #panRange { -webkit-appearance: none; height:6px; background:#073048; border-radius:6px; }
-  #panRange::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--accent); }
-  #vpanRange { -webkit-appearance: none; height:6px; background:#073048; border-radius:6px; transform:rotate(-90deg); } /* rotated to look vertical */
-  #vpanRange::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--accent); }
+  /* chart-attached scrollbars */
+  .hScroll {
+    position: absolute;
+    left: 0;
+    right: 14px;           /* 세로 스크롤 공간 */
+    bottom: 0;
+    height: 14px;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.05);
+  }
+
+  .vScroll {
+    position: absolute;
+    top: 0;
+    bottom: 14px;          /* 가로 스크롤 공간 */
+    right: 0;
+    width: 14px;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.05);
+    transform: rotate(-90deg);
+    transform-origin: center;
+  }
+
+  /* thumb */
+  .hScroll::-webkit-slider-thumb,
+  .vScroll::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
 </style>
 </head>
 <body>
@@ -85,7 +113,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.7</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.8</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -158,34 +186,31 @@
   </div>
 
   <!-- CENTER -->
-  <div id="center">
-    <div id="chartWrap">
+  <div id="center">  
+    <div id="chartWrap" style="position:relative; width:100%; height:100%;">
       <canvas id="chartCanvas"></canvas>
-        <div id="chartControls">
-          <button class="periodBtn active" data-type="1H">1H</button>
-          <button class="periodBtn" data-type="1D">1D</button>
-          <button class="periodBtn" data-type="1W">1W</button>
-          <button class="periodBtn" data-type="1M">1M</button>
-          <button class="periodBtn" data-type="1Y">1Y</button>
 
-          <!-- ZOOM controls for tablet (small) -->
-          <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
-            <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
-            <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
-          </div>
+      <!-- 가로 스크롤 (하단 전체) -->
+      <input id="panRange" type="range" min="0" max="0" value="0" class="hScroll" />
 
-          <!-- horizontal pan slider (time scroll) -->
-          <div style="display:flex; align-items:center; gap:8px; margin-left:8px;">
-            <input id="panRange" type="range" min="0" max="0" value="0" style="width:180px;" />
-          </div>
+      <!-- 세로 스크롤 (오른쪽 전체) -->
+      <input id="vpanRange" type="range" min="0" max="100" value="50" class="vScroll" />
+    </div>
+    <div id="chartControls">
+      <button class="periodBtn active" data-type="1H">1H</button>
+      <button class="periodBtn" data-type="1D">1D</button>
+      <button class="periodBtn" data-type="1W">1W</button>
+      <button class="periodBtn" data-type="1M">1M</button>
+      <button class="periodBtn" data-type="1Y">1Y</button>
 
-          <!-- vertical pan slider (price scroll) - rotated small -->
-          <div style="display:flex; align-items:center; gap:6px; margin-left:8px;">
-            <input id="vpanRange" type="range" min="-50" max="50" value="0" style="width:90px;" />
-          </div>
+      <!-- ZOOM controls for tablet (small) -->
+      <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
+        <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
+        <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
+      </div>
 
-          <div class="dataBox" id="periodReturn">+0.00%</div>
-       </div>
+      <div class="dataBox" id="periodReturn">+0.00%</div>
+      </div>
     </div>
 
     <div id="below">
@@ -1395,7 +1420,7 @@ function updatePanRangeMax() {
   if (!panRangeEl) panRangeEl = document.getElementById('panRange');
   if (panRangeEl) {
     panRangeEl.max = String(maxOffset);
-    panRangeEl.value = String(candleOffset);
+    panRangeEl.value = String(maxOffset - candleOffset);
   }
 }
 
@@ -1408,15 +1433,21 @@ function initChartControls() {
 
   if (panRangeEl) {
     panRangeEl.addEventListener('input', (e) => {
-      candleOffset = parseInt(e.target.value||'0',10);
+      const candles = getActiveCandles();
+      const maxOffset = Math.max(0, candles.length - visibleCount);
+
+      // 오른쪽 = 현재 / 왼쪽 = 과거
+      candleOffset = maxOffset - parseInt(e.target.value || '0', 10);
       drawChart();
     });
   }
   if (vpanRangeEl) {
+    // vpanRange: 0 (아래, 낮은 가격) ~ 100 (위, 높은 가격)
     vpanRangeEl.addEventListener('input', (e) => {
-      const v = parseInt(e.target.value||'0',10);
-      // map -50..50 => -0.5..0.5
-      pricePanPercent = Math.max(-50, Math.min(50, v)) / 100;
+      const v = parseInt(e.target.value || '50', 10);
+
+      // 0~100 → -0.5~+0.5 (위가 +)
+      pricePanPercent = (v - 50) / 100;
       drawChart();
     });
   }
@@ -1565,7 +1596,8 @@ window.addEventListener('mousemove', (e) => {
   const perCandlePx = canvas2.width / visibleCount;
   // px -> candle shift
   const shift = Math.round(dx / perCandlePx);
-  let newOffset = dragStartOffset - shift; // minus because moving mouse right => show earlier candles
+  // 오른쪽 드래그 → 현재
+  let newOffset = dragStartOffset + shift; // minus because moving mouse right => show earlier candles
   newOffset = Math.max(0, Math.min(candles.length - visibleCount, newOffset));
   if (newOffset !== candleOffset) {
     candleOffset = newOffset;
