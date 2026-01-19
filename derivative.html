@@ -104,18 +104,28 @@
     pointer-events: auto;
   }
 
-  /* vertical */
-  .vScroll {
+    .vScroll {
     position: absolute;
-    top: 8px;
-    bottom: 8px;
-    right: 6px;
-    width: 18px;
+    top: 50%;
+    right: -34px;             /* 중요: 회전하면 튀어나오므로 보정 */
+    width: calc(100% - 32px); /* ← 실제 길이는 width가 됨 */
+    height: 18px;
+    transform: rotate(-90deg);
+    transform-origin: center;
     -webkit-appearance: none;
     background: rgba(255,255,255,0.03);
     z-index: 40;
     pointer-events: auto;
-    /* keep transform:0 unless you intentionally rotate */
+    }
+
+  /* thumb */
+  .hScroll::-webkit-slider-thumb,
+  .vScroll::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
   }
 </style>
 </head>
@@ -129,7 +139,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.13</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.14</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
