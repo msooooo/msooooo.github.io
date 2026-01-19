@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.21</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.22</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1289,7 +1289,12 @@ function syncPanState() {
   candleOffset = Math.min(candleOffset, panRangeEl.max);
   candleOffset = Math.max(0, candleOffset);
   const maxOffset = Math.max(0, candles.length - visibleCount);
-  panRangeEl.value = String(maxOffset - candleOffset);
+  
+  if (!panRangeEl) panRangeEl = document.getElementById('panRange');
+  if (panRangeEl) {
+    panRangeEl.max = String(maxOffset);
+    panRangeEl.value = String(maxOffset - candleOffset);
+  }
 }
 
 // draw left Y axis labels (clean minimalist)
