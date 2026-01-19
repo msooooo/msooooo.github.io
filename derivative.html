@@ -189,13 +189,13 @@
   <!-- CENTER -->
   <div id="center">  
     <div id="chartWrap">
-      <canvas id="chartCanvas"></canvas>
+      <canvas id="chartCanvas">
+        <!-- 가로 스크롤 (하단 전체) -->
+        <input id="panRange" type="range" min="0" max="0" value="0" class="hScroll" />
 
-      <!-- 가로 스크롤 (하단 전체) -->
-      <input id="panRange" type="range" min="0" max="0" value="0" class="hScroll" />
-
-      <!-- 세로 스크롤 (오른쪽 전체) -->
-      <input id="vpanRange" type="range" min="0" max="100" value="50" class="vScroll" />
+        <!-- 세로 스크롤 (오른쪽 전체) -->
+        <input id="vpanRange" type="range" min="0" max="100" value="50" class="vScroll" />
+        </canvas>
     </div>
     <div id="chartControls">
       <button class="periodBtn active" data-type="1H">1H</button>
