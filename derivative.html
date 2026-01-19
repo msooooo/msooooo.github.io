@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.24</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.25</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1283,22 +1283,7 @@ function computeAutoYRange(slice) {
 }
 
 function syncPanState() {
-  if (!panRangeEl) {
-    panRangeEl = document.getElementById('panRange');
-    if (!panRangeEl) return;
-  }
-
-  const maxOffset = Math.max(0, candles.length - visibleCount);
-
-  // offset 보정 (논리값)
-  candleOffset = Math.max(0, Math.min(candleOffset, maxOffset));
-
-  // slider 범위 설정
-  panRangeEl.max = maxOffset;
-
-  // 👉 UI는 반대 방향
-  // slider 오른쪽 = 현재
-  panRangeEl.value = maxOffset - candleOffset;
+  updatePanRangeMax();
 }
 
 // draw left Y axis labels (clean minimalist)
