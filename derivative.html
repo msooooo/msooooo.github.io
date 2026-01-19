@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.19</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.20</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1207,6 +1207,7 @@ function drawChart() {
     // when not hovering, show period return for visible slice
     updatePeriodReturnVisible(slice);
   }
+  syncPanState();
 }
 
 // draw candles inside inner rect (x origin = innerX, top = innerY, height = innerH)
@@ -1280,7 +1281,17 @@ function computeAutoYRange(slice) {
   const padding = Math.max((maxP - minP) * 0.05, Math.abs(maxP) * 0.005, 1e-6);
   return { min: minP - padding, max: maxP + padding };
 }
-  
+
+function syncPanState() {
+  updatePanRangeMax();
+
+  // 현재 offset이 max를 넘어가면 보정
+  candleOffset = Math.min(candleOffset, panRangeEl.max);
+  candleOffset = Math.max(0, candleOffset);
+
+  panRangeEl.value = candleOffset;
+}
+
 // draw left Y axis labels (clean minimalist)
 function drawYAxis(ctx, innerX, innerY, innerW, innerH, min, max){
   ctx.save();
