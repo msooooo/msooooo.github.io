@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.22</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.23</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1283,18 +1283,22 @@ function computeAutoYRange(slice) {
 }
 
 function syncPanState() {
-  updatePanRangeMax();
-
-  // 현재 offset이 max를 넘어가면 보정
-  candleOffset = Math.min(candleOffset, panRangeEl.max);
-  candleOffset = Math.max(0, candleOffset);
-  const maxOffset = Math.max(0, candles.length - visibleCount);
-  
-  if (!panRangeEl) panRangeEl = document.getElementById('panRange');
-  if (panRangeEl) {
-    panRangeEl.max = String(maxOffset);
-    panRangeEl.value = String(maxOffset - candleOffset);
+  if (!panRangeEl) {
+    panRangeEl = document.getElementById('panRange');
+    if (!panRangeEl) return;
   }
+
+  const maxOffset = Math.max(0, candles.length - visibleCount);
+
+  // offset 보정 (논리값)
+  candleOffset = Math.max(0, Math.min(candleOffset, maxOffset));
+
+  // slider 범위 설정
+  panRangeEl.max = maxOffset;
+
+  // 👉 UI는 반대 방향
+  // slider 오른쪽 = 현재
+  panRangeEl.value = maxOffset - candleOffset;
 }
 
 // draw left Y axis labels (clean minimalist)
@@ -1507,12 +1511,12 @@ function initChartControls() {
   zoomOutBtn = document.getElementById('zoomOutBtn');
 
   if (panRangeEl) {
-    panRangeEl.addEventListener('input', (e) => {
-      const candles = getActiveCandles();
+    panRangeEl.addEventListener('input', () => {
       const maxOffset = Math.max(0, candles.length - visibleCount);
 
-      // 오른쪽 = 현재 / 왼쪽 = 과거
-      candleOffset = maxOffset - parseInt(e.target.value || '0', 10);
+      // UI → 내부 논리 변환 (반전)
+      candleOffset = maxOffset - Number(panRangeEl.value);
+
       drawChart();
     });
   }
