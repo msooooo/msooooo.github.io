@@ -30,8 +30,30 @@
   .cenText{ text-align: center; }
   /* CENTER - chart + econ/details row */
   #center{ flex:1; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
-  #chartWrap{ height:50%; background:#081226; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); display:flex; flex-direction:column; }
-  #chartCanvas{ width:100%; height:100%; display:block; border-radius:6px; background:#041026; }
+  #chartWrap{
+    position: relative;      /* 중요: 절대위치 스크롤의 기준 */
+    width: 100%;
+    height: 50%;
+    background:#081226;
+    border-radius:10px;
+    padding:8px;
+    box-sizing:border-box;
+    border:1px solid rgba(255,255,255,0.03);
+    display:flex;
+    flex-direction:column;
+    overflow: hidden;        /* 캔버스/스크롤 겹침 안정화 */
+  }
+  #chartCanvas{
+    position: absolute; /* 캔버스를 wrapper 안에 절대 배치 */
+    inset: 8px;         /* wrapper padding(8px)을 고려해 안쪽에 배치 */
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+    border-radius:6px;
+    background:#041026;
+    display:block;
+    z-index: 1;
+    touch-action: none; /* 터치 관련 (필요시 제거 가능) */
+  }
   #chartControls{ display:flex; gap:8px; align-items:center; margin-top:8px; }
   .periodBtn{ background:#062b44; color:var(--text); border:1px solid rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px; cursor:pointer; }
   .periodBtn.active{ background:var(--accent); color:#022; }
@@ -69,38 +91,41 @@
   }
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
-/* chart-attached scrollbars */
-.hScroll {
-  position: absolute;
-  left: 0;
-  right: 14px;           /* 세로 스크롤 공간 */
-  bottom: 0;
-  height: 14px;
-  -webkit-appearance: none;
-  background: rgba(255,255,255,0.05);
-}
+  /* chart-attached scrollbars */
+  .hScroll {
+    position: absolute;
+    left: 8px;
+    right: 8px;           /* 세로 스크롤(14px) 영역 제외할 필요 없으면 8px -> 14px adjust */
+    bottom: 6px;
+    height: 18px;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.03);
+    z-index: 40;
+    pointer-events: auto;
+  }
 
-.vScroll {
-  position: absolute;
-  top: 0;
-  bottom: 14px;          /* 가로 스크롤 공간 */
-  right: 0;
-  width: 14px;
-  -webkit-appearance: none;
-  background: rgba(255,255,255,0.05);
-  transform: rotate(0deg);
-  transform-origin: center;
-}
+  /* vertical */
+  .vScroll {
+    position: absolute;
+    top: 8px;
+    bottom: 8px;
+    right: 6px;
+    width: 18px;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.03);
+    z-index: 40;
+    pointer-events: auto;
+    /* keep transform:0 unless you intentionally rotate */
+  }
 
-/* thumb */
-.hScroll::-webkit-slider-thumb,
-.vScroll::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--accent);
-}
+  /* thumb */
+  .hScroll::-webkit-slider-thumb,
+  .vScroll::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
   }
 </style>
 </head>
@@ -114,7 +139,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.12</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.13</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1385,7 +1410,7 @@ function drawHoverInfo(hover) {
   // slice index → global index
   const globalIndex = chartStartIndex + hover.index;
 
-  // 이동평균 값
+  // 이동평균 값 (global arrays)
   const ema5  = maAll.ema5?.[globalIndex]  ?? null;
   const ema20 = maAll.ema20?.[globalIndex] ?? null;
   const ema60 = maAll.ema60?.[globalIndex] ?? null;
@@ -1396,10 +1421,9 @@ function drawHoverInfo(hover) {
     `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
     `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
-  // === 위치 조정 ===
-  // Y축 가격 라벨과 겹치지 않게 살짝 아래로
+  // 위치 조정 (Y축 라벨과 겹치지 않도록 약간 아래)
   const baseX = chartMarginLeft + 8;
-  const baseY = chartMarginTop + 22; // ← 핵심: 살짝 내림
+  const baseY = chartMarginTop + 22;
   const lh = 16;
 
   ctx.save();
@@ -1408,17 +1432,14 @@ function drawHoverInfo(hover) {
 
   let y = baseY;
 
-  // 시각
   ctx.fillStyle = "#9fb8d8";
   ctx.fillText(`시각: ${dateStr}`, baseX, y);
   y += lh;
 
-  // 현재 가격 (종가 기준)
   ctx.fillStyle = "#ffffff";
   ctx.fillText(`종가: ${fmt2(c.close)}`, baseX, y);
   y += lh;
 
-  // 이동평균
   if (ema5 !== null) {
     ctx.fillStyle = "#0af7ef";
     ctx.fillText(`EMA 5 : ${fmt2(ema5)}`, baseX, y);
@@ -1444,13 +1465,26 @@ function drawHoverInfo(hover) {
   ctx.stroke();
   y += 6;
 
-  // === OHLC 정보 ===
+  // OHLC
   ctx.fillStyle = "#cfeaff";
   ctx.fillText(`시가: ${fmt2(c.open)}`, baseX, y); y += lh;
   ctx.fillText(`고가: ${fmt2(c.high)}`, baseX, y); y += lh;
   ctx.fillText(`저가: ${fmt2(c.low)}`,  baseX, y);
 
   ctx.restore();
+
+  // --- 반드시 호출: 호버 시 periodReturn을 '전날 종가 -> 이번 봉' 기준으로 업데이트 ---
+  // drawCandleReturn(c) 함수는 globalIndex를 chartStartIndex + hover.index로 계산해서
+  // 이전 봉(prev)을 찾아 prev.close -> open/close 기준 수익률을 표시한다.
+  // (파일에 이미 drawCandleReturn 구현이 있으므로 단순 호출만 하면 됨.)
+  try {
+    drawCandleReturn(c);
+  } catch (e) {
+    // 안전 장치: 에러가 나면 periodReturn은 기본값으로 되돌림
+    const el = document.getElementById('periodReturn');
+    if (el) { el.innerText = '+0.00%'; el.style.color = 'var(--muted)'; }
+    console.error('drawCandleReturn error', e);
+  }
 }
 
 function drawCandleReturn(c) {
@@ -1590,17 +1624,8 @@ canvas2.addEventListener('touchmove', (e) => {
 canvas2.addEventListener('mouseout', () => {
   isHovering = false;
   hoverPos = null;
-  drawChart();
+  drawChart(); // periodReturn는 drawChart()에서 non-hover 경로로 업데이트됨
 });
-
-/*
-canvas2.addEventListener('mouseout', () => {
-  isHovering = false;
-  hoverPos = null;
-  updatePeriodReturn?.();
-  drawChart();
-});
-*/
   
 // helper: visibleCount를 바꿀 때 중심 인덱스(글로벌)를 유지하면서 재계산
 function setVisibleCount(newCount, centerGlobalIndex = null) {
