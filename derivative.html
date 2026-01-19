@@ -117,16 +117,6 @@
     pointer-events: auto;
     /* keep transform:0 unless you intentionally rotate */
   }
-
-  /* thumb */
-  .hScroll::-webkit-slider-thumb,
-  .vScroll::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
 </style>
 </head>
 <body>
@@ -1500,9 +1490,10 @@ function drawCandleReturn(c) {
   if (prev) {
     const openRet = prev.close !== 0 ? ((c.open - prev.close) / prev.close) * 100 : 0;
     const closeRet = prev.close !== 0 ? ((c.close - prev.close) / prev.close) * 100 : 0;
-    el.innerText = `${openRet>=0?'+':''}${fmt2(openRet)}% / ${closeRet>=0?'+':''}${fmt2(closeRet)}%`;
+    const nowRet = openRet + closeRet;
+    el.innerText = ` ${nowRet>=0?'+':''}${fmt2(nowRet)}%`;
     // color - if closeRet positive show profit color else loss; keep small text
-    el.style.color = closeRet >= 0 ? 'var(--profit)' : 'var(--loss)';
+    el.style.color = nowRet >= 0 ? 'var(--profit)' : 'var(--loss)';
   } else {
     // fallback: per-candle local return
     const ret = ((c.close - c.open) / c.open) * 100;
