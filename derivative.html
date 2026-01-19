@@ -13,7 +13,7 @@
   html,body{ height:100%; margin:0; }
   body{ font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Helvetica,Arial; background:var(--bg); color:var(--text); display:flex; height:100vh; box-sizing:border-box; }
   /* LEFT - controls & econ indicators & logs */
-  #left{ width:16%; height:100%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
+  #left{ width:15%; height:100%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
   .topRow{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
   #datetime{ font-weight:700; width:60%; font-size:14px; }
   .xwrap{ white-space: nowrap; }
@@ -65,7 +65,7 @@
   #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
   #logs{ height:25%; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
-  #right{ width:16%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
+  #right{ width:20%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
   .posList{ max-height:420px; overflow:auto; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.25</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.26</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -350,7 +350,7 @@ let zoomOutBtn = null;
 // let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
 let candleType = '1H'; // '1H' | '1D' | '1W'  ...
 let candleOffset = 0; // 왼쪽으로 밀린 봉 수
-let visibleCount = 80; // 화면에 보이는 봉 개수
+let visibleCount = 240; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
 // macro econ indicators
@@ -1973,7 +1973,7 @@ document.querySelectorAll('.periodBtn').forEach(btn => {
     if (t && ['1H','1D','1W','1M','1Y'].includes(t)) {
       candleType = t;
       candleOffset = 0; // reset scroll
-      visibleCount = (t === '1H') ? 480 : (t === '1D') ? 120 : (t === '1W') ? 100 : (t === '1M') ? 60 : 60;
+      visibleCount = (t === '1H') ? 240 : (t === '1D') ? 60 : (t === '1W') ? 26 : (t === '1M') ? 24 : 10;
       // keep visibleCount heuristic; adjust to taste
       renderAll();
     }
