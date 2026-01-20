@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.29</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.30</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1278,7 +1278,7 @@ function computeAutoYRange(slice) {
   if (!isFinite(minP) || !isFinite(maxP)) { minP = 0; maxP = 1; }
 
   // padding: 범위의 5% 또는 최소 1 단위
-  const padding = Math.max((maxP - minP) * 0.05, Math.abs(maxP) * 0.005, 1e-6);
+  const padding = Math.max((maxP - minP) * 0.10, Math.abs(maxP) * 0.010, 1e-6);
   return { min: minP - padding, max: maxP + padding };
 }
 
@@ -1464,9 +1464,7 @@ function drawCandleReturn(c) {
 
   // if prev exists, compute prevClose -> todayOpen and prevClose -> todayClose
   if (prev) {
-    const openRet = prev.close !== 0 ? ((c.open - prev.close) / prev.close) * 100 : 0;
-    const closeRet = prev.close !== 0 ? ((c.close - prev.close) / prev.close) * 100 : 0;
-    const nowRet = openRet + closeRet;
+    const nowRet = prev.close !== 0 ? ((c.close - prev.close) / prev.close) * 100 : 0;
     el.innerText = ` ${nowRet>=0?'+':''}${fmt2(nowRet)}%`;
     // color - if closeRet positive show profit color else loss; keep small text
     el.style.color = nowRet >= 0 ? 'var(--profit)' : 'var(--loss)';
