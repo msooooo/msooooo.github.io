@@ -62,12 +62,12 @@
   #econPanel{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
   #econDebugTools{ display:none; margin-top:8px; gap:8px; }
-  #details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
-  #logs{ height:25%; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #logs{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
   /* RIGHT - player info */
   #right{ width:20%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
-  .posList{ max-height:420px; overflow:auto; }
+  .posList{ max-height:120px; overflow:auto; }
+  .details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); min-width:260px; }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
   .posItem:hover{ background:#092135; }
   .profit{ color:var(--profit); font-weight:700; }
@@ -116,7 +116,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.30</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.31</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -259,15 +259,8 @@
         <div class="indRow"><div class="indName">비고용률 (%)</div><div class="indValue" id="indUnemp">5.00</div></div>
       </div>
 
-      <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
-      <div id="details">
-        <div class="small muted cenText">오른쪽 보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>
-      </div>
-    </div>
-    
-    <div id="logs">
-    <!-- Moved Event Log here so it matches econ panel width -->
-      <div style="margin-top:0">
+      <div id="logs" style="margin-top:0">
+      <!-- Moved Event Log here so it matches econ panel width -->
         <h3 style="margin:0">게임 이벤트 로그</h3>
         <div class="small muted">최근 시장 이벤트 및 거래기록</div>
         <div id="eventLog" style="margin-top:8px;"></div>
@@ -295,6 +288,12 @@
       <h3 style="margin:0">옵션 목록</h3>
       <div id="optHoldings" class="posList small">없음</div>
     </div>
+
+    <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
+    <div id="details" class="details">
+      <div class="small muted cenText">오른쪽 보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>
+    </div>
+    
   </div>
 
 <script>
