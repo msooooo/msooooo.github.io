@@ -600,9 +600,9 @@ function updateEconForDayChange(){
 
   // 제한
   econ.vix = Math.max(5, Math.min(120, econ.vix));
-  econ.bondYield = Math.max(0, Math.min(20, econ.bondYield));
-  econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
-  econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
+  econ.bondYield = Math.max(0, Math.min(75, econ.bondYield));
+  econ.gdpGrowth = Math.max(-50, Math.min(50, econ.gdpGrowth));
+  econ.unemployment = Math.max(0, Math.min(50, econ.unemployment));
 }
 
 /* --- 안정된 updateEconForMonthChange() 교체 --- */
@@ -667,6 +667,11 @@ function triggerWitchingEvent(source = 'system') {
     econ.vix = Math.min(80, econ.vix + (Math.random() * 10));
     pushEventLog(`⚡ 변동성 증가 (${source}) — 파생상품 만기로 변동성 일시 증가`);
     notify('⚡ 변동성 일시 증가', 4000);
+}
+
+function triggerVixUp(source = 'system') {
+    econ.vix += (Math.random() * 10));
+    pushEventLog(`⚡ 변동성 증가 (${source}) — 강제 변동성 증가`);
 }
 
 function triggerWhiteSwan(source = 'system') {
@@ -1909,7 +1914,7 @@ document.getElementById('dbgAddCash').addEventListener('click', () => {
   renderAll();
 });
 document.getElementById('dbgWitch').addEventListener('click', () => {
-  triggerWitchingEvent('debug');
+  triggerVixUp'debug');
   renderAll();
 });
 document.getElementById('dbgWhiteSwan').addEventListener('click', () => {
