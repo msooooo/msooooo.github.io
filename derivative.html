@@ -117,7 +117,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.39</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.40</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -670,7 +670,7 @@ function triggerWitchingEvent(source = 'system') {
 }
 
 function triggerVixUp(source = 'system') {
-    econ.vix += (Math.random() * 10));
+    econ.vix += Math.random() * 10;
     pushEventLog(`⚡ 변동성 증가 (${source}) — 강제 변동성 증가`);
 }
 
