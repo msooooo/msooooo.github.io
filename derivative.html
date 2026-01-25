@@ -117,7 +117,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.37</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.38</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -642,10 +642,10 @@ function updateEconForMonthChange(){
   econ.unemployment = econ.unemployment * 0.88 + unempTarget * 0.12 + (Math.random()*0.4 - 0.2) * 0.3;
 
   // clamp to safe ranges
-  econ.policyRate = Math.max(0, Math.min(12, econ.policyRate));
-  econ.bondYield = Math.max(0, Math.min(20, econ.bondYield));
-  econ.gdpGrowth = Math.max(-5, Math.min(9, econ.gdpGrowth));
-  econ.unemployment = Math.max(0, Math.min(30, econ.unemployment));
+  econ.policyRate = Math.max(-1, Math.min(50, econ.policyRate));
+  econ.bondYield = Math.max(0, Math.min(75, econ.bondYield));
+  econ.gdpGrowth = Math.max(-50, Math.min(50, econ.gdpGrowth));
+  econ.unemployment = Math.max(0, Math.min(50, econ.unemployment));
 }
   
 /* ----------------------------
@@ -715,7 +715,7 @@ function triggerGDPGrowthUP(source = 'system') {
 
 function triggerGDPGrowthDOWN(source = 'system') {
     const step = -0.25
-    econ.gdpGrowth = Math.max(0, econ.gdpGrowth + step);
+    econ.gdpGrowth = Math.min(0, econ.gdpGrowth + step);
     pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
 }
 
