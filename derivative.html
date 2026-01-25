@@ -117,7 +117,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.34</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.35</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -235,19 +235,18 @@
         </div>
 
         <!-- debug tools (hidden until toggled) -->
-        <div id="econDebugTools" style="margin-top:10px; display:none;">
+        <div id="econDebugTools" style="margin-top:10px; display:none;"> 
           <button id="dbgReset" class="debugBtn tinyd">리셋</button>
           <button id="dbgAddCash" class="debugBtn tinyd">현금</button>
           <button id="dbgWitch" class="debugBtn tinyd">변동</button>
           <button id="dbgWhiteSwan" class="debugBtn tinyd">폭등</button>
           <button id="dbgBlackSwan" class="debugBtn tinyd">폭락</button>
-          <!--
+          <br>
           <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
           <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
           <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
           <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
           <button id="dbgShowMU" class="debugBtn tiny">추세</button>
-          -->
         </div>
 
         <hr style="border:none;height:8px;">
@@ -294,7 +293,7 @@
 
     <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
     <div id="details" class="details">
-      <div class="small muted cenText">오른쪽 보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>
+      <div class="small muted cenText">보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>
     </div>
     
   </div>
@@ -518,7 +517,7 @@ function getCurrentMu() {
     return econ._ema[key];
   }
 
-  const alphaDay = 0.08; // 더 느린 평활 (과민 반응 방지)
+  const alphaDay = 0.5; // 빠른 평활 (약간의 과민 반응)
   const svix = emaUpdateKey('vix', econ.vix, alphaDay);
   const spolicy = emaUpdateKey('policyRate', econ.policyRate, alphaDay);
   const sbond = emaUpdateKey('bondYield', econ.bondYield, alphaDay);
@@ -593,7 +592,7 @@ function updateEconForDayChange(){
   econ.unemployment += 0.003 * zUnit();
 
   // Bond yield: 소폭 노이즈 + 공통성 반영, 평균회귀
-  econ.bondYield += commonZ * 0.01 + zUnit() * 0.005;
+  econ.bondYield += commonZ * 0.02 + zUnit() * 0.005;
   econ.bondYield += (econ.policyRate * 1.05 - econ.bondYield) * 0.02; // 천천히 정책금리 수준으로 수렴
 
   // 제한
@@ -606,7 +605,7 @@ function updateEconForDayChange(){
 /* --- 안정된 updateEconForMonthChange() 교체 --- */
 function updateEconForMonthChange(){
   // 월별 변화는 덜 자주, 확률은 GDP·VIX의 큰 이탈시에만 약간 증가
-  const baseRateMoveProb = 0.12;
+  const baseRateMoveProb = 0.15;
   const gdpDeviation = Math.abs(econ.gdpGrowth - GDP_BASE);
   const vixDeviation = Math.max(0, econ.vix - VIX_BASE) / VIX_BASE;
   // 확률은 0.02..0.45 범위에서만 움직이게
@@ -624,13 +623,13 @@ function updateEconForMonthChange(){
     notify(`정책금리 ${fmt2(econ.policyRate)}%`);
   }
 
-  // Bond yield: trend toward policy*1.05 with damping + small noise
-  const bondTarget = econ.policyRate * 1.05;
+  // Bond yield: trend toward policy*1.1 with damping + small noise
+  const bondTarget = econ.policyRate * 1.1;
   econ.bondYield = econ.bondYield * 0.9 + bondTarget * 0.1 + (Math.random()*0.2 - 0.1);
 
   // GDP: policy의 영향은 작고 댐핑 강하게
   const policyNeutral = RATE_BASE;
-  const policyEffect = (policyNeutral - econ.policyRate) * 0.02; // 작게 (정책금리↑ => GDP↓)
+  const policyEffect = (policyNeutral - econ.policyRate) * 0.5; // 크게 (정책금리↑ => GDP↓)
   const longTermTargetGdp = GDP_BASE;
   // GDP new = inertia + small pull to target + small random noise + policyEffect
   econ.gdpGrowth = econ.gdpGrowth * 0.9 + (longTermTargetGdp + policyEffect) * 0.1 + (Math.random()*0.6 - 0.3) * 0.08;
@@ -1918,7 +1917,6 @@ document.getElementById('dbgBlackSwan').addEventListener('click', () => {
   triggerBlackSwan('debug');
   renderAll();
 });
-/*
 document.getElementById('dbgPolicyRateUP').addEventListener('click', () => {
   triggerPolicyRateUP('debug');
   renderAll();
@@ -1940,7 +1938,6 @@ document.getElementById('dbgShowMU').addEventListener('click', () => {
   pushEventLog(`🫟 현재 추세 인덱스: ${fmt2(mu)}`);
   renderAll();
 });
-*/
 
 
 /* ----------------------------
