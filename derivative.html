@@ -117,7 +117,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.35</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.36</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -236,17 +236,20 @@
 
         <!-- debug tools (hidden until toggled) -->
         <div id="econDebugTools" style="margin-top:10px; display:none;"> 
-          <button id="dbgReset" class="debugBtn tinyd">리셋</button>
-          <button id="dbgAddCash" class="debugBtn tinyd">현금</button>
-          <button id="dbgWitch" class="debugBtn tinyd">변동</button>
-          <button id="dbgWhiteSwan" class="debugBtn tinyd">폭등</button>
-          <button id="dbgBlackSwan" class="debugBtn tinyd">폭락</button>
-          <br>
-          <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
-          <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
-          <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
-          <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
-          <button id="dbgShowMU" class="debugBtn tiny">추세</button>
+          <div>
+            <button id="dbgReset" class="debugBtn tinyd">리셋</button>
+            <button id="dbgAddCash" class="debugBtn tinyd">현금</button>
+            <button id="dbgWitch" class="debugBtn tinyd">변동</button>
+            <button id="dbgWhiteSwan" class="debugBtn tinyd">폭등</button>
+            <button id="dbgBlackSwan" class="debugBtn tinyd">폭락</button>
+          </div>
+          <div>
+            <button id="dbgPolicyRateUP" class="debugBtn tiny">금리+</button>
+            <button id="dbgPolicyRateDOWN" class="debugBtn tiny">금리-</button>
+            <button id="dbgGDPGrowthUP" class="debugBtn tiny">성장+</button>
+            <button id="dbgGDPGrowthDOWN" class="debugBtn tiny">성장-</button>
+            <button id="dbgShowMU" class="debugBtn tiny">추세</button>
+          </div>
         </div>
 
         <hr style="border:none;height:8px;">
@@ -1685,7 +1688,7 @@ function updateDetails() {
   const details = document.getElementById('details');
 
   if (!selectedDetail) {
-    details.innerHTML = `<div class="small muted cenText">오른쪽 보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>`;
+    details.innerHTML = `<div class="small muted cenText">보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>`;
     return;
   }
 
