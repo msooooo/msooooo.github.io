@@ -117,7 +117,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.38</div>
+        <div class="small muted">1초 = 1시간 • ver 1.1.39</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -715,7 +715,7 @@ function triggerGDPGrowthUP(source = 'system') {
 
 function triggerGDPGrowthDOWN(source = 'system') {
     const step = -0.25
-    econ.gdpGrowth = Math.min(0, econ.gdpGrowth + step);
+    econ.gdpGrowth = econ.gdpGrowth + step
     pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
 }
 
