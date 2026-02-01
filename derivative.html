@@ -100,11 +100,99 @@
     right: 8px;       /* <-- 세로 스크롤 제거했으니 right를 줄임(기본 8px 여유) */
     bottom: 6px;
     height: 14px;
+    appearance:none;
     -webkit-appearance: none;
     background: rgba(255,255,255,0.03);
     z-index: 40;
     pointer-events: auto;
   }
+
+  /* --- NEW: Calendar & News Panel UI --- */
+  #macroPanel {
+    width: 55%; /* 기존 econPanel보다 조금 더 넓게 확보 */
+    display: flex;
+    gap: 10px;
+    /* background, border 등은 내부 자식 요소가 가짐 */
+  }
+
+  /* 왼쪽: 달력 */
+  #calWrap {
+    width: 45%;
+    background: #07162a;
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    flex-direction: column;
+  }
+  .calHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; font-weight: 700; color: var(--accent);
+  }
+  .calGrid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+    font-size: 12px;
+    flex: 1;
+  }
+  .calDayHead { color: var(--muted); font-size: 10px; padding-bottom: 4px; }
+  .calCell {
+    background: #0b1f36; border-radius: 4px; padding: 4px 2px;
+    cursor: pointer; position: relative; color: #aab8c9;
+    height: 32px; /* 고정 높이 */
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .calCell:hover { background: #122d4d; }
+  .calCell.today { border: 1px solid var(--accent); color: #fff; font-weight: bold; background: rgba(47,195,255,0.1); }
+  .calCell.selected { background: var(--accent); color: #000; font-weight: bold; }
+  .calCell.hasEvent::after {
+    content: ''; display: block; width: 4px; height: 4px;
+    background: #ff6b6b; border-radius: 50%; margin-top: 2px;
+  }
+  .calCell.empty { background: transparent; cursor: default; }
+
+  /* 오른쪽: 뉴스 피드 */
+  #newsWrap {
+    flex: 1;
+    background: #07162a;
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.03);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #newsHeader {
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;
+    display: flex; justify-content: space-between;
+  }
+  #newsList {
+    flex: 1; overflow-y: auto; padding-right: 4px;
+  }
+  /* 스크롤바 커스텀 */
+  #newsList::-webkit-scrollbar { width: 4px; }
+  #newsList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .newsItem {
+    background: #091a2e; border-radius: 6px; padding: 8px; margin-bottom: 6px;
+    border-left: 3px solid var(--muted);
+    transition: background 0.2s;
+  }
+  .newsItem:hover { background: #0c213a; }
+  .newsItem.impact-high { border-left-color: #ff6b6b; } /* 붉은색: 중요 */
+  .newsItem.impact-good { border-left-color: #39ff88; } /* 초록색: 호재 */
+
+  .newsMeta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .newsTitle { font-size: 13px; font-weight: 600; color: #e8eefc; margin-bottom: 4px; line-height: 1.3; }
+  .newsData {
+    display: flex; gap: 8px; font-size: 11px; background: rgba(0,0,0,0.2);
+    padding: 4px 6px; border-radius: 4px; margin-top: 4px; width: fit-content;
+  }
+  .val-forecast { color: #aaa; }
+  .val-actual { color: #fff; font-weight: 700; }
+  .badge { padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; background: #333; color: #ccc;}
+
 </style>
 </head>
 <body>
@@ -117,7 +205,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.1.40</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.0</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -223,46 +311,25 @@
   
     <div id="below">
       <!-- ECON panel (left half of below) -->
-      <div id="econPanel">
-        <div id="econHeader">
-          <div>
-            <h3 style="margin:0">경제 지표</h3>
-            <div class="small muted">변동성과 추세를 나타내는 지표</div>
-          </div>
-          <div style="display:flex; align-items:center; gap:12px;">
-            <button id="toggleDebug" class="tinyd debugBtn">⚙ Debug</button>
-          </div>
+      <div id="macroPanel">
+        <div id="calWrap">
+          <div class="calHeader">
+            <span id="calMonthTitle">2025. 01</span>
+            </div>
+          <div class="calGrid" id="calendarGrid">
+            </div>
         </div>
 
-        <!-- debug tools (hidden until toggled) -->
-        <div id="econDebugTools" style="margin-top:10px; display:none;"> 
-          <div style="align-items:center;">
-            <button id="dbgReset" class="debugBtn tinyd">리셋</button>
-            <button id="dbgAddCash" class="debugBtn tinyd">현금</button>
-            <button id="dbgWitch" class="debugBtn tinyd">변동</button>
-            <button id="dbgWhiteSwan" class="debugBtn tinyd">폭등</button>
-            <button id="dbgBlackSwan" class="debugBtn tinyd">폭락</button>
+        <div id="newsWrap">
+          <div id="newsHeader">
+            <span id="newsPanelTitle">오늘의 주요 뉴스</span>
+            <button id="newsCloseBtn" class="tinyd debugBtn" style="display:none;">닫기</button>
           </div>
-          <div style="align-items:center;">
-            <button id="dbgPolicyRateUP" class="debugBtn tinyd">금리+</button>
-            <button id="dbgPolicyRateDOWN" class="debugBtn tinyd">금리-</button>
-            <button id="dbgGDPGrowthUP" class="debugBtn tinyd">성장+</button>
-            <button id="dbgGDPGrowthDOWN" class="debugBtn tinyd">성장-</button>
-            <button id="dbgShowMU" class="debugBtn tinyd">추세</button>
+          <div id="newsList">
+            <div class="small muted" style="padding:10px; text-align:center;">데이터 로딩 중...</div>
           </div>
         </div>
-
-        <hr style="border:none;height:8px;">
-
-        <!-- indicator rows -->
-        <div class="indRow"><div class="indName">VIX (변동성 지수)</div><div class="indValue" id="indVix">20.0</div></div>
-        <div class="indRow"><div class="indName">정책금리 (%)</div><div class="indValue" id="indPolicy">2.50</div></div>
-        <div class="indRow"><div class="indName">채권금리 (%)</div><div class="indValue" id="indBond">3.00</div></div>
-        <div class="indRow"><div class="indName">GDP 성장률 (%)</div><div class="indValue" id="indGdp">2.00</div></div>
-        <div class="indRow"><div class="indName">비고용률 (%)</div><div class="indValue" id="indUnemp">5.00</div></div>
       </div>
-
-      <div id="econPanel"></div>
       
       <div id="logs" style="margin-top:0">
       <!-- Moved Event Log here so it matches econ panel width -->
@@ -358,13 +425,7 @@ let visibleCount = 240; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
 // macro econ indicators
-let econ = {
-  vix: VIX_BASE,
-  policyRate: RATE_BASE,
-  bondYield: YIELD_BASE,
-  gdpGrowth: GDP_BASE,
-  unemployment: UEMP_BASE
-};
+econ = { vix: 20.0 }; // 최소한의 호환성 유지
 
 // player
 let player = {
@@ -375,6 +436,57 @@ let player = {
     options: []  // {kind, side, qty, K, entryPremium, openDate, expiryDate}
   },
   log: []
+};
+
+/* --- NEW: Calendar & News System Variables --- */
+// 뉴스 데이터 저장소 (추후 엔진 v2에서 이 배열에 이벤트를 push하게 됨)
+// 예시 데이터 포맷: { id, date: 'YYYY-MM-DD', time: 'HH:mm', title, type: 'indicator'|'headline', forecast, actual, impactLevel: 'high'|'mid'|'low' }
+let newsData = [];
+
+let uiState = {
+  selectedDate: null, // 사용자가 캘린더에서 클릭한 날짜 (String 'YYYY-MM-DD' or null)
+  lastRenderedDate: null // 최적화를 위해 마지막 렌더링 날짜 추적
+};
+
+/* =========================================
+   ENGINE v2: State & Config
+   ========================================= */
+
+// 1. 추세 상태 (Trend Vectors)
+// 값의 의미: 연간 기대 수익률(Drift)에 더해지는 가중치
+// 예: short가 0.1이면 순간적으로 연 10% 상승하는 기세가 붙음
+let trendState = {
+  long: 0.0,    // 장기 (구조적 성장/침체) - 감쇠가 매우 느림
+  mid: 0.0,     // 중기 (실적, 계절성) - 감쇠 보통
+  short: 0.0,   // 단기 (뉴스, 노이즈) - 감쇠 빠름
+  baseDrift: 0.05 // 자연 성장률 (연 5% 우상향 본능)
+};
+
+// 2. 뉴스 생성 설정
+const NEWS_CONFIG = {
+  // 지표 템플릿: { 이름, 단위, 기준값, 변동폭, 영향력(L/M/S 비중) }
+  indicators: [
+    { title: "GDP 성장률 발표", unit: "%", base: 2.5, dev: 1.5, weight: {l:0.02, m:0.1, s:0.3} },
+    { title: "기준금리 결정", unit: "%", base: 3.50, dev: 0.25, step: 0.25, weight: {l:0.05, m:0.05, s:0.2} }, // step이 있으면 불연속 값
+    { title: "소비자 물가 지수(CPI)", unit: "%", base: 3.0, dev: 1.0, weight: {l:0.01, m:0.08, s:0.4} },
+    { title: "실업률 발표", unit: "%", base: 4.0, dev: 1.0, weight: {l:0.01, m:0.05, s:0.2}, inverse: true }, // inverse: 높으면 악재
+    { title: "PMI 제조업 지수", unit: "pt", base: 50, dev: 5, weight: {l:0.0, m:0.15, s:0.2} }
+  ],
+  // 헤드라인 템플릿 (랜덤 조합용)
+  headlines: {
+    good: [
+      { text: "대규모 무역 협정 체결", power: 0.15 },
+      { text: "획기적인 AI 기술 상용화 발표", power: 0.2 },
+      { text: "정부, 대규모 경기 부양책 발표", power: 0.1 },
+      { text: "주요 기업 실적, 예상치 상회", power: 0.08 }
+    ],
+    bad: [
+      { text: "지정학적 리스크 고조", power: 0.15 },
+      { text: "에너지 가격 급등 우려", power: 0.1 },
+      { text: "금융 당국, 규제 강화 시사", power: 0.08 },
+      { text: "글로벌 공급망 차질 발생", power: 0.12 }
+    ]
+  }
 };
 
 // selected detail for live update
@@ -423,31 +535,6 @@ function notify(msg, ms=3000){
 }
 
 /* ----------------------------
-   helper: EMA (for smooth move)
------------------------------*/
-function _ensureEconEma(){
-  if (!econ._ema) {
-    econ._ema = {
-      vix: econ.vix,
-      policyRate: econ.policyRate,
-      bondYield: econ.bondYield,
-      gdpGrowth: econ.gdpGrowth,
-      unemployment: econ.unemployment,
-      // 감정(시장심리) 공통요인
-      sentiment: 0.0
-    };
-  }
-}
-
-function emaUpdate(key, value, alpha){
-  _ensureEconEma();
-  const prev = econ._ema[key] !== undefined ? econ._ema[key] : value;
-  const next = alpha * value + (1 - alpha) * prev;
-  econ._ema[key] = next;
-  return next;
-}
-
-/* ----------------------------
    Math helpers (unchanged but reorganized for clarity)
 -----------------------------*/
 function erf(x) {
@@ -490,76 +577,9 @@ function tauYearsFromExpiry(expiryDateStr) {
     return diffMs / (365 * 24 * 3600 * 1000);
 }
 
-/* ----------------------------
-   Macro mapping: getCurrentVol (unchanged) and getCurrentMu (REPLACED)
-   - getCurrentMu now uses smoothed econ values, a small set of weights, and caps the result.
-   - mu is scaled to realistic annual drift magnitudes.
------------------------------*/
+// 옵션 가격 계산 등을 위해 변동성 함수는 필요함 (임시 고정값)
 function getCurrentVol() {
-    // existing mapping kept: econ.vix scaled to BASE_VOL baseline
-    let s = BASE_VOL * (econ.vix / VIX_BASE);
-    if (witchingActiveTicks > 0) s *= 2.5;
-    if (blackSwanActiveTicks > 0) s *= 3.5;
-    // clamp to reasonable bounds (2.0 corresponds to 200% annual sigma high cap)
-    return Math.max(0.02, Math.min(2.0, s));
-}
-
-/* --- 안전한 getCurrentMu() 교체 --- */
-function getCurrentMu() {
-  // 기준값
-  const policyNeutral = RATE_BASE;
-  const gdpNeutral = GDP_BASE;
-  const unempNeutral = UEMP_BASE;
-  const bondNeutral = YIELD_BASE;
-
-  // EMA smoothing (기존 econ._ema 유지)
-  if (!econ._ema) econ._ema = {};
-  function emaUpdateKey(key, value, alpha){
-    if (!(key in econ._ema)) { econ._ema[key] = value; return value; }
-    econ._ema[key] = econ._ema[key] * (1-alpha) + value * alpha;
-    return econ._ema[key];
-  }
-
-  const alphaDay = 0.5; // 빠른 평활 (약간의 과민 반응)
-  const svix = emaUpdateKey('vix', econ.vix, alphaDay);
-  const spolicy = emaUpdateKey('policyRate', econ.policyRate, alphaDay);
-  const sbond = emaUpdateKey('bondYield', econ.bondYield, alphaDay);
-  const sgdp = emaUpdateKey('gdpGrowth', econ.gdpGrowth, alphaDay);
-  const sunemp = emaUpdateKey('unemployment', econ.unemployment, alphaDay);
-
-  // normalize (안정화)
-  const vixNorm = (svix - VIX_BASE) / Math.max(1, VIX_BASE);
-  const gdpNorm = (sgdp - gdpNeutral) / Math.max(0.1, Math.abs(gdpNeutral));
-  const unempNorm = (sunemp - unempNeutral) / Math.max(0.1, Math.abs(unempNeutral));
-
-  // sentiment 축소(포화)
-  let sentimentRaw = -0.5 * vixNorm + 1.0 * gdpNorm - 0.4 * unempNorm;
-  sentimentRaw = Math.max(-1.5, Math.min(1.5, sentimentRaw));
-
-  // policy/bond diffs
-  const policyDiff = spolicy - policyNeutral;
-  const bondDiff = sbond - bondNeutral;
-
-  // weights (작게)
-  const wSent = 0.07;
-  const wPolicy = -0.02;
-  const wBond = -0.01;
-  const wBase = 0.02;
-
-  let muRaw = wBase + wSent * sentimentRaw + wPolicy * policyDiff + wBond * bondDiff;
-
-  // 아주 약한 모멘텀 추가 (stabilized)
-  const historyLen = Math.min(96, state.history.length);
-  if (historyLen >= 12) {
-    const last = state.history[state.history.length - 1].price;
-    const first = state.history[Math.max(0, state.history.length - historyLen)].price;
-    const recentRet = Math.log(last / first);
-    muRaw += 0.03 * recentRet;
-  }
-
-  // 부드러운 포화로 안정화 (tanh)
-  const scaled = Math.tanh(muRaw * 1.8) * 0.20; // mu 대략 [-0.2, +0.2]
-  return scaled;
+  return 0.2; // 20% 고정 변동성
 }
 
 function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
@@ -570,217 +590,241 @@ function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
 }
 
 /* ----------------------------
-   Economic updates (REPLACED)
-   - daily updates now include a shared 'globalShock' component so VIX/GDP/Unemp/bond move with correlation
-   - monthly updates adjust policyRate with lower probability and bond yield moves as function of policy + random
------------------------------*/
-function updateEconForDayChange(){
-  // 공통 충격 + 개별 충격 결합 (공통성은 작게)
-  let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
-  const commonZ = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v) * 0.35; // 공통요인 감쇄
-
-  function zUnit(){ let a=0,b=0; while(a===0) a=Math.random(); while(b===0) b=Math.random(); return Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b) * 0.9; }
-
-  // VIX: 공통충격 + idiosyncratic, 그리고 강한 평균회귀
-  const vixDailyVol = 1.0;
-  const vixShock = commonZ * (vixDailyVol * 0.6) + zUnit() * (vixDailyVol * 0.4);
-  econ.vix += vixShock;
-  // 강한 평균회귀으로 장기치로 돌아오게 함
-  econ.vix += (VIX_BASE - econ.vix) * 0.05;
-
-  // GDP: 매우 작은 일별 변화 + 강한 월별 조정(월단위에서 의미있게 업데이트)
-  econ.gdpGrowth += 0.002 * zUnit(); // 아주 작음
-
-  // Unemployment: 일별 마이크로 노이즈
-  econ.unemployment += 0.003 * zUnit();
-
-  // Bond yield: 소폭 노이즈 + 공통성 반영, 평균회귀
-  econ.bondYield += commonZ * 0.02 + zUnit() * 0.005;
-  econ.bondYield += (econ.policyRate * 1.05 - econ.bondYield) * 0.02; // 천천히 정책금리 수준으로 수렴
-
-  // 제한
-  econ.vix = Math.max(5, Math.min(120, econ.vix));
-  econ.bondYield = Math.max(0, Math.min(75, econ.bondYield));
-  econ.gdpGrowth = Math.max(-50, Math.min(50, econ.gdpGrowth));
-  econ.unemployment = Math.max(0, Math.min(50, econ.unemployment));
-}
-
-/* --- 안정된 updateEconForMonthChange() 교체 --- */
-function updateEconForMonthChange(){
-  // 월별 변화는 덜 자주, 확률은 GDP·VIX의 큰 이탈시에만 약간 증가
-  const baseRateMoveProb = 0.15;
-  const gdpDeviation = Math.abs(econ.gdpGrowth - GDP_BASE);
-  const vixDeviation = Math.max(0, econ.vix - VIX_BASE) / VIX_BASE;
-  // 확률은 0.02..0.45 범위에서만 움직이게
-  const prob = Math.min(0.45, baseRateMoveProb + Math.min(0.33, gdpDeviation * 0.03 + vixDeviation * 0.05));
-
-  if (Math.random() < prob){
-    // 작은 스텝 위주(±0.125, ±0.25)
-    const stepOptions = [-0.50, -0.25, 0.25, 0.50];
-    const step = stepOptions[Math.floor(Math.random()*stepOptions.length)];
-    // soft target approach: move toward target slowly
-    const target = Math.max(0, econ.policyRate + step);
-    econ.policyRate = target; // 더 강한 관성(85% 이전 값)
-    R = econ.policyRate * 0.01;
-    pushEventLog(`📊 정책금리 (soft adjust) -> ${fmt2(econ.policyRate)}%`);
-    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
-  }
-
-  // Bond yield: trend toward policy*1.1 with damping + small noise
-  const bondTarget = econ.policyRate * 1.1;
-  econ.bondYield = econ.bondYield * 0.9 + bondTarget * 0.1 + (Math.random()*0.2 - 0.1);
-
-  // GDP: policy의 영향은 작고 댐핑 강하게
-  const policyNeutral = RATE_BASE;
-  const policyEffect = (policyNeutral - econ.policyRate) * 0.5; // 크게 (정책금리↑ => GDP↓)
-  const longTermTargetGdp = GDP_BASE;
-  // GDP new = inertia + small pull to target + small random noise + policyEffect
-  econ.gdpGrowth = econ.gdpGrowth * 0.9 + (longTermTargetGdp + policyEffect) * 0.1 + (Math.random()*0.6 - 0.3) * 0.08;
-
-  // Unemployment: negative correlation with GDP, gently
-  const unempTarget = Math.max(0, 6.5 - 0.4 * econ.gdpGrowth);
-  econ.unemployment = econ.unemployment * 0.88 + unempTarget * 0.12 + (Math.random()*0.4 - 0.2) * 0.3;
-
-  // clamp to safe ranges
-  econ.policyRate = Math.max(-1, Math.min(50, econ.policyRate));
-  econ.bondYield = Math.max(0, Math.min(75, econ.bondYield));
-  econ.gdpGrowth = Math.max(-50, Math.min(50, econ.gdpGrowth));
-  econ.unemployment = Math.max(0, Math.min(50, econ.unemployment));
-}
-  
-/* ----------------------------
-   Events (unchanged)
------------------------------*/
-function isWitchingDay(d) {
-    const month = d.getMonth();
-    if (![2, 5, 8, 11].includes(month)) return false;
-    const first = new Date(d.getFullYear(), month, 1);
-    const dayOfWeek = first.getDay();
-    let firstFriday = 1 + ((5 - dayOfWeek + 7) % 7);
-    firstFriday = firstFriday + 14;
-    const dDate = d.getDate();
-    return dDate === firstFriday;
-}
-
-function triggerWitchingEvent(source = 'system') {
-    witchingActiveTicks = Math.max(witchingActiveTicks, 6);
-    econ.vix = Math.min(80, econ.vix + (Math.random() * 10));
-    pushEventLog(`⚡ 변동성 증가 (${source}) — 파생상품 만기로 변동성 일시 증가`);
-    notify('⚡ 변동성 일시 증가', 4000);
-}
-
-function triggerVixUp(source = 'system') {
-    econ.vix += Math.random() * 10;
-    pushEventLog(`⚡ 변동성 증가 (${source}) — 강제 변동성 증가`);
-}
-
-function triggerWhiteSwan(source = 'system') {
-    blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
-    econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = +(5 + Math.random() * 5);
-    const factor = 1 + shockPct / 100;
-    state.spot *= factor;
-    if (state.spot < 0.01) state.spot = 0.01;
-    pushEventLog(`🌟 폭등(${source}) 발생 — 가격 +${fmt2(shockPct)}% 급등, VIX 급등`);
-    notify('🌟 폭등 발생!', 6000);
-}
-
-function triggerBlackSwan(source = 'system') {
-    blackSwanActiveTicks = Math.max(blackSwanActiveTicks, 12);
-    econ.vix = Math.min(80, econ.vix + (Math.random() * 50));
-    const shockPct = -(5 + Math.random() * 5);
-    const factor = 1 + shockPct / 100;
-    state.spot *= factor;
-    if (state.spot < 0.01) state.spot = 0.01;
-    pushEventLog(`💣 폭락(${source}) 발생 — 가격 ${fmt2(shockPct)}% 급락, VIX 급등`);
-    notify('💣 폭락 발생!', 6000);
-}
-
-function triggerPolicyRateUP(source = 'system') {
-    const step = 0.25
-    econ.policyRate = Math.max(0, econ.policyRate + step);
-    R = econ.policyRate * 0.01;
-    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} +${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
-    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
-}
-
-function triggerPolicyRateDOWN(source = 'system') {
-    const step = -0.25
-    econ.policyRate = Math.max(0, econ.policyRate + step);
-    R = econ.policyRate * 0.01;
-    pushEventLog(`📊 정책금리 ${step>0? '인상':'인하'} ${fmt2(step)}p% -> ${fmt2(econ.policyRate)}%`);
-    notify(`정책금리 ${fmt2(econ.policyRate)}%`);
-}
-
-function triggerGDPGrowthUP(source = 'system') {
-    const step = 0.25
-    econ.gdpGrowth = Math.max(0, econ.gdpGrowth + step);
-    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} +${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
-}
-
-function triggerGDPGrowthDOWN(source = 'system') {
-    const step = -0.25
-    econ.gdpGrowth = econ.gdpGrowth + step
-    pushEventLog(`📊 GDP ${step>0? '성장':'역성장'} ${fmt2(step)}p% -> ${fmt2(econ.gdpGrowth)}%`);
-}
-
-/* ----------------------------
    Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
 function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 
+/* --- 추세(Trend) 물리 엔진 --- */
+function updateTrendPhysics(dtYears) {
+  // 감쇠 계수 (Decay Factor) - dt가 1년일 때 남는 비율
+  // Short는 빨리 사라지고, Long은 오래 남음
+  const decayL = 0.95; // 1년 뒤 95% 유지 (매우 느림)
+  const decayM = 0.50; // 1년 뒤 50% 유지
+  const decayS = 0.00001; // 1년 뒤 거의 0 (단기는 며칠이면 사라짐)
+
+  // 시간 경과에 따른 감쇠 적용 (Exponential Decay)
+  // factor = base ^ dt
+  trendState.long  *= Math.pow(decayL, dtYears);
+  trendState.mid   *= Math.pow(decayM, dtYears);
+  trendState.short *= Math.pow(decayS, dtYears);
+}
+
+function getTotalDrift() {
+  // 전체 추세 = 베이스 + (장+중+단)
+  // 너무 극단적인 값 방지 (Soft Capping)
+  let total = trendState.baseDrift + trendState.long + trendState.mid + trendState.short;
+  return Math.max(-2.0, Math.min(2.0, total)); // 연수익률 -200% ~ +200% 제한
+}
+
+/* --- 뉴스 생성 및 처리 모듈 --- */
+
+// 미래 뉴스 예약 (보통 3~7일 뒤)
+function scheduleFutureNews() {
+  // 너무 많이 생성되지 않게 조절 (현재 예약된 게 5개 미만일 때만)
+  const upcoming = newsData.filter(n => new Date(n.date) > simDate);
+  if(upcoming.length >= 4) return;
+  
+  if(Math.random() > 0.1) return; // 틱당 2% 확률로 생성 시도
+
+  const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤
+  const targetDate = new Date(simDate);
+  targetDate.setDate(targetDate.getDate() + daysLater);
+  const dateStr = nowStr(targetDate).slice(0, 10);
+
+  // 이미 해당 날짜에 뉴스가 있으면 스킵 (하루 1개 제한)
+  if(newsData.some(n => n.date === dateStr)) return;
+
+  // 타입 결정 (70% 지표, 30% 헤드라인)
+  const isIndicator = Math.random() < 0.7;
+  let newNews = null;
+
+  if (isIndicator) {
+    const template = NEWS_CONFIG.indicators[Math.floor(Math.random() * NEWS_CONFIG.indicators.length)];
+    
+    // 값 생성
+    // 1. 실제치(Actual) 먼저 결정 (랜덤 워크)
+    let rawActual = template.base + (Math.random() - 0.5) * 2 * template.dev;
+    if(template.step) rawActual = Math.round(rawActual / template.step) * template.step; // step 단위 맞춤
+    
+    // 2. 예상치(Forecast) 결정 (실제치 주변에 노이즈 추가)
+    // 시장은 보통 맞추지만, 가끔 틀림
+    let noise = (Math.random() - 0.5) * template.dev * 0.8; 
+    let rawForecast = rawActual + noise;
+    if(template.step) rawForecast = Math.round(rawForecast / template.step) * template.step;
+
+    newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: "09:00", // 지표는 보통 아침
+      type: 'indicator',
+      title: template.title,
+      unit: template.unit,
+      forecast: fmt2(rawForecast) + template.unit,
+      actual: fmt2(rawActual) + template.unit,
+      
+      // 내부 계산용 원본 데이터
+      _valForecast: rawForecast,
+      _valActual: rawActual,
+      _weight: template.weight,
+      _inverse: template.inverse || false,
+      impactLevel: 'mid', // 나중에 실제 발표시 재조정
+      processed: false
+    };
+  } else {
+    // 헤드라인
+    const isGood = Math.random() < 0.5;
+    const list = isGood ? NEWS_CONFIG.headlines.good : NEWS_CONFIG.headlines.bad;
+    const item = list[Math.floor(Math.random() * list.length)];
+    
+    newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: "14:00", // 장중 속보
+      type: 'headline',
+      title: item.text,
+      unit: '',
+      forecast: null,
+      actual: null,
+      _power: item.power * (isGood ? 1 : -1), // 호재면 +, 악재면 -
+      impactLevel: isGood ? 'good' : 'high',
+      processed: false
+    };
+  }
+
+  newsData.push(newNews);
+  // 날짜순 정렬
+  newsData.sort((a,b) => new Date(a.date) - new Date(b.date));
+  
+  // 오래된 뉴스 삭제 (30일 지난 것)
+  if(newsData.length > 30) newsData.shift();
+  
+  // 달력 갱신 필요
+  renderCalendar();
+}
+
+// 뉴스 발표 체크 및 추세 반영
+function checkNewsTrigger() {
+  const todayStr = nowStr(simDate).slice(0,10);
+  const currentHour = simDate.getHours();
+
+  // 오늘 날짜이면서, 시간이 지났고, 아직 처리 안 된 뉴스 찾기
+  const targets = newsData.filter(n => 
+    n.date === todayStr && 
+    parseInt(n.time.split(':')[0]) <= currentHour && 
+    !n.processed
+  );
+
+  targets.forEach(n => {
+    n.processed = true; // 처리 완료 마킹
+
+    if (n.type === 'indicator') {
+      // Surprise = (Actual - Forecast)
+      // inverse(실업률 등)인 경우 부호 반대
+      let surprise = n._valActual - n._valForecast;
+      if (n._inverse) surprise *= -1;
+
+      // 괴리율이 클수록 충격
+      // 표준편차 대비 얼마나 놀랐는가? (단순화된 계산)
+      const shock = surprise; 
+      
+      // 추세에 가중치 반영
+      // shock가 양수면 호재 -> 추세 상승
+      trendState.long  += shock * n._weight.l;
+      trendState.mid   += shock * n._weight.m;
+      trendState.short += shock * n._weight.s;
+
+      // 임팩트 레벨 UI용 설정
+      if (Math.abs(shock) > 0.5) n.impactLevel = 'high';
+      else if (surprise > 0) n.impactLevel = 'good';
+      else n.impactLevel = 'mid';
+      
+      const icon = surprise > 0 ? '📈' : (surprise < 0 ? '📉' : '➖');
+      pushEventLog(`${icon} ${n.title} 발표: 실제 ${n.actual} (예상 ${n.forecast})`);
+      
+    } else {
+      // 헤드라인
+      const p = n._power;
+      // 헤드라인은 주로 단기/중기에 강한 영향
+      trendState.mid   += p * 0.5;
+      trendState.short += p * 1.5;
+
+      const icon = p > 0 ? '🔥' : '⛈️';
+      pushEventLog(`${icon} 속보: ${n.title}`);
+    }
+
+    notify(`뉴스 발표: ${n.title}`);
+    renderNewsFeed(); // UI 갱신 (실제값 공개)
+  });
+}
+
+
+
+/* =========================================
+   ENGINE v2: Main Loop
+   ========================================= */
+
 function stepMarket(){
-  // We'll perform 'hoursPerTick' steps of 1 hour each so intermediate prices exist
+  // 배속만큼 반복 (hoursPerTick)
   for (let step=0; step<Math.max(0,hoursPerTick); step++){
-    // advance by 1 hour
+    // 1시간 전진
     const prevDate = new Date(simDate);
     simDate = new Date(simDate.getTime() + 1*3600*1000);
 
-    // detect day/month transitions
     const curDay = simDate.getDate();
     const curMonth = simDate.getMonth() + 1;
-    if (lastTickDay === null || curDay !== lastTickDay){
-      updateEconForDayChange();
-      if (Math.random() < 0.0005){ triggerBlackSwan('random'); }
-      if (Math.random() < 0.0005){ triggerWhiteSwan('random'); }
+    
+    // 1. 뉴스 생성 및 트리거 체크
+    if (simDate.getHours() === 0) {
+      // 자정이 되면 미래 뉴스 예약 시도
+      scheduleFutureNews();
     }
-    if (lastTickMonth === null || curMonth !== lastTickMonth){
-      updateEconForMonthChange();
+    // 매 시간 뉴스 발표 체크
+    checkNewsTrigger();
+
+    // 날짜 변경 시 처리
+    if (lastTickDay !== null && curDay !== lastTickDay){
+       if (Math.random() < 0.001) triggerBlackSwan('random'); // 아주 가끔 블랙스완
     }
     lastTickDay = curDay; lastTickMonth = curMonth;
 
-    // compute dt for 1 hour
-    const dt = 1 / (24*365);
+    // 2. 물리 엔진 (추세 감쇠 & 가격 결정)
+    const dtYears = 1 / (24*365); // 1시간의 연단위 표현
+    
+    // (1) 추세 감쇠
+    updateTrendPhysics(dtYears);
+
+    // (2) 통합 Drift(mu) 계산
+    const muTotal = getTotalDrift();
+
+    // (3) GBM 가격 변동
+    // dS = S * (mu * dt + sigma * dZ)
     const sigma = getCurrentVol();
-    const muCurrentRaw = getCurrentMu();
-    const K_REVERT = 0.03; // 권장값 0.02~0.06
-    const avgPrice = 10000 * (1 + (simDate.getFullYear() - 2024) * muCurrentRaw);
-    const logRel = Math.log(state.spot / avgPrice);
-    const mu = (muCurrentRaw - K_REVERT * logRel) * 5;
-    // gaussian
     let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
     const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
-    const factor = Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z);
-    state.spot *= factor; if (state.spot < 0.01) state.spot = 0.01;
-    // record this hourly price
+    
+    const factor = Math.exp((muTotal - 0.5*sigma*sigma)*dtYears + sigma*Math.sqrt(dtYears)*z);
+    
+    state.spot *= factor; 
+    if (state.spot < 0.01) state.spot = 0.01;
+
+    // 3. 기록 및 차트
     state.history.push({ t: new Date(simDate), price: state.spot });
     updateCandles(state.spot, simDate);
 
-    // scheduled witching check at 08:00
-    if (isWitchingDay(simDate) && simDate.getHours() === 8 && Math.random() < 0.9){ triggerWitchingEvent('scheduled'); }
-
-    // expiries: only check after hourly advancement to catch expiries that happen at 00:00
+    // 4. 파생상품 처리
     checkExpiries();
-    // forceColse
     liquidateFutures();
 
-    // decrement temporary event counters
+    // 이벤트 카운터 감소
     if (witchingActiveTicks > 0) witchingActiveTicks--;
     if (blackSwanActiveTicks > 0) blackSwanActiveTicks--;
   }
-  // after all sub-steps, render UI
+  
+  // UI 렌더링
   renderAll();
 }
+
+
 
 /* ----------------------------
    Trading & expiry logic unchanged but ensure details are cleared when positions removed
@@ -1686,6 +1730,170 @@ function renderEventLog() {
   }
 }
 
+/* =========================================
+   NEW UI MODULE: Calendar & News Feed
+   ========================================= */
+
+// 1. 캘린더 그리기
+function renderCalendar() {
+  const grid = document.getElementById('calendarGrid');
+  const title = document.getElementById('calMonthTitle');
+  if(!grid || !title) return;
+
+  const year = simDate.getFullYear();
+  const month = simDate.getMonth(); // 0-based
+  const todayDateStr = nowStr(simDate).slice(0,10); // 'YYYY-MM-DD'
+
+  // 헤더 업데이트 (최적화: 달이 바뀌었을 때만 그리도록 해도 되지만, 일단 매프레임 호출 시 체크)
+  title.innerText = `${year}. ${String(month+1).padStart(2,'0')}`;
+
+  grid.innerHTML = '';
+
+  // 요일 헤더 (일~토)
+  const days = ['일','월','화','수','목','금','토'];
+  days.forEach(d => {
+    const dh = document.createElement('div');
+    dh.className = 'calDayHead';
+    dh.innerText = d;
+    grid.appendChild(dh);
+  });
+
+  // 날짜 계산
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDayOfWeek = firstDay.getDay(); // 0(일) ~ 6(토)
+  const totalDays = lastDay.getDate();
+
+  // 빈 칸 채우기
+  for(let i=0; i<startDayOfWeek; i++){
+    const cell = document.createElement('div');
+    cell.className = 'calCell empty';
+    grid.appendChild(cell);
+  }
+
+  // 날짜 셀 생성
+  for(let d=1; d<=totalDays; d++){
+    const cell = document.createElement('div');
+    cell.className = 'calCell';
+    cell.innerText = d;
+
+    // 날짜 문자열 생성
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    // 오늘 날짜 하이라이트
+    if(dateStr === todayDateStr) {
+      cell.classList.add('today');
+    }
+
+    // 선택된 날짜 하이라이트
+    if(uiState.selectedDate === dateStr) {
+      cell.classList.add('selected');
+    }
+
+    // 뉴스/이벤트 존재 여부 체크 (dot 표시)
+    // 실제 엔진에서는 해당 월의 이벤트만 필터링해서 체크해야 함
+    const hasEvent = newsData.some(n => n.date === dateStr);
+    if(hasEvent) cell.classList.add('hasEvent');
+
+    // 클릭 이벤트
+    cell.onclick = () => {
+      if(uiState.selectedDate === dateStr) {
+        // 이미 선택된 날짜 클릭 -> 해제 (오늘 보기로 복귀)
+        uiState.selectedDate = null;
+      } else {
+        uiState.selectedDate = dateStr;
+      }
+      renderCalendar(); // 재렌더링 (선택효과 적용)
+      renderNewsFeed(); // 뉴스 패널 갱신
+    };
+
+    grid.appendChild(cell);
+  }
+}
+
+// 2. 뉴스 패널 그리기
+function renderNewsFeed() {
+  const list = document.getElementById('newsList');
+  const title = document.getElementById('newsPanelTitle');
+  const closeBtn = document.getElementById('newsCloseBtn');
+  if(!list) return;
+
+  const todayStr = nowStr(simDate).slice(0,10);
+  const targetDate = uiState.selectedDate || todayStr; // 선택 날짜 없으면 오늘 날짜 기준
+
+  // UI 텍스트 갱신
+  if(uiState.selectedDate) {
+    title.innerText = `${uiState.selectedDate} 뉴스`;
+    title.style.color = 'var(--accent)';
+    closeBtn.style.display = 'block';
+  } else {
+    title.innerText = `오늘(${todayStr}) 뉴스`;
+    title.style.color = '#fff';
+    closeBtn.style.display = 'none';
+  }
+
+  // 닫기 버튼 로직
+  closeBtn.onclick = () => {
+    uiState.selectedDate = null;
+    renderCalendar();
+    renderNewsFeed();
+  };
+
+  list.innerHTML = '';
+
+  // 데이터 필터링: 선택한 날짜의 데이터 (또는 오늘)
+  // [엔진 v2 확장 고려]: 오늘 날짜일 경우, 현재 시간(simDate) 이전에 발표된 것만 보여주거나,
+  // 미래 예정인 것은 '예정' 상태로 보여주는 로직이 필요함. 일단은 다 보여줌.
+  const events = newsData.filter(n => n.date === targetDate);
+
+  if(events.length === 0) {
+    list.innerHTML = `<div class="small muted" style="text-align:center; padding-top:20px;">예정된 뉴스가 없습니다.</div>`;
+    return;
+  }
+
+  // 시간순 정렬
+  events.sort((a,b) => a.time.localeCompare(b.time));
+
+  events.forEach(n => {
+    const item = document.createElement('div');
+    // impactLevel에 따라 테두리 색상 클래스 추가
+    let impactClass = '';
+    if(n.impactLevel === 'high') impactClass = 'impact-high';
+    if(n.impactLevel === 'good') impactClass = 'impact-good';
+
+    item.className = `newsItem ${impactClass}`;
+
+    // 예상/실제 데이터 HTML 생성 (지표인 경우에만)
+    let dataHtml = '';
+    // [수정] renderNewsFeed 함수 내부
+    if(n.type === 'indicator') {
+      const forecastVal = n.forecast || '-';
+      
+      // 발표 시간(processed === true) 전에는 실제값 숨김
+      const actualVal = n.processed ? n.actual : '미발표';
+      const actualStyle = n.processed ? 'color:#fff;font-weight:700' : 'color:#555';
+
+      dataHtml = `
+        <div class="newsData">
+          <span class="val-forecast">예상 ${forecastVal}</span>
+          <span style="color:#555">|</span>
+          <span style="${actualStyle}">실제 ${actualVal}</span>
+        </div>
+      `;
+    }
+
+    item.innerHTML = `
+      <div class="newsMeta">
+        <span>${n.time}</span>
+        <span class="badge">${n.type === 'headline' ? 'NEWS' : 'ECON'}</span>
+      </div>
+      <div class="newsTitle">${n.title}</div>
+      ${dataHtml}
+    `;
+    list.appendChild(item);
+  });
+}
+
 /* ----------------------------
    Details panel: live update (ensure reset when no selection)
 -----------------------------*/
@@ -1775,12 +1983,6 @@ function renderAll() {
   document.getElementById('marketStatus').innerText = isSpotOpenAt(simDate) ? '🟢 장 열림' : '🔴 장 닫힘';
   document.getElementById('spotPrice').innerText = fmt2(state.spot);
 
-  document.getElementById('indVix').innerText = fmt2(econ.vix);
-  document.getElementById('indPolicy').innerText = fmt2(econ.policyRate);
-  document.getElementById('indBond').innerText = fmt2(econ.bondYield);
-  document.getElementById('indGdp').innerText = fmt2(econ.gdpGrowth);
-  document.getElementById('indUnemp').innerText = fmt2(econ.unemployment);
-
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
   drawChart();
@@ -1862,6 +2064,9 @@ function renderAll() {
     optEl.appendChild(el);
   });
 
+  renderCalendar();
+  renderNewsFeed();
+
   updateDetails();
   renderEventLog();
 }
@@ -1896,59 +2101,6 @@ function updateOptPremiumDisplay() {
 }
 
 /* ----------------------------
-   Debug tools wiring
------------------------------*/
-document.getElementById('toggleDebug').addEventListener('click', () => {
-  const tools = document.getElementById('econDebugTools');
-  if (tools.style.display === 'flex' || tools.style.display === 'block') tools.style.display = 'none';
-  else tools.style.display = 'flex';
-});
-
-document.getElementById('dbgReset').addEventListener('click', () => {
-  resetSystem();
-});
-document.getElementById('dbgAddCash').addEventListener('click', () => {
-  player.cash += 100000;
-  pushEventLog('🧾 Debug: 현금 +100k 추가');
-  notify('현금 +100k');
-  renderAll();
-});
-document.getElementById('dbgWitch').addEventListener('click', () => {
-  triggerVixUp('debug');
-  renderAll();
-});
-document.getElementById('dbgWhiteSwan').addEventListener('click', () => {
-  triggerWhiteSwan('debug');
-  renderAll();
-});
-document.getElementById('dbgBlackSwan').addEventListener('click', () => {
-  triggerBlackSwan('debug');
-  renderAll();
-});
-document.getElementById('dbgPolicyRateUP').addEventListener('click', () => {
-  triggerPolicyRateUP('debug');
-  renderAll();
-});
-document.getElementById('dbgPolicyRateDOWN').addEventListener('click', () => {
-  triggerPolicyRateDOWN('debug');
-  renderAll();
-});
-document.getElementById('dbgGDPGrowthUP').addEventListener('click', () => {
-  triggerGDPGrowthUP('debug');
-  renderAll();
-});
-document.getElementById('dbgGDPGrowthDOWN').addEventListener('click', () => {
-  triggerGDPGrowthDOWN('debug');
-  renderAll();
-});
-document.getElementById('dbgShowMU').addEventListener('click', () => {
-  const mu = getCurrentMu()
-  pushEventLog(`🫟 현재 추세 인덱스: ${fmt2(mu)}`);
-  renderAll();
-});
-
-
-/* ----------------------------
    Reset system (debug)
 -----------------------------*/
 function resetSystem() {
@@ -1957,7 +2109,6 @@ function resetSystem() {
   state.spot = 10000.0;
   state.history = [{ t: new Date(simDate), price: state.spot }];
   state.candles = {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []};
-  econ = { vix: VIX_BASE, policyRate: RATE_BASE, bondYield: YIELD_BASE, gdpGrowth: GDP_BASE, unemployment: UEMP_BASE };
   player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
   witchingActiveTicks = 0;
