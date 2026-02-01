@@ -82,7 +82,7 @@
   /* notification toast */
   #notif{ position:fixed; right:24px; top:18px; background:var(--notify-bg); color:var(--text); padding:8px 12px; border-radius:6px; border:1px solid rgba(47,195,255,0.15); display:none; z-index:1000; }
   /* debug small controls */
-  .debugBtn{ background:#ffd166; color:#022; font-weight:700; border-radius:6px; padding:6px; border:none; cursor:pointer;}
+  .debugBtn{ width:30%; background:#ffd166; color:#022; font-weight:700; border-radius:6px; padding:6px; border:none; cursor:pointer;}
   .tinyd{ font-size:12px; padding:6px; }
   /* responsive */
   @media (max-width:1080px){
@@ -598,9 +598,9 @@ function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 function updateTrendPhysics(dtYears) {
   // 감쇠 계수 (Decay Factor) - dt가 1년일 때 남는 비율
   // Short는 빨리 사라지고, Long은 오래 남음
-  const decayL = 0.95; // 1년 뒤 95% 유지 (매우 느림)
-  const decayM = 0.50; // 1년 뒤 50% 유지
-  const decayS = 0.00001; // 1년 뒤 거의 0 (단기는 며칠이면 사라짐)
+  const decayL = 0.50; // 1년 뒤 95% 유지 (매우 느림)
+  const decayM = 0.20; // 1년 뒤 50% 유지
+  const decayS = 0.01; // 1년 뒤 거의 0 (단기는 며칠이면 사라짐)
 
   // 시간 경과에 따른 감쇠 적용 (Exponential Decay)
   // factor = base ^ dt
@@ -624,7 +624,7 @@ function scheduleFutureNews() {
   const upcoming = newsData.filter(n => new Date(n.date) > simDate);
   if(upcoming.length >= 4) return;
   
-  if(Math.random() > 0.1) return; // 틱당 2% 확률로 생성 시도
+  if(Math.random() > 0.3) return; // 틱당 30% 확률로 생성 시도
 
   const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤
   const targetDate = new Date(simDate);
