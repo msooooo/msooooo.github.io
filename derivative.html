@@ -205,7 +205,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.0</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.1</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -378,18 +378,6 @@
    - When a selected detail's underlying position disappears, the details panel resets
    ============================ */
 
-/* ----------------------------
-   Base parameters & state (unchanged)
------------------------------*/
-const BASE_VOL = 0.20;    // base mapping when VIX base matches
-const VIX_BASE = 20.0;
-const RATE_BASE = 2.50;
-const YIELD_BASE = 3.00;
-const GDP_BASE = 2.0;
-const UEMP_BASE = 5.0;
-const BASE_MU = 0.05;
-let R = RATE_BASE * 0.01, Q = 0.0;
-
 // simulation time
 let simDate = new Date("2025-01-01T00:00:00");
 let hoursPerTick = 1; // controlled by UI speed
@@ -459,17 +447,17 @@ let trendState = {
   long: 0.0,    // 장기 (구조적 성장/침체) - 감쇠가 매우 느림
   mid: 0.0,     // 중기 (실적, 계절성) - 감쇠 보통
   short: 0.0,   // 단기 (뉴스, 노이즈) - 감쇠 빠름
-  baseDrift: 0.05 // 자연 성장률 (연 5% 우상향 본능)
+  baseDrift: 0.8 // 자연 성장률 (연 8% 우상향 본능)
 };
 
 // 2. 뉴스 생성 설정
 const NEWS_CONFIG = {
   // 지표 템플릿: { 이름, 단위, 기준값, 변동폭, 영향력(L/M/S 비중) }
   indicators: [
-    { title: "GDP 성장률 발표", unit: "%", base: 2.5, dev: 1.5, weight: {l:0.02, m:0.1, s:0.3} },
-    { title: "기준금리 결정", unit: "%", base: 3.50, dev: 0.25, step: 0.25, weight: {l:0.05, m:0.05, s:0.2} }, // step이 있으면 불연속 값
-    { title: "소비자 물가 지수(CPI)", unit: "%", base: 3.0, dev: 1.0, weight: {l:0.01, m:0.08, s:0.4} },
-    { title: "실업률 발표", unit: "%", base: 4.0, dev: 1.0, weight: {l:0.01, m:0.05, s:0.2}, inverse: true }, // inverse: 높으면 악재
+    { title: "GDP 성장률", unit: "%", base: 2.5, dev: 1.5, weight: {l:0.02, m:0.1, s:0.3} },
+    { title: "기준금리 결정", unit: "%", base: 3.50, dev: 0.25, step: 0.25, weight: {l:0.05, m:0.05, s:0.2}, inverse:true }, // step이 있으면 불연속 값
+    { title: "소비자 물가 지수(CPI)", unit: "%", base: 3.0, dev: 1.0, weight: {l:0.01, m:0.08, s:0.4}, inverse:true },
+    { title: "실업률", unit: "%", base: 4.0, dev: 1.0, weight: {l:0.01, m:0.05, s:0.2}, inverse: true }, // inverse: 높으면 악재
     { title: "PMI 제조업 지수", unit: "pt", base: 50, dev: 5, weight: {l:0.0, m:0.15, s:0.2} }
   ],
   // 헤드라인 템플릿 (랜덤 조합용)
@@ -494,14 +482,6 @@ let selectedDetail = null;
 
 // event log (for UI)
 let eventLog = []; // {t:string, msg:string}
-
-// event flags
-let witchingActiveTicks = 0;  // if >0, volatility is multiplied for a few ticks
-let blackSwanActiveTicks = 0; // similar
-
-// track last day/month for econ updates (DECLARED to fix ReferenceError)
-let lastTickDay = null;
-let lastTickMonth = null;
 
 /* ----------------------------
    Utilities (unchanged)
@@ -598,8 +578,8 @@ function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 function updateTrendPhysics(dtYears) {
   // 감쇠 계수 (Decay Factor) - dt가 1년일 때 남는 비율
   // Short는 빨리 사라지고, Long은 오래 남음
-  const decayL = 0.50; // 1년 뒤 95% 유지 (매우 느림)
-  const decayM = 0.20; // 1년 뒤 50% 유지
+  const decayL = 0.50; // 1년 뒤 50% 유지 (매우 느림)
+  const decayM = 0.20; // 1년 뒤 20% 유지
   const decayS = 0.01; // 1년 뒤 거의 0 (단기는 며칠이면 사라짐)
 
   // 시간 경과에 따른 감쇠 적용 (Exponential Decay)
@@ -624,7 +604,7 @@ function scheduleFutureNews() {
   const upcoming = newsData.filter(n => new Date(n.date) > simDate);
   if(upcoming.length >= 4) return;
   
-  if(Math.random() > 0.3) return; // 틱당 30% 확률로 생성 시도
+  if(Math.random() > 0.1) return; // 틱당 10% 확률로 생성 시도
 
   const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤
   const targetDate = new Date(simDate);
@@ -781,12 +761,6 @@ function stepMarket(){
     // 매 시간 뉴스 발표 체크
     checkNewsTrigger();
 
-    // 날짜 변경 시 처리
-    if (lastTickDay !== null && curDay !== lastTickDay){
-       if (Math.random() < 0.001) triggerBlackSwan('random'); // 아주 가끔 블랙스완
-    }
-    lastTickDay = curDay; lastTickMonth = curMonth;
-
     // 2. 물리 엔진 (추세 감쇠 & 가격 결정)
     const dtYears = 1 / (24*365); // 1시간의 연단위 표현
     
@@ -814,10 +788,6 @@ function stepMarket(){
     // 4. 파생상품 처리
     checkExpiries();
     liquidateFutures();
-
-    // 이벤트 카운터 감소
-    if (witchingActiveTicks > 0) witchingActiveTicks--;
-    if (blackSwanActiveTicks > 0) blackSwanActiveTicks--;
   }
   
   // UI 렌더링
@@ -2111,10 +2081,6 @@ function resetSystem() {
   state.candles = {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []};
   player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
   eventLog = [];
-  witchingActiveTicks = 0;
-  blackSwanActiveTicks = 0;
-  lastTickDay = null;
-  lastTickMonth = null;
   selectedDetail = null;
   pushEventLog('🔁 시스템 초기화 완료');
   renderAll();
