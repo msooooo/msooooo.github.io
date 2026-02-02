@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.4</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.5</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -324,7 +324,6 @@
         <div id="newsWrap">
           <div id="newsHeader">
             <span id="newsPanelTitle">오늘의 주요 뉴스</span>
-            <button id="newsCloseBtn" class="tinyd debugBtn" style="display:none;">x</button>
           </div>
           <div id="newsList">
             <div class="small muted" style="padding:10px; text-align:center;">데이터 로딩 중...</div>
@@ -619,6 +618,45 @@ function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
 -----------------------------*/
 function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 
+/* [추가] 시간대별 거래량 패턴 및 뉴스 영향 계산 */
+function calcVolumeMultiplier(d) {
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const timeVal = h + m/60; // 0.0 ~ 23.99
+
+  let baseVol = 0;
+
+  // 1. 장 운영 시간 (00:00 ~ 12:00)
+  if (timeVal >= 0 && timeVal < 12) {
+    // U-Shape Curve 구현: (시간 - 중간값)^2 이용
+    // 0시와 12시에 높고, 6시에 낮음
+    // 6시 기준: (t-6)^2. 0시->36, 6시->0, 12시->36
+    // 기본 1.0 + 곡선효과
+    baseVol = 1.0 + 0.08 * Math.pow(timeVal - 6, 2); 
+    // 결과: 0시(약 3.8배), 6시(1.0배), 12시(약 3.8배)
+    
+    // 장 시작/마감 1시간 내에는 추가 부스트
+    if (timeVal < 1) baseVol *= 1.2; // 오프닝 러시
+    if (timeVal > 11) baseVol *= 1.3; // 마감 러시
+  } 
+  // 2. 장외 시간 (12:00 ~ 24:00)
+  else {
+    baseVol = 0.05; // 거래량 거의 없음 (기본 대비 5%)
+  }
+
+  // 3. 뉴스/이벤트로 인한 변동성 펄스가 있으면 거래량도 폭증
+  // volatilityState의 amp 합계가 클수록 거래량 증가
+  const newsActivity = volatilityState.reduce((sum, p) => sum + p.amp, 0);
+  // 뉴스 강도가 0.2면 거래량 2배 증가 (예시)
+  const newsFactor = 1 + (newsActivity * 10); 
+
+  // 4. 노이즈 추가 (너무 매끄러우면 재미없음)
+  const noise = 0.8 + Math.random() * 0.4; // 0.8 ~ 1.2
+
+  return baseVol * newsFactor * noise;
+}
+
+
 /* --- 추세(Trend) 물리 엔진 --- */
 function updateTrendPhysics(dtYears) {
   // 감쇠 계수 (Decay Factor) - dt가 1년일 때 남는 비율
@@ -884,9 +922,29 @@ function stepMarket(){
     // (2) 통합 Drift(mu) 계산
     const muTotal = getTotalDrift();
 
-    // (3) GBM 가격 변동
-    // dS = S * (mu * dt + sigma * dZ)
-    const sigma = getCurrentVol();
+    // [수정/추가] 거래량 기반 변동성 모델 적용
+    
+    // 1. 현재 틱의 거래량(Volume) 계산
+    // 기본 단위: 1000주 + Multiplier
+    const volMult = calcVolumeMultiplier(simDate);
+    const tickVolume = Math.round(1000 * volMult); 
+
+    // 2. 변동성(Sigma) 보정
+    // 거래량이 많을수록 변동성이 커짐 (제곱근 비례 법칙)
+    // 평소(multiplier=1)일 때 getCurrentVol() 그대로 사용
+    // 거래량이 4배면 변동성은 2배가 됨
+    let sigma = getCurrentVol();
+    
+    // 장외 시간(volMult < 0.1)이면 변동성을 확 죽임
+    if (volMult < 0.2) {
+      sigma *= 0.1; 
+    } else {
+      // 거래량 팩터를 변동성에 반영 (Scaling)
+      // volMult가 너무 커지면 위험하므로 루트 씌워서 적용
+      sigma *= Math.sqrt(volMult); 
+    }
+    
+    // (3) GBM 가격 변동 (수정된 sigma 사용)
     let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
     const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
     
@@ -895,9 +953,9 @@ function stepMarket(){
     state.spot *= factor; 
     if (state.spot < 0.01) state.spot = 0.01;
 
-    // 3. 기록 및 차트
+    // 3. 기록 및 차트 (tickVolume 전달)
     state.history.push({ t: new Date(simDate), price: state.spot });
-    updateCandles(state.spot, simDate);
+    updateCandles(state.spot, simDate, tickVolume); // [수정] volume 전달
 
     // 4. 파생상품 처리
     checkExpiries();
@@ -1199,8 +1257,8 @@ function getCandleKey(date, type) {
   return d.getTime();
 }
 
-function updateCandles(price, time) {
-  // ensure arrays exist and update OHLC for each type
+/* [수정] volume 매개변수 추가 */
+function updateCandles(price, time, volume) {
   const types = ['1H', '1D', '1W', '1M', '1Y'];
   types.forEach(type => {
     if (!Array.isArray(state.candles[type])) state.candles[type] = [];
@@ -1215,15 +1273,16 @@ function updateCandles(price, time) {
         open: price,
         high: price,
         low: price,
-        close: price
+        close: price,
+        volume: volume // [추가] 초기 거래량
       });
-      // optional: cap stored candles to reasonable length to avoid memory blowup
       if (arr.length > 20000) arr.splice(0, arr.length - 20000);
     } else {
-      // update existing candle OHLC
+      // update existing candle
       last.high = Math.max(last.high, price);
       last.low  = Math.min(last.low, price);
       last.close = price;
+      last.volume += volume; // [추가] 거래량 누적
     }
   });
 }
@@ -1899,7 +1958,6 @@ function renderCalendar() {
 function renderNewsFeed() {
   const list = document.getElementById('newsList');
   const title = document.getElementById('newsPanelTitle');
-  const closeBtn = document.getElementById('newsCloseBtn');
   if(!list) return;
 
   const todayStr = nowStr(simDate).slice(0,10);
@@ -1909,19 +1967,10 @@ function renderNewsFeed() {
   if(uiState.selectedDate) {
     title.innerText = `${uiState.selectedDate} 뉴스`;
     title.style.color = '#fff';
-    closeBtn.style.display = 'block';
   } else {
     title.innerText = `오늘(${todayStr}) 뉴스`;
     title.style.color = '#fff';
-    closeBtn.style.display = 'none';
   }
-
-  // 닫기 버튼 로직
-  closeBtn.onclick = () => {
-    uiState.selectedDate = null;
-    renderCalendar();
-    renderNewsFeed();
-  };
 
   list.innerHTML = '';
 
