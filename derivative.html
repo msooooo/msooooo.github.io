@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.9</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.0</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -446,20 +446,6 @@ let newsData = [];
 let uiState = {
   selectedDate: null, // 사용자가 캘린더에서 클릭한 날짜 (String 'YYYY-MM-DD' or null)
   lastRenderedDate: null // 최적화를 위해 마지막 렌더링 날짜 추적
-};
-
-/* =========================================
-   ENGINE v2: State & Config
-   ========================================= */
-
-// 1. 추세 상태 (Trend Vectors)
-// 값의 의미: 연간 기대 수익률(Drift)에 더해지는 가중치
-// 예: short가 0.1이면 순간적으로 연 10% 상승하는 기세가 붙음
-let trendState = {
-  long: 0.0,    // 장기 (구조적 성장/침체) - 감쇠가 매우 느림
-  mid: 0.0,     // 중기 (실적, 계절성) - 감쇠 보통
-  short: 0.0,   // 단기 (뉴스, 노이즈) - 감쇠 빠름
-  baseDrift: 0.08 // 자연 성장률 (연 8% 우상향 본능)
 };
 
 /* [수정] 시장 제어 변수 (틱 단위 제어로 변경) */
@@ -774,34 +760,6 @@ function calcVolumeMultiplier(d) {
   return Math.min(5.0, baseVol * newsFactor * noise);
 }
 
-
-/* [수정] 추세 감쇠 + 랜덤 노이즈 추가 */
-function updateTrendPhysics(dtYears) {
-  // 1. 기존 감쇠 로직 (Decay)
-  const decayL = 0.50; 
-  const decayM = 0.20; 
-  const decayS = 0.0001; // 단기는 더 빨리 사라지게 수정
-
-  trendState.long  *= Math.pow(decayL, dtYears);
-  trendState.mid   *= Math.pow(decayM, dtYears);
-  trendState.short *= Math.pow(decayS, dtYears);
-
-  // 2. [추가] 추세 자체의 불확실성 (Random Walk in Trend)
-  // 매시간 추세가 조금씩 흔들림 -> 차트가 매끄러운 곡선이 되지 않게 함
-  // dtYears가 작으므로 계수를 크게 잡음
-  if (Math.random() < 0.3) {
-      trendState.mid += (Math.random() - 0.5) * 0.5 * dtYears; 
-      trendState.long += (Math.random() - 0.5) * 0.2 * dtYears;
-  }
-}
-
-function getTotalDrift() {
-  // 전체 추세 = 베이스 + (장+중+단)
-  // 너무 극단적인 값 방지 (Soft Capping)
-  let total = trendState.baseDrift + trendState.long + trendState.mid + trendState.short;
-  return Math.max(-2.0, Math.min(2.0, total)); // 연수익률 -200% ~ +200% 제한
-}
-
 /* --- 뉴스 생성 및 처리 모듈 --- */
 
 /* [수정] 지표(Indicator)만 예약. 헤드라인은 제외. 예상치/실제치 통합 객체 생성 */
@@ -918,7 +876,7 @@ function tryTriggerHeadline() {
   notify(`[속보] ${item.text}`, 5000);
 }
 
-/* [수정] 뉴스 발표 로직 (변동성 대폭 축소 버전) */
+/* [수정] 뉴스 = 시장 충격(Shock) 및 펀더멘탈(FairValue) 변화 */
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
@@ -932,40 +890,27 @@ function checkNewsTrigger() {
   targets.forEach(n => {
     n.processed = true;
 
+    // 영향력(Magnitude) 계산
+    let impact = 0; // 퍼센트 변화율 (예: 0.01 = 1%)
+
     if (n.type === 'indicator') {
       const actual = n._valActual;
       const forecast = n._valForecast;
-      const prev = n._valPrev;
-
+      
+      // Surprise 계산
       let surprise = actual - forecast;
       if (n._inverse) surprise *= -1;
-      let change = actual - prev;
-      if (n._inverse) change *= -1;
 
-      // (1) 가격 점프 (강도 축소: 0.05 -> 0.01)
-      const jumpShock = surprise * (Math.random() * 0.5 + 0.5); 
-      const jumpFactor = 1 + (jumpShock * n._weight.s * 0.01); // 1% 내외 점프
-      state.spot *= jumpFactor;
+      // 지표별 가중치 적용 (기본 0.5% ~ 2.0% 변동)
+      // weight.s(단기)를 충격 계수로 활용
+      impact = surprise * n._weight.s * 0.05; 
 
-      // (2) 변동성 펄스 (강도 축소: 기존 대비 1/5 수준)
-      const mag = Math.abs(surprise); 
-      // scale 변수 정의 추가 (중요!)
-      const scale = (n.title && n.title.includes('기준금리')) ? 1.5 : 1.0;
-
-      addVolPulse(0.01 * mag * scale, 4);   
-      addVolPulse(0.005 * mag * scale, 24); 
-
-      // (3) 추세 형성
-      trendState.short += surprise * n._weight.s * 1.5;
-      trendState.mid   += change * n._weight.m * 1.0;
-      trendState.long  += change * n._weight.l * 0.8;
-
-      if (n._templateRef) n._templateRef.lastValue = actual;
-
+      // 금리 발표는 영향력 2배
       if (n.title.includes('기준금리')) {
         RATE_BASE = actual;
         R = RATE_BASE * 0.01;
-        pushEventLog(`🏛️ 기준금리 변경: ${fmt2(prev)}% ➔ ${fmt2(actual)}%`);
+        impact *= 2.0;
+        pushEventLog(`🏛️ 기준금리 변경: ${fmt2(actual)}%`);
       }
 
       const icon = surprise > 0 ? '📈 호재' : (surprise < 0 ? '📉 악재' : '➖ 부합');
@@ -973,23 +918,30 @@ function checkNewsTrigger() {
 
     } else if (n.type === 'headline') {
       const p = n._power; 
-      
-      // 헤드라인 점프 및 변동성 축소
-      const jumpFactor = 1 + (p * 0.05); 
-      state.spot *= jumpFactor;
-
-      addVolPulse(0.02, 3); // 2% 변동성만 추가
-
-      trendState.short += p * 2.0;
-      trendState.mid   += p * 0.5;
+      // 헤드라인은 power 그대로 충격으로 사용 (예: 0.15 -> 1.5% 등락)
+      impact = p * 0.1; 
 
       const icon = p > 0 ? '🔥' : '⛈️';
       pushEventLog(`${icon} [속보] ${n.title}`);
     }
+
+    // [핵심 1] 가격 점프 (Immediate Shock)
+    // 뉴스는 즉각적인 가격 변동을 유발함 (Gap)
+    const jumpFactor = 1 + impact;
+    state.spot *= jumpFactor;
+
+    // [핵심 2] 펀더멘탈(적정 주가) 재평가 (Fundamental Shift)
+    // 뉴스는 단순 노이즈가 아니라, 기업/국가의 가치를 바꿈 -> 회귀 기준점이 이동함
+    // 적정 주가도 같이 이동시켜서, 가격이 튄 다음 다시 원래대로 돌아오지 않게 함
+    state.fairValue *= jumpFactor;
+
+    // [핵심 3] 변동성 폭발 (Uncertainty)
+    // 뉴스가 터지면 불확실성으로 인해 변동성이 커짐
+    addVolPulse(Math.abs(impact) * 5.0, 12); // 강한 펄스, 12시간 지속
+
     renderNewsFeed();
   });
 }
-
 
 
 /* [추가] 시장 보호 장치 (1틱 = 1시간 기준) */
@@ -1050,10 +1002,7 @@ function triggerHalt(ticks, reason) {
 
 
 
-/* =========================================
-   ENGINE v2: Main Loop
-   ========================================= */
-/* [수정] stepMarket: 거래 정지 및 보호 장치 통합 */
+/* [수정] stepMarket: 구버전의 안정성(평균회귀) + 신버전의 기능(뉴스/거래량/CB) 통합 */
 function stepMarket(){
   for (let step=0; step<Math.max(0,hoursPerTick); step++){
     
@@ -1062,7 +1011,7 @@ function stepMarket(){
     const curDay = simDate.getDate();
     const curMonth = simDate.getMonth() + 1;
     
-    // 2. 날짜 변경 체크 (전일 종가 갱신)
+    // 날짜 변경 체크 (서킷브레이커 리셋 등)
     if (typeof lastTickDay !== 'undefined' && lastTickDay !== null && curDay !== lastTickDay){
        marketControl.prevClose = state.spot;
        marketControl.cbLevel1 = false;
@@ -1070,19 +1019,16 @@ function stepMarket(){
        marketControl.cbLevel3 = false;
        marketControl.luldAvgPrice = state.spot;
     }
-    // 전역 변수 lastTickDay 선언이 안되어있다면 안전하게 처리
     window.lastTickDay = curDay; 
-    window.lastTickMonth = curMonth;
 
-    // 3. 뉴스 체크
+    // 2. 뉴스 체크 (이벤트 발생 시 spot과 fairValue가 점프함)
     if (simDate.getHours() === 0) scheduleFutureNews();
     checkNewsTrigger();
 
-    // 4. 물리 엔진 업데이트
-    updateTrendPhysics(1/(24*365));
+    // 3. 펄스 감쇠 (변동성 안정화)
     decayVolPulses(1);
 
-    // [중요] 거래 정지 처리
+    // [거래 정지 처리] (서킷브레이커 등)
     if (marketControl.halted) {
       marketControl.haltTicksLeft--;
       if (marketControl.haltTicksLeft <= 0) {
@@ -1093,50 +1039,61 @@ function stepMarket(){
       // 정지 중: 가격 변동 없음, 거래량 0 기록
       state.history.push({ t: new Date(simDate), price: state.spot });
       updateCandles(state.spot, simDate, 0); 
-      continue; // 다음 루프로 건너뜀
+      continue; // 다음 루프로 건너뜀 (가격 변동 로직 패스)
     }
 
-    // 5. 가격 변동 계산
-    let muTotal = getTotalDrift();
+    // 4. 가격 결정 엔진 (Old Logic: Mean Reversion)
+    const dt = 1 / (24*365); // 1시간
+    
+    // (A) 적정 주가(FairValue)의 자연스러운 흐름
+    // 적정 주가도 가만히 있지 않고 매년 5% 성장 + 약간의 랜덤 워크를 함
+    const fvDrift = 0.05; // 연 5% 기본 성장
+    const fvVol = 0.08;   // 펀더멘탈 자체의 미세한 변동
+    
+    // 적정 주가 갱신 (Random Walk)
+    let u1=0,v1=0; while(u1===0) u1=Math.random(); while(v1===0) v1=Math.random();
+    const z1 = Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*v1);
+    state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // [추가] 평균 회귀 (Mean Reversion) 로직
-    // 적정 주가(FairValue)는 baseDrift(5%)로 꾸준히 성장
-    state.fairValue *= Math.exp(trendState.baseDrift * 1/(24*365));
+    // (B) 시장 가격(Spot)의 움직임
+    // Spot은 FairValue 주변을 맴돌려는 성질(Mean Reversion)을 가짐
     
-    // 현재가가 적정가보다 얼마나 괴리되었는지 계산 (Gap)
-    // 예: 적정가 10000인데 현재가 12000이면 gap = 0.2 (20% 고평가)
-    const gap = (state.spot - state.fairValue) / state.fairValue;
+    // 괴리율 계산: (적정가 - 현재가)
+    const gap = (state.fairValue - state.spot) / state.spot;
     
-    // 괴리율만큼 반대 방향으로 힘을 가함 (고무줄 효과)
-    // 2.0은 탄성 계수 (클수록 적정가로 빨리 돌아옴)
-    const reversionForce = -gap * 2.0; 
+    // 회귀력(Pull): 갭의 1.5배만큼 당김 (강할수록 적정가에 붙어서 움직임)
+    const pull = gap * 1.5; 
     
-    // 최종 뮤(Drift)에 회귀력 반영
-    muTotal += reversionForce;
-    
+    // 변동성 계산 (거래량 시스템 반영)
     const volMult = calcVolumeMultiplier(simDate);
     const tickVolume = Math.round(1000 * volMult);
-
-    let sigma = getCurrentVol();
-    if (volMult < 0.2) sigma *= 0.1;
-    else sigma *= Math.pow(volMult, 0.3); // 제곱근보다 더 완화된 공식
-
-    if (isNaN(sigma) || sigma <= 0) sigma = 0.01; // 안전장치
-
-    // GBM
-    const dt = 1 / (24*365);
-    let u=0,v=0; while(u===0) u=Math.random(); while(v===0) v=Math.random();
-    const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
-    const factor = Math.exp((muTotal - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z);
     
+    let sigma = getCurrentVol(); // 기본 변동성 + 뉴스 펄스
+    
+    // 거래량에 따른 변동성 스케일링 (1.2.9 기능 유지)
+    if (volMult < 0.2) sigma *= 0.1; // 장외 시간
+    else sigma *= Math.pow(volMult, 0.3); // 거래량 많으면 변동성 증가
+    
+    if (isNaN(sigma) || sigma <= 0) sigma = 0.01;
+
+    // 최종 Drift(mu) = 기본성장 + 회귀력
+    const mu = fvDrift + pull;
+
+    // GBM 실행
+    let u2=0,v2=0; while(u2===0) u2=Math.random(); while(v2===0) v2=Math.random();
+    const z2 = Math.sqrt(-2*Math.log(u2))*Math.cos(2*Math.PI*v2);
+    
+    const factor = Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z2);
     let newPrice = state.spot * factor;
+
+    // 안전장치
     if (isNaN(newPrice) || newPrice < 0.01) newPrice = state.spot;
 
-    // 6. 가격 반영 및 서킷브레이커 체크
+    // 5. 반영
     state.spot = newPrice;
-    checkMarketProtections(state.spot, simDate);
+    checkMarketProtections(state.spot, simDate); // 서킷브레이커 체크
 
-    // 7. 데이터 저장
+    // 6. 저장
     state.history.push({ t: new Date(simDate), price: state.spot });
     updateCandles(state.spot, simDate, tickVolume);
 
