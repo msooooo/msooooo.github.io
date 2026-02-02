@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.5</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.6</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -465,25 +465,139 @@ let trendState = {
 const NEWS_CONFIG = {
   // 지표 템플릿: lastValue(초기값) 추가
   indicators: [
-    { title: "GDP 성장률", unit: "%", base: 2.5, dev: 1.5, lastValue: 2.5, weight: {l:0.04, m:0.15, s:0.5} },
-    { title: "기준금리 결정", unit: "%", base: 3.50, dev: 0.25, step: 0.25, lastValue: 3.50, weight: {l:0.1, m:0.1, s:0.4}, inverse:true },
-    { title: "소비자 물가 지수(CPI)", unit: "%", base: 3.0, dev: 1.0, lastValue: 3.0, weight: {l:0.02, m:0.1, s:0.6}, inverse:true },
-    { title: "실업률", unit: "%", base: 4.0, dev: 1.0, lastValue: 4.0, weight: {l:0.03, m:0.08, s:0.3}, inverse: true },
-    { title: "PMI 제조업 지수", unit: "pt", base: 50, dev: 5, lastValue: 50.0, weight: {l:0.01, m:0.2, s:0.3} }
+    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.45,m:0.25,s:0.10} },
+    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.40,m:0.25,s:0.35}, inverse:true },
+    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.20,m:0.30,s:0.55}, inverse:true },
+    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.25,m:0.35,s:0.45}, inverse:true },
+    { title:"비농업 고용 증가", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45} },
+    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.35,m:0.30,s:0.25}, inverse:true },
+    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.15,m:0.30,s:0.40} },
+    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.20,m:0.30,s:0.45} },
+    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.25,m:0.35,s:0.40} },
+    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.20,m:0.35,s:0.45} },
+    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.25,m:0.35,s:0.50}, inverse:true },
+    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.55,m:0.25,s:0.10} }
   ],
   // 헤드라인 템플릿 (기존 유지)
   headlines: {
     good: [
-      { text: "대규모 무역 협정 체결", power: 0.2 }, // power 상향 조정
-      { text: "획기적인 AI 기술 상용화 발표", power: 0.25 },
-      { text: "정부, 대규모 경기 부양책 발표", power: 0.15 },
-      { text: "주요 기업 실적, 예상치 상회", power: 0.12 }
+      { text:"글로벌 대형 기업 간 초대형 합병 성사", power:0.18 },
+      { text:"세계 최대 연기금, 주식 비중 확대 발표", power:0.16 },
+      { text:"국부펀드, 공격적 투자 재개 선언", power:0.17 },
+      { text:"대형 투자은행, 주식시장 비중 상향 조정", power:0.15 },
+      
+      { text:"AI 기반 신산업 본격 개화 전망", power:0.14 },
+      { text:"차세대 반도체 공정 상용화 임박", power:0.18 },
+      { text:"완전 자율주행 기술 대중화 단계 진입", power:0.17 },
+      { text:"양자컴퓨팅 실용화 돌파구 마련", power:0.19 },
+
+      { text:"우주 산업 대규모 상업 계약 체결", power:0.16 },
+      { text:"민간 우주 정거장 프로젝트 본격화", power:0.15 },
+
+      { text:"대형 에너지 기업, 친환경 전환 가속 선언", power:0.13 },
+      { text:"차세대 배터리 기술 상용화 발표", power:0.18 },
+      { text:"전기차 충전 인프라 글로벌 확장 합의", power:0.14 },
+
+      { text:"글로벌 물류 네트워크 재편 완료", power:0.13 },
+      { text:"해상 운송 병목 현상 완전 해소", power:0.12 },
+
+      { text:"대형 게임사 신작 글로벌 흥행", power:0.11 },
+      { text:"콘텐츠 산업 수출 신기록 경신", power:0.13 },
+      
+      { text:"헬스케어 혁신 기술 대중 시장 진입", power:0.15 },
+      { text:"고령화 대응 산업 성장 기대 확대", power:0.12 },
+
+      { text:"대규모 도시 재개발 프로젝트 착수", power:0.14 },
+      { text:"스마트시티 건설 글로벌 협력 체결", power:0.15 },
+
+      { text:"글로벌 기업 지배구조 개선 확산", power:0.11 },
+      { text:"기업 투명성 강화 흐름 가속", power:0.1 },
+
+      { text:"환경 규제 완화 기대감 확산", power:0.12 },
+      { text:"탄소 포집 기술 상업적 성공 사례 등장", power:0.14 },
+
+      { text:"대형 스포츠 이벤트 흥행 전망", power:0.09 },
+      { text:"국제 박람회 대규모 투자 유치 성공", power:0.13 },
+
+      { text:"핀테크 플랫폼 사용자 수 급증", power:0.12 },
+      { text:"디지털 결제 생태계 급속 확장", power:0.11 },
+
+      { text:"글로벌 브랜드 소비 트렌드 반등", power:0.13 },
+      { text:"럭셔리 시장 수요 회복 신호", power:0.12 },
+
+      { text:"대형 미디어 기업 스트리밍 시장 지배력 강화", power:0.14 },
+      { text:"광고 시장 회복 기대감 확산", power:0.11 },
+
+      { text:"대기업 연구개발 투자 사상 최대", power:0.16 },
+      { text:"기술 인재 확보 경쟁 심화", power:0.1 },
+
+      { text:"국제 분쟁 완화 기대감 확산", power:0.18 },
+      { text:"외교적 긴장 완화 공동 성명 발표", power:0.17 },
+
+      { text:"글로벌 여행 수요 폭발적 증가", power:0.12 },
+      { text:"항공·호텔 예약 급증", power:0.11 },
+
+      { text:"세계 최대 전시회에서 혁신 기술 대거 공개", power:0.15 },
+      { text:"산업 전반 디지털 전환 가속", power:0.14 }
     ],
+
     bad: [
-      { text: "지정학적 리스크 고조", power: 0.2 },
-      { text: "에너지 가격 급등 우려", power: 0.15 },
-      { text: "금융 당국, 규제 강화 시사", power: 0.1 },
-      { text: "글로벌 공급망 차질 발생", power: 0.18 }
+      { text:"국제 분쟁 확전 우려 급부상", power:0.2 },
+      { text:"주요 지역 군사적 긴장 고조", power:0.19 },
+
+      { text:"글로벌 해상 운송 차질 재발", power:0.17 },
+      { text:"주요 항로 봉쇄 가능성 제기", power:0.18 },
+
+      { text:"대형 기업 회계 문제 의혹 제기", power:0.16 },
+      { text:"기업 신뢰도 훼손 우려 확산", power:0.14 },
+
+      { text:"글로벌 해킹 조직 대규모 공격 감행", power:0.19 },
+      { text:"금융·결제 시스템 일시 장애 발생", power:0.18 },
+
+      { text:"국제 원자재 공급 불안 재점화", power:0.16 },
+      { text:"희귀 자원 확보 경쟁 격화", power:0.14 },
+
+      { text:"대형 항공사 운항 중단 사태 발생", power:0.15 },
+      { text:"물류 비용 급등 우려", power:0.14 },
+
+      { text:"기술 규제 강화 논의 본격화", power:0.13 },
+      { text:"플랫폼 기업 독점 논란 확대", power:0.14 },
+
+      { text:"대규모 자연재해 발생", power:0.18 },
+      { text:"기후 이상 현상 장기화 우려", power:0.17 },
+
+      { text:"에너지 인프라 사고 발생", power:0.16 },
+      { text:"전력 공급 불안정 우려 확산", power:0.15 },
+
+      { text:"국제 협력 체계 균열 조짐", power:0.17 },
+      { text:"다자 협의체 탈퇴 가능성 언급", power:0.16 },
+
+      { text:"대형 기업 파산 보호 신청", power:0.18 },
+      { text:"신용 리스크 전이 우려", power:0.17 },
+
+      { text:"기술 유출 논란 확산", power:0.15 },
+      { text:"국가 간 기술 패권 갈등 심화", power:0.18 },
+
+      { text:"글로벌 투자 심리 급속 냉각", power:0.17 },
+      { text:"위험자산 회피 분위기 확산", power:0.16 },
+
+      { text:"대형 프로젝트 취소 소식", power:0.14 },
+      { text:"장기 투자 계획 전면 재검토", power:0.15 },
+
+      { text:"소셜 미디어 플랫폼 대규모 장애", power:0.12 },
+      { text:"디지털 서비스 신뢰도 하락", power:0.11 },
+
+      { text:"신흥 시장 정치 불안 확대", power:0.16 },
+      { text:"국가 신뢰도 하락 우려", power:0.15 },
+
+      { text:"국제 제재 확대 가능성 부각", power:0.18 },
+      { text:"글로벌 기업 활동 위축 전망", power:0.17 },
+
+      { text:"대규모 시위 확산", power:0.14 },
+      {text:"사회적 불안 장기화 우려", power:0.15 },
+
+      { text:"글로벌 브랜드 이미지 훼손 사건 발생", power:0.13 },
+      { text:"소비자 불매 운동 확산", power:0.14 }
     ]
   }
 };
@@ -685,7 +799,7 @@ function getTotalDrift() {
 function scheduleFutureNews() {
   // 예약된 뉴스가 너무 많으면 생성 중단
   const upcoming = newsData.filter(n => new Date(n.date) > simDate);
-  if (upcoming.length >= 3) return; 
+  if (upcoming.length >= 4) return; 
   if (Math.random() > 0.15) return; // 생성 확률 조절
 
   // 3~7일 뒤 발표
@@ -726,7 +840,7 @@ function scheduleFutureNews() {
   const newNews = {
     id: Date.now() + Math.random(),
     date: dateStr,
-    time: "09:00", // 지표 발표는 주로 아침
+    time: "01:00", // 지표 발표는 주로 장 시작 직후
     type: 'indicator',
     title: template.title,
     unit: template.unit,
@@ -762,7 +876,7 @@ function scheduleFutureNews() {
 /* [추가] 즉발성 헤드라인 뉴스 생성 (예약 없이 바로 newsData에 꽂아넣음) */
 function tryTriggerHeadline() {
   // 매 시간 1% 확률로 속보 발생 (확률은 조정 가능)
-  if (Math.random() > 0.01) return;
+  if (Math.random() > 0.02) return;
 
   const isGood = Math.random() < 0.5;
   const list = isGood ? NEWS_CONFIG.headlines.good : NEWS_CONFIG.headlines.bad;
