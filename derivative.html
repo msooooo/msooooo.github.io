@@ -2284,13 +2284,10 @@ function renderAll() {
   const statusEl = document.getElementById('marketStatus');
   if (marketControl.halted) {
     statusEl.innerText = `⛔ 거래 정지 (${marketControl.haltReason})`;
-    statusEl.style.color = '#ff6b6b';
   } else if (isSpotOpenAt(simDate)) {
     statusEl.innerText = '🟢 장 열림';
-    statusEl.style.color = '#39ff88';
   } else {
     statusEl.innerText = '🔴 장 닫힘';
-    statusEl.style.color = '#8fb0d6';
   }
 
 
