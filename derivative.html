@@ -903,7 +903,7 @@ function checkNewsTrigger() {
 
       // 지표별 가중치 적용 (기본 0.5% ~ 2.0% 변동)
       // weight.s(단기)를 충격 계수로 활용
-      impact = surprise * n._weight.s * 0.05; 
+      impact = surprise * n._weight.s * 0.01; 
 
       // 금리 발표는 영향력 2배
       if (n.title.includes('기준금리')) {
@@ -1024,6 +1024,7 @@ function stepMarket(){
     // 2. 뉴스 체크 (이벤트 발생 시 spot과 fairValue가 점프함)
     if (simDate.getHours() === 0) scheduleFutureNews();
     checkNewsTrigger();
+    tryTriggerHeadline();
 
     // 3. 펄스 감쇠 (변동성 안정화)
     decayVolPulses(1);
