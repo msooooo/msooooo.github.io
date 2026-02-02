@@ -774,7 +774,7 @@ function calcVolumeMultiplier(d) {
   const noise = 0.8 + Math.random() * 0.4; 
 
   // [중요] 최대 5배를 넘지 않도록 제한
-  return Math.min(5.0, baseVol * newsFactor * noise);
+  return Math.min(20.0, baseVol * newsFactor * noise);
 }
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
