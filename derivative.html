@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.7</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.9</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -385,6 +385,7 @@ let hoursPerTick = 1; // controlled by UI speed
 // market state — initialize candle arrays so updateCandles() won't fail
 let state = {
   spot: 10000.0,
+  fairValue: 10000.0,
   history: [], // [{t:Date, price:number}]
   candles: {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []}
 };
@@ -458,7 +459,7 @@ let trendState = {
   long: 0.0,    // 장기 (구조적 성장/침체) - 감쇠가 매우 느림
   mid: 0.0,     // 중기 (실적, 계절성) - 감쇠 보통
   short: 0.0,   // 단기 (뉴스, 노이즈) - 감쇠 빠름
-  baseDrift: 0.8 // 자연 성장률 (연 8% 우상향 본능)
+  baseDrift: 0.08 // 자연 성장률 (연 8% 우상향 본능)
 };
 
 /* [수정] 시장 제어 변수 (틱 단위 제어로 변경) */
@@ -774,19 +775,24 @@ function calcVolumeMultiplier(d) {
 }
 
 
-/* --- 추세(Trend) 물리 엔진 --- */
+/* [수정] 추세 감쇠 + 랜덤 노이즈 추가 */
 function updateTrendPhysics(dtYears) {
-  // 감쇠 계수 (Decay Factor) - dt가 1년일 때 남는 비율
-  // Short는 빨리 사라지고, Long은 오래 남음
-  const decayL = 0.50; // 1년 뒤 50% 유지 (매우 느림)
-  const decayM = 0.20; // 1년 뒤 20% 유지
-  const decayS = 0.01; // 1년 뒤 거의 0 (단기는 며칠이면 사라짐)
+  // 1. 기존 감쇠 로직 (Decay)
+  const decayL = 0.50; 
+  const decayM = 0.20; 
+  const decayS = 0.0001; // 단기는 더 빨리 사라지게 수정
 
-  // 시간 경과에 따른 감쇠 적용 (Exponential Decay)
-  // factor = base ^ dt
   trendState.long  *= Math.pow(decayL, dtYears);
   trendState.mid   *= Math.pow(decayM, dtYears);
   trendState.short *= Math.pow(decayS, dtYears);
+
+  // 2. [추가] 추세 자체의 불확실성 (Random Walk in Trend)
+  // 매시간 추세가 조금씩 흔들림 -> 차트가 매끄러운 곡선이 되지 않게 함
+  // dtYears가 작으므로 계수를 크게 잡음
+  if (Math.random() < 0.3) {
+      trendState.mid += (Math.random() - 0.5) * 0.5 * dtYears; 
+      trendState.long += (Math.random() - 0.5) * 0.2 * dtYears;
+  }
 }
 
 function getTotalDrift() {
@@ -1091,7 +1097,23 @@ function stepMarket(){
     }
 
     // 5. 가격 변동 계산
-    const muTotal = getTotalDrift();
+    let muTotal = getTotalDrift();
+
+    // [추가] 평균 회귀 (Mean Reversion) 로직
+    // 적정 주가(FairValue)는 baseDrift(5%)로 꾸준히 성장
+    state.fairValue *= Math.exp(trendState.baseDrift * 1/(24*365);
+    
+    // 현재가가 적정가보다 얼마나 괴리되었는지 계산 (Gap)
+    // 예: 적정가 10000인데 현재가 12000이면 gap = 0.2 (20% 고평가)
+    const gap = (state.spot - state.fairValue) / state.fairValue;
+    
+    // 괴리율만큼 반대 방향으로 힘을 가함 (고무줄 효과)
+    // 2.0은 탄성 계수 (클수록 적정가로 빨리 돌아옴)
+    const reversionForce = -gap * 2.0; 
+    
+    // 최종 뮤(Drift)에 회귀력 반영
+    muTotal += reversionForce;
+    
     const volMult = calcVolumeMultiplier(simDate);
     const tickVolume = Math.round(1000 * volMult);
 
