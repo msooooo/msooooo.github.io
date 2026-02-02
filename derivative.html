@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.0</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.1</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -466,21 +466,38 @@ let marketControl = {
 
 /* [수정] NEWS_CONFIG: 'lastValue' 필드를 추가하여 이전 수치를 기억하게 함 */
 const NEWS_CONFIG = {
-  // 지표 템플릿: lastValue(초기값) 추가
   indicators: [
-    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.45,m:0.25,s:0.10} },
-    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.40,m:0.25,s:0.35}, inverse:true },
-    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.20,m:0.30,s:0.55}, inverse:true },
-    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.25,m:0.35,s:0.45}, inverse:true },
-    { title:"비농업 고용 증가", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45} },
-    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.35,m:0.30,s:0.25}, inverse:true },
-    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.15,m:0.30,s:0.40} },
-    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.20,m:0.30,s:0.45} },
-    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.25,m:0.35,s:0.40} },
-    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.20,m:0.35,s:0.45} },
-    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.25,m:0.35,s:0.50}, inverse:true },
-    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.55,m:0.25,s:0.10} }
+    // 분기 발표 (1, 4, 7, 10월)
+    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.45,m:0.25,s:0.10}, 
+      schedule: { months: [1,4,7,10], day: 25 } }, // 매 분기 25일
+    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.40,m:0.25,s:0.35}, inverse:true, 
+      schedule: { months: [1,4,7,10], day: 15 } }, // 매 분기 15일
+
+    // 매월 발표 (months: null)
+    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.20,m:0.30,s:0.45}, 
+      schedule: { months: null, day: 1 } }, // 매월 1일
+    { title:"비농업 고용 증가", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45}, 
+      schedule: { months: null, day: 5 } }, // 매월 5일
+    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.35,m:0.30,s:0.25}, inverse: true, 
+      schedule: { months: null, day: 5 } }, // 매월 5일 (고용과 같이)
+    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.20,m:0.30,s:0.55}, inverse:true, 
+      schedule: { months: null, day: 10 } }, // 매월 10일
+    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.20,m:0.35,s:0.45}, 
+      schedule: { months: null, day: 15 } }, // 매월 15일
+    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.25,m:0.35,s:0.50}, inverse:true, 
+      schedule: { months: null, day: 20 } }, // 매월 20일
+    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.25,m:0.35,s:0.45}, inverse:true, 
+      schedule: { months: null, day: 28 } }, // 매월 28일
+    
+    // 나머지 지표들 (일정 임의 배정)
+    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.15,m:0.30,s:0.40}, 
+      schedule: { months: null, day: 22 } },
+    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.25,m:0.35,s:0.40}, 
+      schedule: { months: null, day: 3 } },
+    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.55,m:0.25,s:0.10}, 
+      schedule: { months: null, day: 18 } }
   ],
+
   // 헤드라인 템플릿 (기존 유지)
   headlines: {
     good: [
@@ -762,79 +779,79 @@ function calcVolumeMultiplier(d) {
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
 
-/* [수정] 지표(Indicator)만 예약. 헤드라인은 제외. 예상치/실제치 통합 객체 생성 */
+/* [수정] 5일 뒤 일정을 확인하여 정해진 스케줄대로 뉴스 생성 */
 function scheduleFutureNews() {
-  // 예약된 뉴스가 너무 많으면 생성 중단
-  const upcoming = newsData.filter(n => new Date(n.date) > simDate);
-  if (upcoming.length >= 4) return; 
-  if (Math.random() > 0.15) return; // 생성 확률 조절
+  const FORECAST_DAYS = 5; // 5일 전 예보
 
-  // 3~7일 뒤 발표
-  const daysLater = 3 + Math.floor(Math.random() * 5);
+  // 1. 타겟 날짜 계산 (오늘로부터 5일 뒤)
   const targetDate = new Date(simDate);
-  targetDate.setDate(targetDate.getDate() + daysLater);
+  targetDate.setDate(targetDate.getDate() + FORECAST_DAYS);
+  
+  const tMonth = targetDate.getMonth() + 1; // 1~12
+  const tDay = targetDate.getDate();
   const dateStr = nowStr(targetDate).slice(0, 10);
 
-  // 같은 날짜 중복 방지
-  if (newsData.some(n => n.date === dateStr)) return;
+  // 2. 설정된 스케줄 확인
+  NEWS_CONFIG.indicators.forEach(template => {
+    // (A) 날짜(일) 체크
+    if (template.schedule.day !== tDay) return;
 
-  // 랜덤한 지표 선택
-  const template = NEWS_CONFIG.indicators[Math.floor(Math.random() * NEWS_CONFIG.indicators.length)];
+    // (B) 월 체크 (months가 지정된 경우만)
+    if (template.schedule.months && !template.schedule.months.includes(tMonth)) return;
 
-  // 1. 값 생성 로직
-  // (1) 이전값 (Previous): 설정된 현재 값
-  const valPrev = template.lastValue;
+    // (C) 중복 생성 방지
+    if (newsData.some(n => n.date === dateStr && n.title === template.title)) return;
 
-  // (2) 실제값 (Actual): 이전값 기준에서 변동 부여 (Random Walk)
-  // 급격한 변화를 위해 편차(dev)를 이용
-  let change = (Math.random() - 0.5) * 2 * template.dev;
-  // 가끔 큰 변화 (Surprise)
-  if (Math.random() < 0.2) change *= 2.0; 
+    // --- 뉴스 데이터 생성 (값 결정) ---
+    const valPrev = template.lastValue;
 
-  let valActual = valPrev + change;
-  // step 보정 (금리 등 0.25 단위)
-  if (template.step) valActual = Math.round(valActual / template.step) * template.step;
-  valActual = Number(valActual.toFixed(2)); // 소수점 정리
+    // 실제값(Actual): 랜덤 워크 (이전값 기준 변동)
+    let change = (Math.random() - 0.5) * 2 * template.dev;
+    if (Math.random() < 0.2) change *= 1.5; // 가끔 큰 변동
 
-  // (3) 예상치 (Forecast): 실제값 주변에 노이즈를 섞거나, 이전값과 비슷하게 설정
-  // 시장은 보통 보수적으로 예측함 (이전값과 실제값 사이 어딘가)
-  const marketError = (Math.random() - 0.5) * template.dev * 0.5;
-  let valForecast = valActual + marketError; 
-  if (template.step) valForecast = Math.round(valForecast / template.step) * template.step;
-  valForecast = Number(valForecast.toFixed(2));
+    let valActual = valPrev + change;
+    if (template.step) valActual = Math.round(valActual / template.step) * template.step;
+    valActual = Number(valActual.toFixed(2));
 
-  // 뉴스 객체 생성 (하나에 다 담음)
-  const newNews = {
-    id: Date.now() + Math.random(),
-    date: dateStr,
-    time: "01:00", // 지표 발표는 주로 장 시작 직후
-    type: 'indicator',
-    title: template.title,
-    unit: template.unit,
+    // 예상치(Forecast): 실제값 근처에 오차 추가
+    // 5일 전 시점에서의 예측이므로 오차가 존재함
+    const marketError = (Math.random() - 0.5) * template.dev * 0.4;
+    let valForecast = valActual + marketError;
+    if (template.step) valForecast = Math.round(valForecast / template.step) * template.step;
+    valForecast = Number(valForecast.toFixed(2));
+
+    const newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: "02:00", // 발표 시간 고정
+      type: 'indicator',
+      title: template.title,
+      unit: template.unit,
+      
+      strPrev: fmt2(valPrev) + template.unit,
+      strForecast: fmt2(valForecast) + template.unit,
+      strActual: fmt2(valActual) + template.unit,
+
+      _valPrev: valPrev,
+      _valForecast: valForecast,
+      _valActual: valActual,
+      
+      _weight: template.weight,
+      _inverse: template.inverse || false,
+      _templateRef: template,
+      
+      impactLevel: 'mid',
+      processed: false
+    };
+
+    newsData.push(newNews);
     
-    // 표시용 문자열
-    strPrev: fmt2(valPrev) + template.unit,
-    strForecast: fmt2(valForecast) + template.unit,
-    strActual: fmt2(valActual) + template.unit, // 발표 전까지 UI에서 숨김 처리됨
-
-    // 계산용 수치
-    _valPrev: valPrev,
-    _valForecast: valForecast,
-    _valActual: valActual,
-    
-    _weight: template.weight,
-    _inverse: template.inverse || false,
-    _templateRef: template, // 나중에 lastValue 업데이트용 참조
-    
-    impactLevel: 'mid',
-    processed: false
-  };
-
-  newsData.push(newNews);
+    // UI 알림: 캘린더에 일정이 추가되었음을 알림
+    pushEventLog(`📅 일정 추가: 5일 뒤 [${template.title}] 발표 예정`);
+  });
   
-  // 날짜순 정렬
+  // 날짜순 정렬 및 청소
   newsData.sort((a,b) => new Date(a.date) - new Date(b.date));
-  // 오래된 데이터 정리
   if (newsData.length > 50) newsData.shift();
 
   renderCalendar();
