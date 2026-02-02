@@ -205,7 +205,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.1</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.2</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -413,7 +413,8 @@ let visibleCount = 240; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
 // macro econ indicators
-econ = { vix: 20.0 }; // 최소한의 호환성 유지
+const RATE_BASE = 3.00;
+let R = RATE_BASE * 0.01, Q = 0.0;
 
 // player
 let player = {
