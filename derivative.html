@@ -1101,7 +1101,7 @@ function stepMarket(){
 
     // [추가] 평균 회귀 (Mean Reversion) 로직
     // 적정 주가(FairValue)는 baseDrift(5%)로 꾸준히 성장
-    state.fairValue *= Math.exp(trendState.baseDrift * 1/(24*365);
+    state.fairValue *= Math.exp(trendState.baseDrift * 1/(24*365));
     
     // 현재가가 적정가보다 얼마나 괴리되었는지 계산 (Gap)
     // 예: 적정가 10000인데 현재가 12000이면 gap = 0.2 (20% 고평가)
