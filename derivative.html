@@ -164,7 +164,7 @@
     overflow: hidden;
   }
   #newsHeader {
-    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 24px;
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px, height: 15%;
     display: flex; justify-content: space-between;
   }
   #newsList {
@@ -605,7 +605,7 @@ function scheduleFutureNews() {
   const upcoming = newsData.filter(n => new Date(n.date) > simDate);
   if(upcoming.length >= 4) return;
   
-  if(Math.random() > 0.1) return; // 틱당 10% 확률로 생성 시도
+  if(Math.random() > 0.4) return; // 틱당 40% 확률로 생성 시도
 
   const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤
   const targetDate = new Date(simDate);
@@ -615,8 +615,8 @@ function scheduleFutureNews() {
   // 이미 해당 날짜에 뉴스가 있으면 스킵 (하루 1개 제한)
   if(newsData.some(n => n.date === dateStr)) return;
 
-  // 타입 결정 (70% 지표, 30% 헤드라인)
-  const isIndicator = Math.random() < 0.7;
+  // 타입 결정 (30% 지표, 70% 헤드라인)
+  const isIndicator = Math.random() < 0.3;
   let newNews = null;
 
   if (isIndicator) {
