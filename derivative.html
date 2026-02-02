@@ -765,7 +765,7 @@ function calcVolumeMultiplier(d) {
     if (timeVal < 1) baseVol *= 1.2; 
     if (timeVal > 11) baseVol *= 1.3; 
   } else {
-    baseVol = 0.05; // 장외
+    baseVol = 0.5; // 장외
   }
 
   // 3. 뉴스 영향력 (로그 함수로 완화 + 최대 5배 제한)
