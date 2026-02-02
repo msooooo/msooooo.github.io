@@ -461,25 +461,22 @@ let trendState = {
   baseDrift: 0.8 // 자연 성장률 (연 8% 우상향 본능)
 };
 
-/* [추가] 시장 제어 변수 (서킷브레이커, LULD) */
+/* [수정] 시장 제어 변수 (틱 단위 제어로 변경) */
 let marketControl = {
   halted: false,          // 현재 거래 정지 여부
-  haltEndTime: null,      // 거래 재개 시각 (Date 객체)
-  haltReason: '',         // 정지 사유 (CB Level 1 등)
+  haltTicksLeft: 0,       // [변경] 남은 정지 시간(틱 단위)
+  haltReason: '',         // 정지 사유
   
-  prevClose: 10000.0,     // 전일 종가 (서킷브레이커 기준)
+  prevClose: 10000.0,     // 전일 종가
   
   cbLevel1: false,        // 7% 발동 여부
   cbLevel2: false,        // 13% 발동 여부
   cbLevel3: false,        // 20% 발동 여부
   
-  luldPriceSum: 0,        // LULD 계산용: 최근 가격 합
-  luldCount: 0,           // LULD 계산용: 샘플 수
-  luldAvgPrice: 10000.0,  // 직전 5분 평균 가격
-  lastLuldCheck: null     // 마지막 체크 시간
+  luldAvgPrice: 10000.0   // LULD 기준가
 };
 
-  
+
 /* [수정] NEWS_CONFIG: 'lastValue' 필드를 추가하여 이전 수치를 기억하게 함 */
 const NEWS_CONFIG = {
   // 지표 템플릿: lastValue(초기값) 추가
@@ -751,35 +748,28 @@ function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
 -----------------------------*/
 function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
 
-/* [수정] 거래량 배수 계산 (변동성 폭증 방지를 위해 계수 조정) */
+/* [수정] 거래량 배수 계산 (변동성 폭증 방지 캡 적용) */
 function calcVolumeMultiplier(d) {
   const h = d.getHours();
   const m = d.getMinutes();
-  const timeVal = h + m/60; // 0.0 ~ 23.99
+  const timeVal = h + m/60; 
 
   let baseVol = 0;
-
-  // 1. 장 운영 시간 (09:30 ~ 16:00 미국장 기준, 여기선 00~12 게임시간 유지)
-  // 게임 시간(00:00~12:00) 유지
+  // 1. 장 운영 시간 (00:00 ~ 12:00)
   if (timeVal >= 0 && timeVal < 12) {
     baseVol = 1.0 + 0.08 * Math.pow(timeVal - 6, 2); 
     if (timeVal < 1) baseVol *= 1.2; 
     if (timeVal > 11) baseVol *= 1.3; 
   } else {
-    baseVol = 0.05; 
+    baseVol = 0.05; // 장외
   }
 
-  // 3. 뉴스 영향력 대폭 축소 (Dampening)
+  // 3. 뉴스 영향력 (로그 함수로 완화 + 최대 5배 제한)
   const newsActivity = volatilityState.reduce((sum, p) => sum + p.amp, 0);
-  
-  // [변경] 선형(x10) -> 로그형으로 변경하여 폭발 방지
-  // newsActivity가 0.1일 때: 1 + log(1+1) = 1.6배 (기존엔 2배)
-  // newsActivity가 1.0일 때: 1 + log(11) = 3.4배 (기존엔 11배 -> 너무 컸음)
   const newsFactor = 1 + Math.log(1 + newsActivity * 10); 
-
   const noise = 0.8 + Math.random() * 0.4; 
-  
-  // [추가] 전체 배수가 5배를 넘지 않도록 안전장치(Clamp)
+
+  // [중요] 최대 5배를 넘지 않도록 제한
   return Math.min(5.0, baseVol * newsFactor * noise);
 }
 
@@ -922,14 +912,14 @@ function tryTriggerHeadline() {
   notify(`[속보] ${item.text}`, 5000);
 }
 
-/* [수정] checkNewsTrigger: 예상치/실제치 구조 유지 + 변동성 대폭 축소(안전장치) */
+/* [수정] 뉴스 발표 로직 (변동성 대폭 축소 버전) */
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
 
-  const targets = newsData.filter(n =>
-    n.date === todayStr &&
-    parseInt(n.time.split(':')[0]) <= currentHour &&
+  const targets = newsData.filter(n => 
+    n.date === todayStr && 
+    parseInt(n.time.split(':')[0]) <= currentHour && 
     !n.processed
   );
 
@@ -937,214 +927,179 @@ function checkNewsTrigger() {
     n.processed = true;
 
     if (n.type === 'indicator') {
-      if (n._isForecastOnly) {
-        // [A] 예상치(Forecast) 발표 처리
-        const forecast = n._valForecast;
-        const delta = forecast - RATE_BASE;
-        const signed = (n._inverse ? -delta : delta);
-        
-        // 트렌드 반영 (기존 유지)
-        trendState.short += signed * n._weight.s * 0.6;
-        trendState.mid   += signed * n._weight.m * 0.2;
+      const actual = n._valActual;
+      const forecast = n._valForecast;
+      const prev = n._valPrev;
 
-        // 변동성 펄스 (수치 대폭 하향: 기존 대비 약 1/5)
-        const mag = Math.abs(signed);
-        const scale = (n.title && n.title.includes('기준금리')) ? 1.5 : 1.0;
-        
-        addVolPulse(0.01 * mag * scale, 2);     // 기존 0.05 -> 0.01 (초단기)
-        addVolPulse(0.005 * mag * scale, 24*2); // 기존 0.03 -> 0.005 (단기)
-        addVolPulse(0.002 * mag * scale, 24*30);// 기존 0.01 -> 0.002 (중기)
+      let surprise = actual - forecast;
+      if (n._inverse) surprise *= -1;
+      let change = actual - prev;
+      if (n._inverse) change *= -1;
 
-        pushEventLog(`📰 예상치 발표: ${n.title} 예상 ${n.forecast}`);
-        
-      } else {
-        // [B] 실제치(Actual) 발표 처리
-        const actual = n._valActual;
-        const forecast = (typeof n._valForecast === 'number') ? n._valForecast : n._valForecast;
-        
-        let surprise = 0;
-        if (forecast === null || forecast === undefined) {
-          surprise = actual - (n._weight && n._weight.base ? n._weight.base : 0);
-        } else {
-          surprise = actual - forecast;
-        }
-        if (n._inverse) surprise *= -1;
+      // (1) 가격 점프 (강도 축소: 0.05 -> 0.01)
+      const jumpShock = surprise * (Math.random() * 0.5 + 0.5); 
+      const jumpFactor = 1 + (jumpShock * n._weight.s * 0.01); // 1% 내외 점프
+      state.spot *= jumpFactor;
 
-        // 트렌드 반영 (기존 유지)
-        trendState.long  += surprise * n._weight.l;
-        trendState.mid   += surprise * n._weight.m * 1.2;
-        trendState.short += surprise * n._weight.s * 1.8;
+      // (2) 변동성 펄스 (강도 축소: 기존 대비 1/5 수준)
+      const mag = Math.abs(surprise); 
+      // scale 변수 정의 추가 (중요!)
+      const scale = (n.title && n.title.includes('기준금리')) ? 1.5 : 1.0;
 
-        // 금리 업데이트 (기존 유지)
-        if (n.title && n.title.includes('기준금리')) {
-          RATE_BASE = actual;
-          R = RATE_BASE * 0.01;
-          pushEventLog(`🏛️ 기준금리 실제 반영: ${fmt2(RATE_BASE)}% -> R=${fmt2(R)}`);
-        }
+      addVolPulse(0.01 * mag * scale, 4);   
+      addVolPulse(0.005 * mag * scale, 24); 
 
-        // 변동성 펄스 (수치 대폭 하향: 기존 대비 약 1/5 ~ 1/10)
-        // 실제 발표는 예상치보다 충격이 크므로 조금 더 높지만, 여전히 안전한 수준으로 제한
-        const mag = Math.abs(surprise);
-        const scale = (n.title && n.title.includes('기준금리')) ? 2.0 : 1.0;
-        
-        addVolPulse(0.025 * mag * scale, 4);       // 기존 0.12 -> 0.025 (초단기 스파이크)
-        addVolPulse(0.015 * mag * scale, 24*3);    // 기존 0.06 -> 0.015 (3일 지속)
-        addVolPulse(0.005 * mag * scale, 24*20);   // 기존 0.03 -> 0.005 (20일 잔존)
-        addVolPulse(0.001 * mag * scale, 24*180);  // 기존 0.008 -> 0.001 (장기 영향 미미하게)
+      // (3) 추세 형성
+      trendState.short += surprise * n._weight.s * 1.5;
+      trendState.mid   += change * n._weight.m * 1.0;
+      trendState.long  += change * n._weight.l * 0.8;
 
-        const icon = surprise > 0 ? '📈' : (surprise < 0 ? '📉' : '➖');
-        pushEventLog(`${icon} ${n.title} 발표: 실제 ${n.actual} (예상 ${n.forecast})`);
+      if (n._templateRef) n._templateRef.lastValue = actual;
+
+      if (n.title.includes('기준금리')) {
+        RATE_BASE = actual;
+        R = RATE_BASE * 0.01;
+        pushEventLog(`🏛️ 기준금리 변경: ${fmt2(prev)}% ➔ ${fmt2(actual)}%`);
       }
-    } else {
-      // [C] 헤드라인 뉴스 처리
-      const p = n._power;
-      trendState.mid   += p * 0.5;
-      trendState.short += p * 1.5;
-      
-      // 헤드라인 변동성도 축소
-      addVolPulse(Math.abs(p) * 0.01, 6); // 기존 0.04 -> 0.01
-      
-      const icon = p > 0 ? '🔥' : '⛈️';
-      pushEventLog(`${icon} 속보: ${n.title}`);
-    }
 
-    notify(`뉴스 발표: ${n.title}`);
+      const icon = surprise > 0 ? '📈 호재' : (surprise < 0 ? '📉 악재' : '➖ 부합');
+      pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} (예상 ${n.strForecast})`);
+
+    } else if (n.type === 'headline') {
+      const p = n._power; 
+      
+      // 헤드라인 점프 및 변동성 축소
+      const jumpFactor = 1 + (p * 0.05); 
+      state.spot *= jumpFactor;
+
+      addVolPulse(0.02, 3); // 2% 변동성만 추가
+
+      trendState.short += p * 2.0;
+      trendState.mid   += p * 0.5;
+
+      const icon = p > 0 ? '🔥' : '⛈️';
+      pushEventLog(`${icon} [속보] ${n.title}`);
+    }
     renderNewsFeed();
   });
 }
 
 
 
-/* [추가] 시장 보호 장치 (Circuit Breakers & LULD) */
+/* [추가] 시장 보호 장치 (1틱 = 1시간 기준) */
 function checkMarketProtections(currentPrice, time) {
   // 장이 닫혀있거나 이미 정지 상태면 패스
   if (!isSpotOpenAt(time) || marketControl.halted) return;
 
   const dropRate = (marketControl.prevClose - currentPrice) / marketControl.prevClose;
   const currentHour = time.getHours();
-  const isNearClose = (currentHour >= 11); // 11시(장마감 1시간 전) 이후엔 1,2단계 미발동 가정
+  const isNearClose = (currentHour >= 11); 
 
-  // 1. Level 1 (7%)
+  // 1. Level 1 (7% 하락) -> 1시간 정지
   if (dropRate >= 0.07 && !marketControl.cbLevel1 && !isNearClose) {
-    triggerHalt(60, "📉 서킷브레이커 Lv.1 발동 (-7%)");
+    triggerHalt(1, "📉 서킷브레이커 Lv.1 (-7%)");
     marketControl.cbLevel1 = true;
     return;
   }
-  // 2. Level 2 (13%)
+  
+  // 2. Level 2 (13% 하락) -> 2시간 정지
   if (dropRate >= 0.13 && !marketControl.cbLevel2 && !isNearClose) {
-    triggerHalt(60, "📉 서킷브레이커 Lv.2 발동 (-13%)");
+    triggerHalt(2, "📉 서킷브레이커 Lv.2 (-13%)");
     marketControl.cbLevel2 = true;
     return;
   }
-  // 3. Level 3 (20%) - 당일 장 종료
+  
+  // 3. Level 3 (20% 하락) -> 당일 장 종료
   if (dropRate >= 0.20 && !marketControl.cbLevel3) {
-    // 남은 시간 계산 (12시 마감 가정)
-    const minutesLeft = (12 - currentHour) * 60 - time.getMinutes();
-    triggerHalt(Math.max(1, minutesLeft), "📉 서킷브레이커 Lv.3 발동 (-20%) - 장 종료");
+    const ticksLeftInDay = 24 - currentHour;
+    triggerHalt(ticksLeftInDay, "📉 서킷브레이커 Lv.3 (-20%) - 장 종료");
     marketControl.cbLevel3 = true;
     return;
   }
 
-  // 4. LULD (변동성 완화 장치) - 5분 평균 대비 5% 이상 괴리
-  // 간단 구현: 매 5분마다 기준가 갱신하지 않고, 실시간 이동평균과 비교
+  // 4. LULD (변동성 완화) -> 1시간 정지 (5% 급변 시)
   if (marketControl.luldAvgPrice > 0) {
     const dev = Math.abs(currentPrice - marketControl.luldAvgPrice) / marketControl.luldAvgPrice;
-    if (dev >= 0.05) { // 5% 급변
-        triggerHalt(60, `⚡ 변동성 완화 장치(LULD) 발동 (괴리율 ${fmt2(dev*100)}%)`);
-        // LULD 발동 후 기준가 재설정 (연속 발동 방지)
+    if (dev >= 0.05) { 
+        triggerHalt(1, `⚡ 변동성 완화(LULD) 발동 (괴리율 ${fmt2(dev*100)}%)`);
         marketControl.luldAvgPrice = currentPrice; 
         return;
     }
   }
   
-  // LULD 기준가 업데이트 (지수이동평균)
-  // 매우 천천히 따라감 (5분 트렌드 반영)
-  const alpha = 0.05; 
+  // LULD 기준가 업데이트
+  const alpha = 0.1; 
   marketControl.luldAvgPrice = marketControl.luldAvgPrice * (1-alpha) + currentPrice * alpha;
 }
 
-function triggerHalt(minutes, reason) {
+function triggerHalt(ticks, reason) {
   marketControl.halted = true;
+  marketControl.haltTicksLeft = ticks;
   marketControl.haltReason = reason;
-  // 현재 시간 + minutes
-  marketControl.haltEndTime = new Date(simDate.getTime() + minutes * 60000);
-  
-  pushEventLog(`⛔ ${reason} | ${minutes}분간 거래 정지`);
+  pushEventLog(`⛔ ${reason} | ${ticks}시간 거래 정지`);
   notify(reason, 5000);
 }
+
+
 
 
 
 /* =========================================
    ENGINE v2: Main Loop
    ========================================= */
-
-/* [수정] stepMarket: 거래 정지 로직 및 보호 장치 통합 */
+/* [수정] stepMarket: 거래 정지 및 보호 장치 통합 */
 function stepMarket(){
   for (let step=0; step<Math.max(0,hoursPerTick); step++){
     
-    // --- [1] 거래 정지(Halt) 상태 체크 ---
-    if (marketControl.halted) {
-      // 시간만 흐르게 함 (가격 변동 X)
-      simDate = new Date(simDate.getTime() + 1*3600*1000); // 1시간 전진 (단위 확인 필요)
-      // 주의: 원본 코드가 1틱=1시간이었는데, CB(15분)를 구현하려면
-      // 1틱=1분으로 정밀도를 높이거나, 여기서 처리해야 함.
-      // 현재 구조(1틱=1시간)상 15분 정지는 1틱 내에서 처리하기 어려움.
-      // -> 해결책: haltEndTime을 체크하여 풀릴 때까지 loop continue
-      
-      if (simDate >= marketControl.haltEndTime) {
-        marketControl.halted = false;
-        pushEventLog(`▶ 거래 재개`);
-        notify('거래 재개', 2000);
-      } else {
-        // 정지 중에도 캔들(Doji 형태)은 그려야 차트가 안 끊김
-        state.history.push({ t: new Date(simDate), price: state.spot });
-        updateCandles(state.spot, simDate, 0); // 거래량 0
-        renderAll();
-        continue; // 가격 변동 로직 건너뜀
-      }
-    }
-
-    // --- [2] 정상 시간 진행 ---
-    const prevDate = new Date(simDate);
+    // 1. 시간 전진
     simDate = new Date(simDate.getTime() + 1*3600*1000);
-
     const curDay = simDate.getDate();
     const curMonth = simDate.getMonth() + 1;
     
-    // 날짜 변경 시 전일 종가(PrevClose) 업데이트 및 CB 리셋
-    if (lastTickDay !== null && curDay !== lastTickDay){
-       marketControl.prevClose = state.spot; // 전일 종가 확정
+    // 2. 날짜 변경 체크 (전일 종가 갱신)
+    if (typeof lastTickDay !== 'undefined' && lastTickDay !== null && curDay !== lastTickDay){
+       marketControl.prevClose = state.spot;
        marketControl.cbLevel1 = false;
        marketControl.cbLevel2 = false;
        marketControl.cbLevel3 = false;
-       marketControl.luldAvgPrice = state.spot; // LULD 기준가 리셋
-       // 블랙스완 등 기존 이벤트 로직 유지...
+       marketControl.luldAvgPrice = state.spot;
     }
-    lastTickDay = curDay; lastTickMonth = curMonth;
+    // 전역 변수 lastTickDay 선언이 안되어있다면 안전하게 처리
+    window.lastTickDay = curDay; 
+    window.lastTickMonth = curMonth;
 
-    // --- [3] 뉴스 체크 (기존) ---
+    // 3. 뉴스 체크
     if (simDate.getHours() === 0) scheduleFutureNews();
     checkNewsTrigger();
 
-    // --- [4] 물리 엔진 (거래량 기반 변동성) ---
+    // 4. 물리 엔진 업데이트
     updateTrendPhysics(1/(24*365));
     decayVolPulses(1);
 
+    // [중요] 거래 정지 처리
+    if (marketControl.halted) {
+      marketControl.haltTicksLeft--;
+      if (marketControl.haltTicksLeft <= 0) {
+        marketControl.halted = false;
+        pushEventLog(`▶ 거래 재개`);
+        notify('거래 재개', 2000);
+      }
+      // 정지 중: 가격 변동 없음, 거래량 0 기록
+      state.history.push({ t: new Date(simDate), price: state.spot });
+      updateCandles(state.spot, simDate, 0); 
+      continue; // 다음 루프로 건너뜀
+    }
+
+    // 5. 가격 변동 계산
     const muTotal = getTotalDrift();
-    const volMult = calcVolumeMultiplier(simDate); // 수정된 함수 사용
+    const volMult = calcVolumeMultiplier(simDate);
     const tickVolume = Math.round(1000 * volMult);
 
     let sigma = getCurrentVol();
-    
-    // [수정] 장외 시간 변동성 축소 & 거래량 영향 제한
-    if (volMult < 0.2) {
-      sigma *= 0.1;
-    } else {
-      // sigma에 sqrt 대신 4제곱근 등을 사용하여 완화
-      // volMult가 5.0이어도 sqrt(5)=2.2배가 되므로, pow(volMult, 0.3) 정도로 더 낮춤
-      sigma *= Math.pow(volMult, 0.3); 
-    }
+    if (volMult < 0.2) sigma *= 0.1;
+    else sigma *= Math.pow(volMult, 0.3); // 제곱근보다 더 완화된 공식
+
+    if (isNaN(sigma) || sigma <= 0) sigma = 0.01; // 안전장치
 
     // GBM
     const dt = 1 / (24*365);
@@ -1152,27 +1107,22 @@ function stepMarket(){
     const z = Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
     const factor = Math.exp((muTotal - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z);
     
-    // 가격 갱신 전 임시 변수
     let newPrice = state.spot * factor;
-    if (newPrice < 0.01) newPrice = 0.01;
+    if (isNaN(newPrice) || newPrice < 0.01) newPrice = state.spot;
 
-    // --- [5] 서킷브레이커 & LULD 체크 ---
-    // 가격 확정 전에 체크하여 급락 시 바로 정지 걸 수도 있지만,
-    // 시뮬레이션에서는 가격 반영 후 다음 틱부터 정지시키는 게 자연스러움
+    // 6. 가격 반영 및 서킷브레이커 체크
     state.spot = newPrice;
     checkMarketProtections(state.spot, simDate);
 
-    // --- [6] 데이터 저장 ---
+    // 7. 데이터 저장
     state.history.push({ t: new Date(simDate), price: state.spot });
     updateCandles(state.spot, simDate, tickVolume);
 
     checkExpiries();
     liquidateFutures();
   }
-  
   renderAll();
 }
-
 
 
 
@@ -2328,6 +2278,9 @@ function updateDetails() {
 function renderAll() {
   document.getElementById('datetime').innerText = nowStr(simDate);
   
+  document.getElementById('spotPrice').innerText = fmt2(state.spot);
+
+  // [수정] 상태 표시 (Halt 반영)
   const statusEl = document.getElementById('marketStatus');
   if (marketControl.halted) {
     statusEl.innerText = `⛔ 거래 정지 (${marketControl.haltReason})`;
@@ -2340,7 +2293,6 @@ function renderAll() {
     statusEl.style.color = '#8fb0d6';
   }
 
-  document.getElementById('spotPrice').innerText = fmt2(state.spot);
 
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
