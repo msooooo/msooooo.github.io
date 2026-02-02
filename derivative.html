@@ -164,7 +164,7 @@
     overflow: hidden;
   }
   #newsHeader {
-    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px;
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 24px;
     display: flex; justify-content: space-between;
   }
   #newsList {
@@ -1795,7 +1795,7 @@ function renderNewsFeed() {
   // UI 텍스트 갱신
   if(uiState.selectedDate) {
     title.innerText = `${uiState.selectedDate} 뉴스`;
-    title.style.color = 'var(--accent)';
+    title.style.color = '#fff';
     closeBtn.style.display = 'block';
   } else {
     title.innerText = `오늘(${todayStr}) 뉴스`;
