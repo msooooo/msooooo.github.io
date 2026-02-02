@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.1</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.2</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1497,6 +1497,7 @@ function getActiveCandles() {
   return state.candles[candleType];
 }
   
+/* [수정] 차트 그리기 함수: 가격(상단) + 거래량(하단) 영역 분할 */
 function drawChart() {
   const canvas = canvas2;
   const ctx = ctx2;
@@ -1506,7 +1507,7 @@ function drawChart() {
   canvas.style.height = canvas.clientHeight + 'px';
   ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
 
-  // background
+  // 배경 지우기
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#041426";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1514,48 +1515,60 @@ function drawChart() {
   const candles = getActiveCandles();
   if (!Array.isArray(candles) || candles.length === 0) return;
 
-  // compute MA on entire dataset (unchanged)
+  // MA 계산 (기존 동일)
   const allCloses = candles.map(c => c.close);
   maAll.ema5  = calcEMA(allCloses, 5);
   maAll.ema20 = calcEMA(allCloses, 20);
   maAll.ema60 = calcEMA(allCloses, 60);
 
-  // compute slice indices
+  // 슬라이스 계산 (기존 동일)
   const startIndex = Math.max(0, candles.length - visibleCount - candleOffset);
   chartStartIndex = startIndex;
   const slice = candles.slice(startIndex, candles.length - candleOffset);
   chartSlice = slice;
   if (slice.length === 0) return;
 
-  // compute inner drawing rect
+  // --- [핵심 변경] 레이아웃 분할 ---
   const cw = canvas.clientWidth;
   const ch = canvas.clientHeight;
   const innerX = chartMarginLeft;
   const innerY = chartMarginTop;
-  const innerW = Math.max(20, cw - chartMarginLeft - chartMarginRight);
-  const innerH = Math.max(20, ch - chartMarginTop - chartMarginBottom);
+  
+  // 전체 가용 높이
+  const totalInnerH = Math.max(20, ch - chartMarginTop - chartMarginBottom);
+  
+  // 가격 차트: 전체의 75%
+  const priceH = totalInnerH * 0.75;
+  
+  // 간격(Gap): 10px
+  const gap = 10;
+  
+  // 거래량 차트: 나머지 높이에서 간격 제외
+  const volH = Math.max(0, totalInnerH - priceH - gap);
+  const volY = innerY + priceH + gap; // 거래량 차트 시작 Y좌표
 
-  // compute price range (from visible slice) - auto Y scale
+  // Y축 범위 계산 (가격)
   const { min: min, max: max } = computeAutoYRange(slice);
+  
+  // 캔들 너비
+  const candleW = (cw - chartMarginLeft - chartMarginRight) / slice.length;
+  const innerW = cw - chartMarginLeft - chartMarginRight; // innerW 명시적 계산
 
-  // candle width on innerW
-  const candleW = innerW / slice.length;
+  // 1. 가격 차트 그리기 (높이를 priceH로 제한)
+  drawYAxis(ctx, innerX, innerY, innerW, priceH, min, max); // Y축 눈금
+  drawXAxis(ctx, innerX, innerY, innerW, totalInnerH, slice); // X축 날짜 (전체 높이 기준 하단)
+  drawCandles(slice, min, max, candleW, innerX, innerY, priceH); // 캔들
+  drawMA(maAll, startIndex, min, max, candleW, slice.length, innerX, innerY, priceH); // 이동평균선
 
-  // draw grid lines & axes
-  drawYAxis(ctx, innerX, innerY, innerW, innerH, min, max);
-  drawXAxis(ctx, innerX, innerY, innerW, innerH, slice);
+  // 2. 거래량 차트 그리기 (신규 함수 호출)
+  drawVolume(ctx, slice, candleW, innerX, volY, volH, innerW);
 
-  // draw candles, MA on inner rect
-  drawCandles(slice, min, max, candleW, innerX, innerY, innerH);
-  drawMA(maAll, startIndex, min, max, candleW, slice.length, innerX, innerY, innerH);
-
-  // hover info and crosshair drawn after main content
+  // 3. 호버/크로스헤어 (높이 정보를 분리해서 전달)
   if (isHovering && hoverPos?.candle) {
-    // ensure hover crosshair plotted relative to inner rect
-    drawCrosshairAndTooltip(hoverPos, innerX, innerY, innerW, innerH, min, max);
-    drawHoverInfo(hoverPos); // uses maAll, chartStartIndex
+    // 크로스헤어는 가격 차트 영역(priceH)에만 Y선을 그리고, X선은 전체 관통
+    drawCrosshairAndTooltip(hoverPos, innerX, innerY, innerW, priceH, min, max, volY, volH);
+    drawHoverInfo(hoverPos); 
   } else {
-    // when not hovering, show period return for visible slice
     updatePeriodReturnVisible(slice);
   }
   syncPanState();
@@ -1592,6 +1605,57 @@ function drawCandles(slice, min, max, candleW, innerX, innerY, innerH) {
   }
 }
 
+/* [추가] 거래량 바 차트 그리기 */
+function drawVolume(ctx, slice, candleW, innerX, volY, volH, innerW) {
+  if (volH <= 0) return;
+
+  // 슬라이스 내 최대 거래량 계산 (스케일링용)
+  const maxVol = Math.max(...slice.map(c => c.volume));
+  if (!maxVol) return;
+
+  // 거래량 Y축 눈금 (최대값 하나만 간략 표시)
+  ctx.save();
+  ctx.font = "10px system-ui";
+  ctx.fillStyle = "#5c6b7f";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "top";
+  ctx.fillText(formatVolume(maxVol), innerX - 8, volY);
+  
+  // 구분선 (가격 차트와 경계)
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.beginPath();
+  ctx.moveTo(innerX, volY);
+  ctx.lineTo(innerX + innerW, volY);
+  ctx.stroke();
+
+  // 바 그리기
+  for (let i = 0; i < slice.length; i++) {
+    const c = slice[i];
+    const vol = c.volume;
+    const height = (vol / maxVol) * volH;
+    
+    const x = innerX + i * candleW + candleW * 0.1; // 캔들보다 약간 얇게
+    const w = candleW * 0.8;
+    const y = volY + volH - height;
+
+    // 색상: 양봉(상승)이면 초록, 음봉(하락)이면 빨강 (캔들 색과 동일하게)
+    const isUp = c.close >= c.open;
+    // 투명도를 주어 캔들보다 연하게 표현
+    ctx.fillStyle = isUp ? "rgba(57, 255, 136, 0.5)" : "rgba(255, 107, 107, 0.5)";
+    
+    ctx.fillRect(x, y, w, height);
+  }
+  ctx.restore();
+}
+
+// 거래량 숫자 포맷팅 (K, M 단위)
+function formatVolume(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toFixed(0);
+}
+
+  
 // draw MA using global arrays - modified signature: includes inner rect positions
 function drawMA(maAll, startIndex, min, max, candleW, sliceLen, innerX, innerY, innerH) {
   const canvas = canvas2;
@@ -1682,27 +1746,36 @@ function drawXAxis(ctx, innerX, innerY, innerW, innerH, slice){
   ctx.restore();
 }
 
-function drawCrosshairAndTooltip(hover, innerX, innerY, innerW, innerH, min, max){
+/* [수정] 크로스헤어: 가격 영역과 거래량 영역 대응 */
+function drawCrosshairAndTooltip(hover, innerX, innerY, innerW, priceH, min, max, volY, volH){
   const ctx = ctx2;
-  const canvas = canvas2;
   const i = hover.index;
   const x = innerX + i * (innerW / chartSlice.length) + (innerW / chartSlice.length) * 0.5;
-  const prices = chartSlice.flatMap(c => [c.high, c.low]);
-  const curMax = Math.max(...prices), curMin = Math.min(...prices);
-  const range = curMax - curMin || 1;
-  const y = innerY + innerH - ((hover.candle.close - min) / (max - min || 1)) * innerH;
+  
+  // 가격 차트 내에서의 Y 위치
+  const yPrice = innerY + priceH - ((hover.candle.close - min) / (max - min || 1)) * priceH;
 
   ctx.save();
   ctx.strokeStyle = 'rgba(200,230,255,0.25)';
   ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]); // 점선 스타일
+
+  // 1. 세로선 (전체 관통)
   ctx.beginPath();
   ctx.moveTo(x, innerY);
-  ctx.lineTo(x, innerY + innerH);
+  ctx.lineTo(x, volY + volH); // 거래량 영역 바닥까지
   ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(innerX, y);
-  ctx.lineTo(innerX + innerW, y);
-  ctx.stroke();
+
+  // 2. 가로선 (가격 차트 영역만)
+  // 마우스가 가격 차트 영역 안에 있을 때만 그리는 게 좋지만, 
+  // 여기서는 캔들 종가 기준으로 그립니다.
+  if (yPrice >= innerY && yPrice <= innerY + priceH) {
+    ctx.beginPath();
+    ctx.moveTo(innerX, yPrice);
+    ctx.lineTo(innerX + innerW, yPrice);
+    ctx.stroke();
+  }
+  
   ctx.restore();
 }
 
@@ -1718,71 +1791,54 @@ function updatePeriodReturnVisible(slice){
   el.style.color = pct >=0 ? 'var(--profit)' : 'var(--loss)';
 }
 
+/* [수정] 호버 정보창: 거래량 정보 추가 */
 function drawHoverInfo(hover) {
   if (!hover || !hover.candle) return;
 
   const ctx = ctx2;
   const c = hover.candle;
-
-  // slice index → global index
   const globalIndex = chartStartIndex + hover.index;
-
-  // 이동평균 값 (global arrays)
   const ema5  = maAll.ema5?.[globalIndex]  ?? null;
   const ema20 = maAll.ema20?.[globalIndex] ?? null;
   const ema60 = maAll.ema60?.[globalIndex] ?? null;
 
-  // 날짜 포맷
   const d = new Date(c.time);
   const dateStr =
     `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
     `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 
-  // 위치 조정 (Y축 라벨과 겹치지 않도록 약간 아래)
-  const baseX = chartMarginLeft + 8;
+  const baseX = chartMarginLeft + 10;
   const baseY = chartMarginTop + 22;
   const lh = 16;
+  let y = baseY;
 
   ctx.save();
   ctx.font = "12px system-ui";
   ctx.textBaseline = "top";
 
-  let y = baseY;
-
+  // 날짜
   ctx.fillStyle = "#9fb8d8";
-  ctx.fillText(`시각: ${dateStr}`, baseX, y);
-  y += lh;
+  ctx.fillText(dateStr, baseX, y); y += lh;
 
+  // 종가
   ctx.fillStyle = "#ffffff";
-  ctx.fillText(`종가: ${fmt2(c.close)}`, baseX, y);
-  y += lh;
+  ctx.fillText(`종가: ${fmt2(c.close)}`, baseX, y); y += lh;
+  
+  // [추가] 거래량 표시
+  ctx.fillStyle = "#d1d5db";
+  ctx.fillText(`거래량: ${formatVolume(c.volume)}`, baseX, y); y += lh;
 
-  if (ema5 !== null) {
-    ctx.fillStyle = "#0af7ef";
-    ctx.fillText(`EMA 5 : ${fmt2(ema5)}`, baseX, y);
-    y += lh;
-  }
-  if (ema20 !== null) {
-    ctx.fillStyle = "#f7c80a";
-    ctx.fillText(`EMA20: ${fmt2(ema20)}`, baseX, y);
-    y += lh;
-  }
-  if (ema60 !== null) {
-    ctx.fillStyle = "#8a2be2";
-    ctx.fillText(`EMA60: ${fmt2(ema60)}`, baseX, y);
-    y += lh;
-  }
+  // EMA 정보
+  if (ema5 !== null) { ctx.fillStyle = "#0af7ef"; ctx.fillText(`EMA 5 : ${fmt2(ema5)}`, baseX, y); y += lh; }
+  if (ema20 !== null) { ctx.fillStyle = "#f7c80a"; ctx.fillText(`EMA20: ${fmt2(ema20)}`, baseX, y); y += lh; }
+  if (ema60 !== null) { ctx.fillStyle = "#8a2be2"; ctx.fillText(`EMA60: ${fmt2(ema60)}`, baseX, y); y += lh; }
 
-  // 구분선
+  // 구분선 및 OHLC (기존 유지)
   y += 4;
   ctx.strokeStyle = "rgba(255,255,255,0.15)";
-  ctx.beginPath();
-  ctx.moveTo(baseX, y);
-  ctx.lineTo(baseX + 140, y);
-  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(baseX, y); ctx.lineTo(baseX + 110, y); ctx.stroke();
   y += 6;
 
-  // OHLC
   ctx.fillStyle = "#cfeaff";
   ctx.fillText(`시가: ${fmt2(c.open)}`, baseX, y); y += lh;
   ctx.fillText(`고가: ${fmt2(c.high)}`, baseX, y); y += lh;
@@ -1790,19 +1846,9 @@ function drawHoverInfo(hover) {
 
   ctx.restore();
 
-  // --- 반드시 호출: 호버 시 periodReturn을 '전날 종가 -> 이번 봉' 기준으로 업데이트 ---
-  // drawCandleReturn(c) 함수는 globalIndex를 chartStartIndex + hover.index로 계산해서
-  // 이전 봉(prev)을 찾아 prev.close -> open/close 기준 수익률을 표시한다.
-  // (파일에 이미 drawCandleReturn 구현이 있으므로 단순 호출만 하면 됨.)
-  try {
-    drawCandleReturn(c);
-  } catch (e) {
-    // 안전 장치: 에러가 나면 periodReturn은 기본값으로 되돌림
-    const el = document.getElementById('periodReturn');
-    if (el) { el.innerText = '+0.00%'; el.style.color = 'var(--muted)'; }
-    console.error('drawCandleReturn error', e);
-  }
+  try { drawCandleReturn(c); } catch (e) {}
 }
+
 
 function drawCandleReturn(c) {
   const el = document.getElementById('periodReturn');
