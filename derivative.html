@@ -164,7 +164,7 @@
     overflow: hidden;
   }
   #newsHeader {
-    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px, height: 15%;
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; height: 15%;
     display: flex; justify-content: space-between;
   }
   #newsList {
@@ -205,7 +205,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.2.2</div>
+        <div class="small muted">1초 = 1시간 • ver 1.2.3</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -412,9 +412,19 @@ let candleOffset = 0; // 왼쪽으로 밀린 봉 수
 let visibleCount = 240; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
-// macro econ indicators
-const RATE_BASE = 3.00;
-let R = RATE_BASE * 0.01, Q = 0.0;
+/* ====== ECON / NEWS 연결 개선: volatility + forecast/actual 흐름 ====== */
+
+/* 1) RATE_BASE를 변경 가능하도록 const -> let */
+let RATE_BASE = 3.00;           // % 단위(예: 3.00)
+let R = RATE_BASE * 0.01;       // r (연 단위 소수). 기존 코드와 동일 위치에 둡니다.
+let Q = 0.0;
+
+/* 2) 변동성(Vol) 상태 관리
+   - volatilityState: 현재 활성화된 "펄스" 리스트 (각 펄스는 시간이 지남에 따라 지수적으로 감소)
+   - getCurrentVol()는 baseVol + (각 펄스의 기여 합) 를 반환
+*/
+const VOL_BASE = 0.20; // 기본 변동성 (기존의 0.2)
+let volatilityState = []; // { id, amp, halfLifeHours, createdAt: simDate }
 
 // player
 let player = {
@@ -558,9 +568,42 @@ function tauYearsFromExpiry(expiryDateStr) {
     return diffMs / (365 * 24 * 3600 * 1000);
 }
 
-// 옵션 가격 계산 등을 위해 변동성 함수는 필요함 (임시 고정값)
+// helper: 유일 id
+function _uid(prefix='v') { return prefix + '_' + (Date.now() + '_' + Math.floor(Math.random()*10000)); }
+
+/* 추가: 변동성 펄스를 추가하는 함수
+   amplitude: 추가할 절대 크기 (예: 0.05 = 5% 추가)
+   halfLifeHours: 반감기(시간 단위). 작을수록 빨리 사라짐.
+*/
+function addVolPulse(amplitude, halfLifeHours) {
+  if (!amplitude || amplitude <= 0) return;
+  volatilityState.push({
+    id: _uid('vol'),
+    amp: Math.abs(amplitude),
+    halfLifeHours: Math.max(1, halfLifeHours),
+    createdAt: new Date(simDate) // 참고용
+  });
+}
+
+/* 매 시간 호출: 활성 펄스 감쇠(Decay) 및 정리
+   dtHours: 경과 시간(기본 1시간)
+*/
+function decayVolPulses(dtHours = 1) {
+  if (!volatilityState.length) return;
+  // 지수감쇠: newAmp = amp * exp(-dt / halfLife)
+  for (let i = volatilityState.length - 1; i >= 0; i--) {
+    const p = volatilityState[i];
+    const decayFactor = Math.exp(- dtHours / p.halfLifeHours);
+    p.amp *= decayFactor;
+    if (p.amp < 0.0005) volatilityState.splice(i, 1); // 너무 작으면 제거
+  }
+}
+  
+/* 새 getCurrentVol: base + 합계(펄스) -> 클램프 */
 function getCurrentVol() {
-  return 0.2; // 20% 고정 변동성
+  const extra = volatilityState.reduce((s,p) => s + p.amp, 0);
+  // clamp 전체 변동성 (안전 장치)
+  return Math.max(0.01, Math.min(2.0, VOL_BASE + extra));
 }
 
 function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
@@ -599,142 +642,207 @@ function getTotalDrift() {
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
 
-// 미래 뉴스 예약 (보통 3~7일 뒤)
+/* 3) scheduleFutureNews() 개선: 지표(indicator)인 경우 'forecast' 이벤트와 'actual' 이벤트를 별도로 예약
+   - forecast는 실제 발표보다 앞서(1~3일 전) 생성되고, 실제 발표는 target date에 이벤트 발생
+   - 두 이벤트는 _ref 로 연결되어 실제 발표시 예측값(forecast)을 참조할 수 있게 함
+*/
 function scheduleFutureNews() {
-  // 너무 많이 생성되지 않게 조절 (현재 예약된 게 5개 미만일 때만)
   const upcoming = newsData.filter(n => new Date(n.date) > simDate);
-  if(upcoming.length >= 4) return;
-  
-  if(Math.random() > 0.4) return; // 틱당 40% 확률로 생성 시도
+  if (upcoming.length >= 4) return;
+  if (Math.random() > 0.1) return;
 
-  const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤
+  const daysLater = 3 + Math.floor(Math.random() * 5); // 3~7일 뒤 실제 발표
   const targetDate = new Date(simDate);
   targetDate.setDate(targetDate.getDate() + daysLater);
   const dateStr = nowStr(targetDate).slice(0, 10);
 
-  // 이미 해당 날짜에 뉴스가 있으면 스킵 (하루 1개 제한)
-  if(newsData.some(n => n.date === dateStr)) return;
+  if (newsData.some(n => n.date === dateStr && n.type === 'indicator' && n.title === '기준금리 결정')) {
+    // 같은 날짜 동일 지표 중복 막기 (특히 금리)
+    return;
+  }
 
-  // 타입 결정 (30% 지표, 70% 헤드라인)
-  const isIndicator = Math.random() < 0.3;
-  let newNews = null;
-
+  // 타입 결정
+  const isIndicator = Math.random() < 0.7;
   if (isIndicator) {
     const template = NEWS_CONFIG.indicators[Math.floor(Math.random() * NEWS_CONFIG.indicators.length)];
-    
-    // 값 생성
-    // 1. 실제치(Actual) 먼저 결정 (랜덤 워크)
-    let rawActual = template.base + (Math.random() - 0.5) * 2 * template.dev;
-    if(template.step) rawActual = Math.round(rawActual / template.step) * template.step; // step 단위 맞춤
-    
-    // 2. 예상치(Forecast) 결정 (실제치 주변에 노이즈 추가)
-    // 시장은 보통 맞추지만, 가끔 틀림
-    let noise = (Math.random() - 0.5) * template.dev * 0.8; 
-    let rawForecast = rawActual + noise;
-    if(template.step) rawForecast = Math.round(rawForecast / template.step) * template.step;
 
-    newNews = {
+    // 실제치 먼저 결정 (랜덤 워크)
+    let rawActual = template.base + (Math.random() - 0.5) * 2 * template.dev;
+    if (template.step) rawActual = Math.round(rawActual / template.step) * template.step;
+
+    // 예상치 (forecast) : 실제치 주변 노이즈
+    let noise = (Math.random() - 0.5) * template.dev * 0.8;
+    let rawForecast = rawActual + noise;
+    if (template.step) rawForecast = Math.round(rawForecast / template.step) * template.step;
+
+    const ref = _uid('newsref');
+
+    // 1) forecast event: (예상치 발표) — 보통 몇일 전 또는 같은날 아침
+    const daysBeforeForecast = 1 + Math.floor(Math.random() * 3); // 1~3일 전
+    const forecastDate = new Date(targetDate);
+    forecastDate.setDate(forecastDate.getDate() - daysBeforeForecast);
+    const forecastDateStr = nowStr(forecastDate).slice(0,10);
+
+    // skip if forecast collides with existing news on same date
+    if (!newsData.some(n => n.date === forecastDateStr && n._ref === ref)) {
+      const forecastNews = {
+        id: Date.now() + Math.random(),
+        date: forecastDateStr,
+        time: "09:00",
+        type: 'indicator',
+        title: template.title + " (예상치)",
+        unit: template.unit,
+        forecast: fmt2(rawForecast) + template.unit,
+        actual: null,
+        _valForecast: rawForecast,
+        _valActual: null,
+        _weight: template.weight,
+        _inverse: template.inverse || false,
+        _isForecastOnly: true,
+        _ref: ref,
+        impactLevel: 'mid',
+        processed: false
+      };
+      newsData.push(forecastNews);
+    }
+
+    // 2) actual event: 실제 발표 (원래 예약일)
+    const actualNews = {
       id: Date.now() + Math.random(),
       date: dateStr,
-      time: "09:00", // 지표는 보통 아침
+      time: "09:00",
       type: 'indicator',
       title: template.title,
       unit: template.unit,
-      forecast: fmt2(rawForecast) + template.unit,
+      forecast: fmt2(rawForecast) + template.unit,  // 실제 발표 객체는 예측값도 포함 (비교용)
       actual: fmt2(rawActual) + template.unit,
-      
-      // 내부 계산용 원본 데이터
       _valForecast: rawForecast,
       _valActual: rawActual,
       _weight: template.weight,
       _inverse: template.inverse || false,
-      impactLevel: 'mid', // 나중에 실제 발표시 재조정
+      _isForecastOnly: false,
+      _ref: ref,
+      impactLevel: 'mid',
       processed: false
     };
+    newsData.push(actualNews);
+
   } else {
-    // 헤드라인
+    // 헤드라인 (동일)
     const isGood = Math.random() < 0.5;
     const list = isGood ? NEWS_CONFIG.headlines.good : NEWS_CONFIG.headlines.bad;
     const item = list[Math.floor(Math.random() * list.length)];
-    
-    newNews = {
+    const headlineNews = {
       id: Date.now() + Math.random(),
       date: dateStr,
-      time: "14:00", // 장중 속보
+      time: "14:00",
       type: 'headline',
       title: item.text,
       unit: '',
       forecast: null,
       actual: null,
-      _power: item.power * (isGood ? 1 : -1), // 호재면 +, 악재면 -
+      _power: item.power * (isGood ? 1 : -1),
       impactLevel: isGood ? 'good' : 'high',
       processed: false
     };
+    newsData.push(headlineNews);
   }
 
-  newsData.push(newNews);
-  // 날짜순 정렬
+  // 정렬 & trim
   newsData.sort((a,b) => new Date(a.date) - new Date(b.date));
-  
-  // 오래된 뉴스 삭제 (30일 지난 것)
-  if(newsData.length > 30) newsData.shift();
-  
-  // 달력 갱신 필요
+  if (newsData.length > 60) newsData.splice(0, newsData.length - 60);
+
   renderCalendar();
 }
 
-// 뉴스 발표 체크 및 추세 반영
+/* 4) checkNewsTrigger 개선: forecast(예상치) 발표와 actual(실제치) 발표를 구분해 처리
+   - forecast: 시장 기대(예상치)로 즉시 반응 -> 단기 trend 변경 + 변동성 펄스(짧은 halfLife)
+   - actual: surprise = actual - forecast 로 충격 부여, 만약 지표가 '기준금리 결정'이면 RATE_BASE와 R 갱신
+   - 각 발표별로 초단기/단기/중기/장기 펄스를 생성 (사용자 요구사항 반영)
+*/
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
 
-  // 오늘 날짜이면서, 시간이 지났고, 아직 처리 안 된 뉴스 찾기
-  const targets = newsData.filter(n => 
-    n.date === todayStr && 
-    parseInt(n.time.split(':')[0]) <= currentHour && 
+  const targets = newsData.filter(n =>
+    n.date === todayStr &&
+    parseInt(n.time.split(':')[0]) <= currentHour &&
     !n.processed
   );
 
   targets.forEach(n => {
-    n.processed = true; // 처리 완료 마킹
+    n.processed = true;
 
     if (n.type === 'indicator') {
-      // Surprise = (Actual - Forecast)
-      // inverse(실업률 등)인 경우 부호 반대
-      let surprise = n._valActual - n._valForecast;
-      if (n._inverse) surprise *= -1;
+      if (n._isForecastOnly) {
+        // 예상치 발표 처리 (시장 기대 반영)
+        // 예: 금리 예상치가 현재 RATE_BASE보다 높으면(상향예상) 악재로 반응
+        const forecast = n._valForecast;
+        const delta = forecast - RATE_BASE; // forecast vs in-game baseline
+        const signed = (n._inverse ? -delta : delta); // inverse 지표면 부호 반전
+        // 트렌드 반영: 예상치는 주로 단기/초단기 영향
+        trendState.short += signed * n._weight.s * 0.6; // 조금 작게 적용
+        trendState.mid   += signed * n._weight.m * 0.2;
 
-      // 괴리율이 클수록 충격
-      // 표준편차 대비 얼마나 놀랐는가? (단순화된 계산)
-      const shock = surprise; 
-      
-      // 추세에 가중치 반영
-      // shock가 양수면 호재 -> 추세 상승
-      trendState.long  += shock * n._weight.l;
-      trendState.mid   += shock * n._weight.m;
-      trendState.short += shock * n._weight.s;
+        // 변동성 펄스: 초단기(4시간), 단기(72h), 중기(720h), 장기(4320h) 계층
+        const mag = Math.abs(signed);
+        const scale = (n.title && n.title.includes('기준금리')) ? 1.5 : 1.0;
+        addVolPulse(0.05 * mag * scale, 2);    // 초단기 강한/빠른 pulse (halfLife 2h)
+        addVolPulse(0.03 * mag * scale, 24*2);// 단기(2일)
+        addVolPulse(0.01 * mag * scale, 24*30);// 중기(1달)
+        // no immediate R change for forecast (R은 실제 발표 시 갱신)
+        pushEventLog(`📰 예상치 발표: ${n.title} 예상 ${n.forecast}`);
+      } else {
+        // 실제 발표 처리
+        const actual = n._valActual;
+        const forecast = (typeof n._valForecast === 'number') ? n._valForecast : n._valForecast;
+        // surprise: 실제 - 예측 (inverse 반영)
+        let surprise = 0;
+        if (forecast === null || forecast === undefined) {
+          // 경고: 만약 forecast가 없으면 actual 단일 이벤트로 처리 (과거 시스템과의 호환)
+          surprise = actual - (n._weight && n._weight.base ? n._weight.base : 0);
+        } else {
+          surprise = actual - forecast;
+        }
+        if (n._inverse) surprise *= -1;
 
-      // 임팩트 레벨 UI용 설정
-      if (Math.abs(shock) > 0.5) n.impactLevel = 'high';
-      else if (surprise > 0) n.impactLevel = 'good';
-      else n.impactLevel = 'mid';
-      
-      const icon = surprise > 0 ? '📈' : (surprise < 0 ? '📉' : '➖');
-      pushEventLog(`${icon} ${n.title} 발표: 실제 ${n.actual} (예상 ${n.forecast})`);
-      
+        // 트렌드 반영 (강하게)
+        trendState.long  += surprise * n._weight.l;
+        trendState.mid   += surprise * n._weight.m * 1.2;
+        trendState.short += surprise * n._weight.s * 1.8;
+
+        // 만약 '기준금리 결정'이라면 게임내 RATE_BASE / R 을 "실제치"로 갱신
+        if (n.title && n.title.includes('기준금리')) {
+          RATE_BASE = actual;
+          R = RATE_BASE * 0.01;
+          pushEventLog(`🏛️ 기준금리 실제 반영: ${fmt2(RATE_BASE)}% -> R=${fmt2(R)}`);
+        }
+
+        // 변동성 펄스 생성 (충격 크기에 비례)
+        const mag = Math.abs(surprise);
+        const scale = (n.title && n.title.includes('기준금리')) ? 2.0 : 1.0;
+        // 초단기(4h), 단기(1d~7d), 중기(1달), 장기(6달)
+        addVolPulse(0.12 * mag * scale, 4);      // 매우 큰 단기 spike (halfLife 4h)
+        addVolPulse(0.06 * mag * scale, 24*3);   // 단기 (3일 반감)
+        addVolPulse(0.03 * mag * scale, 24*20);  // 중기 (~20일 반감)
+        addVolPulse(0.008 * mag * scale, 24*180);// 장기 (6달 반감, 작게 남음)
+
+        // UI 로그
+        const icon = surprise > 0 ? '📈' : (surprise < 0 ? '📉' : '➖');
+        pushEventLog(`${icon} ${n.title} 발표: 실제 ${n.actual} (예상 ${n.forecast})`);
+      }
     } else {
-      // 헤드라인
+      // 헤드라인: 기존 방식과 유사하지만 변동성 펄스를 추가
       const p = n._power;
-      // 헤드라인은 주로 단기/중기에 강한 영향
       trendState.mid   += p * 0.5;
       trendState.short += p * 1.5;
-
+      addVolPulse(Math.abs(p) * 0.04, 6); // 헤드라인은 보통 단기 충격
       const icon = p > 0 ? '🔥' : '⛈️';
       pushEventLog(`${icon} 속보: ${n.title}`);
     }
 
     notify(`뉴스 발표: ${n.title}`);
-    renderNewsFeed(); // UI 갱신 (실제값 공개)
+    renderNewsFeed();
   });
 }
 
@@ -767,6 +875,7 @@ function stepMarket(){
     
     // (1) 추세 감쇠
     updateTrendPhysics(dtYears);
+    decayVolPulses(1);  // 1시간 단위로 펄스 감쇠
 
     // (2) 통합 Drift(mu) 계산
     const muTotal = getTotalDrift();
