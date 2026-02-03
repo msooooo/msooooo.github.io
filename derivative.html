@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.16</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.17</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -922,7 +922,76 @@ function calcVolumeMultiplier(d) {
 }
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
-/* [수정] 5일 전 예보 시점에 '기대감'을 가격에 선반영(Pricing-in) */
+
+/* [신규] 매크로 상관관계 엔진: 다른 지표의 상태를 보고 편향(Bias) 계산 */
+function getMacroBias(targetTitle) {
+  // 1. 현재 주요 지표 값 가져오기 (없으면 기본값 사용)
+  const getVal = (title) => {
+    const ind = NEWS_CONFIG.indicators.find(i => i.title === title);
+    return ind ? ind.lastValue : 0;
+  };
+
+  const curGDP = getVal("GDP 성장률");
+  const curRate = getVal("기준금리 결정");
+  const curCPI = getVal("소비자 물가 지수 (CPI)");
+  const curUnemp = getVal("실업률");
+
+  let bias = 0;
+
+  // 2. 지표별 상관관계 로직 (Economics 101)
+  switch (targetTitle) {
+    case "실업률":
+    case "신규 실업수당 청구건수":
+      // 오쿤의 법칙 변형: GDP가 높으면(2.5% 이상) 실업률은 하락 압력
+      if (curGDP > 2.5) bias = -0.05; 
+      else if (curGDP < 1.5) bias = 0.05; // 경기 침체면 실업률 상승
+      break;
+
+    case "비농업 고용 증가량":
+      // GDP 좋으면 고용 증가
+      if (curGDP > 2.5) bias = 10; 
+      else if (curGDP < 1.5) bias = -10;
+      break;
+
+    case "소비자 물가 지수 (CPI)":
+    case "PCE 물가 지수":
+      // 금리가 물가보다 낮으면 물가 상승 압력, 금리가 높으면 물가 하락 압력
+      // 또한 GDP가 너무 뜨거우면(3.0% 이상) 인플레이션 압력
+      if (curRate < curCPI) bias += 0.05;
+      else bias -= 0.05;
+      
+      if (curGDP > 3.0) bias += 0.05;
+      break;
+
+    case "기준금리 결정":
+      // 테일러 준칙 변형: 물가가 목표(2.0)보다 높거나 GDP가 잠재(2.5)보다 높으면 금리 인상 압력
+      let pressure = 0;
+      if (curCPI > 2.5) pressure += 1;
+      if (curGDP > 3.0) pressure += 1;
+      
+      if (pressure >= 1) bias = 0.25; // 인상 Bias
+      else if (curCPI < 1.5 && curGDP < 1.0) bias = -0.25; // 인하 Bias
+      break;
+
+    case "소매판매 증가율":
+    case "소비자 신뢰지수":
+      // 고용이 좋고(실업률 낮음), 물가가 안정되면 소비 증가
+      if (curUnemp < 4.0 && curCPI < 3.0) bias = 0.2;
+      else if (curUnemp > 5.0 || curCPI > 5.0) bias = -0.2;
+      break;
+
+    case "장단기 금리차":
+      // 기준금리가 높으면 단기채 금리가 높아져 장단기 차이가 줄어듦(플래트닝)
+      if (curRate > 4.0) bias = -0.05; // 커브 플래트닝
+      else if (curRate < 2.0) bias = 0.05; // 커브 스티프닝
+      break;
+  }
+
+  return bias;
+}
+
+  
+/* [수정] 상관관계 반영 & 선반영 수치 저장 */
 function scheduleFutureNews() {
   const FORECAST_DAYS = 5; 
 
@@ -938,51 +1007,47 @@ function scheduleFutureNews() {
     if (template.schedule.months && !template.schedule.months.includes(tMonth)) return;
     if (newsData.some(n => n.date === dateStr && n.title === template.title)) return;
 
-    // --- 값 생성 ---
+    // --- 값 생성 (상관관계 적용) ---
     const valPrev = template.lastValue;
     
-    // 실제값 생성 (Random Walk)
-    let change = (Math.random() - 0.5) * 2 * template.dev;
-    if (Math.random() < 0.2) change *= 1.5; 
+    // [신규] 매크로 편향(Bias) 가져오기
+    const macroBias = getMacroBias(template.title);
+
+    // 실제값 생성: 이전값 + 매크로 편향 + 랜덤 워크
+    let change = macroBias + (Math.random() - 0.5) * 2 * template.dev;
+    
+    // 가끔 튀는 값 (랜덤성 유지)
+    if (Math.random() < 0.15) change *= 1.5; 
+
     let valActual = valPrev + change;
     if (template.step) valActual = Math.round(valActual / template.step) * template.step;
     valActual = Number(valActual.toFixed(2));
 
-    // 예상치 생성 (실제값 근처 노이즈)
-    const marketError = (Math.random() - 0.5) * template.dev * 0.4;
+    // 예상치 생성: 실제값 근처에 오차 추가
+    const marketError = (Math.random() - 0.5) * template.dev * 0.5;
     let valForecast = valActual + marketError;
     if (template.step) valForecast = Math.round(valForecast / template.step) * template.step;
     valForecast = Number(valForecast.toFixed(2));
 
-    // ---------------------------------------------------------
-    // [신규 로직] 예상치 발표 효과 (Pricing-in)
-    // ---------------------------------------------------------
-    // 1. 예상되는 변화량 계산 (예상치 - 이전치)
-    // 2. 표준편차(dev)로 나누어 정규화 (Z-Score) -> 0 나누기 문제 해결
-    let expectedDelta = (valForecast - valPrev) / template.dev;
-    
-    // 역방향 지표(실업률, 금리 등) 처리
+    // --- Pricing-in (선반영) 계산 ---
+    let expectedDelta = (valForecast - valPrev) / template.dev; // Z-Score
     if (template.inverse) expectedDelta *= -1;
 
-    // 선반영 강도: 실제 발표 충격의 약 20% 정도만 미리 반영
-    // 시장은 불확실하므로 예상치만으로는 크게 움직이지 않음
-    const pricingInFactor = expectedDelta * template.weight.s * 0.05; 
+    // 선반영 강도 (약 20%)
+    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
     
-    // 가격 및 적정주가 이동
     state.spot *= (1 + pricingInFactor);
     state.fairValue *= (1 + pricingInFactor);
 
-    // 로그 출력 (예상치 발표로 인한 변동)
-    if (Math.abs(pricingInFactor) > 0.001) { // 0.1% 이상 변동 시만 로그
+    if (Math.abs(pricingInFactor) > 0.001) {
        const direction = pricingInFactor > 0 ? "상승" : "하락";
        pushEventLog(`📢 [예상] ${template.title}: ${fmt2(valForecast)} 예상 (${direction} 선반영)`);
     }
-    // ---------------------------------------------------------
 
     const newNews = {
       id: Date.now() + Math.random(),
       date: dateStr,
-      time: "02:00",
+      time: "02:00", // 발표 시간 (예: 새벽 2시)
       type: 'indicator',
       title: template.title,
       unit: template.unit,
@@ -995,6 +1060,10 @@ function scheduleFutureNews() {
       _weight: template.weight,
       _inverse: template.inverse || false,
       _templateRef: template,
+      
+      // [신규] 선반영되었던 방향과 크기를 저장 (나중에 실망 매물 계산용)
+      _preImpact: pricingInFactor, 
+      
       impactLevel: 'mid',
       processed: false
     };
@@ -1007,6 +1076,7 @@ function scheduleFutureNews() {
 
   renderCalendar();
 }
+
 
 
 /* [추가] 즉발성 헤드라인 뉴스 생성 (예약 없이 바로 newsData에 꽂아넣음) */
