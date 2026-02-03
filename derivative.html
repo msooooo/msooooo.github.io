@@ -206,7 +206,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.6</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.7</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -842,6 +842,9 @@ function scheduleFutureNews() {
       impactLevel: 'mid',
       processed: false
     };
+    
+    // 예정된 발표치를 새로운 이전치로 갱신
+    template.lastValue = valActual;
 
     newsData.push(newNews);
     
@@ -930,9 +933,6 @@ function checkNewsTrigger() {
         impact *= 2.0;
         pushEventLog(`🏛️ 기준금리 변경: ${fmt2(actual)}%`);
       }
-
-      // 발표치를 새로운 이전치로 갱신
-      template.lastValue = actual;
 
     } else if (n.type === 'headline') {
       const p = n._power; 
