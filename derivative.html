@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.15</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.16</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1091,6 +1091,10 @@ function checkNewsTrigger() {
       // 0.03은 전체적인 변동성 조절 상수
       impact = shockFactor * n._weight.s * 0.03; 
 
+      if (n._templateRef) {
+        n._templateRef.lastValue = n._valActual; // 원본 데이터 업데이트
+      }
+      
       const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
       const zScoreStr = surpriseZ.toFixed(2) + "σ"; // 시그마 단위 표시
       
@@ -1124,7 +1128,8 @@ function checkNewsTrigger() {
     const volPulse = Math.abs(impact) * 10.0;
     // 최소 0.05는 보장 (뉴스 발표 효과)
     addVolPulse(Math.max(0.05, volPulse), 6); // 6시간 지속
-
+    
+    syncDebugEcon();
     renderNewsFeed();
   });
 }
@@ -2819,82 +2824,107 @@ function switchDebugTab(mode) {
   document.getElementById('formHead').style.display = (mode === 'head' ? 'block' : 'none');
 }
 
-// 4. 뉴스 강제 주입 (핵심 로직)
+// 4. 뉴스 강제 주입
 function injectManualNews() {
   const mode = document.getElementById('tabInd').classList.contains('active') ? 'ind' : 'head';
-  const nowTimeStr = nowStr(simDate); 
-  const dateStr = nowTimeStr.slice(0,10);
-  const timeStr = nowTimeStr.slice(11,16); // HH:mm
-
-  let newNews = null;
+  
+  // 현재 날짜 기준
+  const today = new Date(simDate);
+  const dateStrToday = nowStr(today).slice(0,10);
+  
+  // 5일 뒤 날짜 계산 (실제치 발표용)
+  const targetDate = new Date(today);
+  targetDate.setDate(targetDate.getDate() + 5);
+  const dateStrTarget = nowStr(targetDate).slice(0,10);
 
   if (mode === 'ind') {
     // --- 지표 모드 ---
     const idx = document.getElementById('dbgIndSel').value;
     const template = NEWS_CONFIG.indicators[idx];
+    
+    // 입력값 가져오기
     const forecast = parseFloat(document.getElementById('dbgIndForecast').value);
     const actual = parseFloat(document.getElementById('dbgIndActual').value);
 
     if (isNaN(forecast) || isNaN(actual)) return notify('값을 입력해주세요');
 
-    newNews = {
+    // [Step 1] 예상치 발표 효과 (Pricing-in) - 즉시 발동
+    // 현재값(template.lastValue) 대비 예상치(forecast)의 변화를 선반영
+    const prev = template.lastValue;
+    const dev = template.dev || 1.0;
+    
+    let expectedDelta = (forecast - prev) / dev;
+    if (template.inverse) expectedDelta *= -1;
+
+    // 선반영 강도 (자동 생성 로직과 동일하게 20% 수준)
+    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
+    
+    // 가격 및 적정주가 즉시 이동
+    state.spot *= (1 + pricingInFactor);
+    state.fairValue *= (1 + pricingInFactor);
+    
+    // 로그 출력
+    const direction = pricingInFactor > 0 ? "상승" : "하락";
+    pushEventLog(`🛠️ [God Mode] ${template.title} 예상치 강제 주입: ${fmt2(forecast)} (시장 ${direction} 선반영)`);
+
+
+    // [Step 2] 실제치 발표 예약 (5일 뒤 02:00)
+    const newNews = {
       id: Date.now() + Math.random(),
-      date: dateStr,
-      time: timeStr, // 현재 시간으로 설정 -> 즉시 발동
+      date: dateStrTarget, // 5일 뒤
+      time: "02:00",       // 새벽 2시 발표
       type: 'indicator',
       title: template.title,
       unit: template.unit,
       
-      strPrev: fmt2(template.lastValue) + template.unit, // 이전값은 기록된 것 사용
+      strPrev: fmt2(prev) + template.unit,
       strForecast: fmt2(forecast) + template.unit,
       strActual: fmt2(actual) + template.unit,
 
-      _valPrev: template.lastValue,
+      _valPrev: prev,
       _valForecast: forecast,
       _valActual: actual,
       
       _weight: template.weight,
       _inverse: template.inverse || false,
-      _templateRef: template,
+      _templateRef: template, // ★ 중요: 이걸 넘겨야 checkNewsTrigger에서 lastValue를 업데이트함
       
-      impactLevel: 'high', // 강제 주입은 중요도가 높다고 가정
+      impactLevel: 'high',
       processed: false
     };
 
-    pushEventLog(`🛠️ [God Mode] 지표 강제 주입: ${template.title}`);
+    newsData.push(newNews);
+    
+    // 캘린더 갱신 (5일 뒤 점 찍히도록)
+    renderCalendar();
+    notify(`예상치 반영 완료. 실제 발표는 5일 뒤(${dateStrTarget}) 02:00에 예약됨.`, 3000);
 
   } else {
-    // --- 헤드라인 모드 ---
+    // --- 헤드라인 모드 (기존 동일) ---
     const text = document.getElementById('dbgHeadText').value;
     const power = parseFloat(document.getElementById('dbgHeadPower').value);
 
     if (!text) return notify('속보 내용을 입력해주세요');
 
-    newNews = {
+    const headline = {
       id: Date.now() + Math.random(),
-      date: dateStr,
-      time: timeStr,
+      date: dateStrToday,
+      time: nowStr(today).slice(11,16), // 현재 시간
       type: 'headline',
       title: text,
       unit: '',
       strPrev: '-', strForecast: '-', strActual: '-',
-      
-      _power: power, // 슬라이더 값 (-1.0 ~ 1.0)
+      _power: power,
       impactLevel: Math.abs(power) > 0.5 ? 'high' : 'mid',
       processed: false
     };
     
-    pushEventLog(`🛠️ [God Mode] 속보 생성: ${text} (${power})`);
+    newsData.push(headline);
+    checkNewsTrigger(); // 즉시 발동
+    notify('속보가 강제 실행되었습니다.', 2000);
   }
-
-  // 뉴스 배열에 추가
-  newsData.push(newNews);
-  
-  // 즉시 처리를 위해 checkNewsTrigger 호출 (다음 틱까지 안 기다림)
-  checkNewsTrigger(); 
-  
-  notify('이벤트가 강제 실행되었습니다.', 2000);
 }
+
 
 // 초기화 실행
 initDebugTools();
