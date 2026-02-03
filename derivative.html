@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.17</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.18</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -607,34 +607,52 @@ let marketControl = {
 /* [수정] NEWS_CONFIG: 'lastValue' 필드를 추가하여 이전 수치를 기억하게 함 */
 const NEWS_CONFIG = {
   indicators: [
-    // 분기 발표 (1, 4, 7, 10월)
-    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.45,m:0.25,s:0.10}, 
-      schedule: { months: [1,4,7,10], day: 25 } }, // 매 분기 25일
-    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.40,m:0.25,s:0.35}, inverse:true, 
-      schedule: { months: [1,4,7,10], day: 15 } }, // 매 분기 15일
+    // [Tier 2] GDP: 후행 지표이므로 단기 충격(s)은 낮고, 장기 추세(l) 영향력 유지
+    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.30,m:0.15,s:0.05}, 
+      schedule: { months: [1,4,7,10], day: 25 } },
 
-    // 매월 발표 (months: null)
-    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.20,m:0.30,s:0.45}, 
-      schedule: { months: null, day: 1 } }, // 매월 1일
-    { title:"비농업 고용 증가량", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45}, 
-      schedule: { months: null, day: 5 } }, // 매월 5일
-    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.35,m:0.30,s:0.25}, inverse: true, 
-      schedule: { months: null, day: 5 } }, // 매월 5일 (고용과 같이)
-    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.20,m:0.30,s:0.55}, inverse:true, 
-      schedule: { months: null, day: 10 } }, // 매월 10일
-    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.20,m:0.35,s:0.45}, 
-      schedule: { months: null, day: 15 } }, // 매월 15일
-    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.25,m:0.35,s:0.50}, inverse:true, 
-      schedule: { months: null, day: 20 } }, // 매월 20일
-    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.25,m:0.35,s:0.45}, inverse:true, 
-      schedule: { months: null, day: 28 } }, // 매월 28일
+    // [Tier 1] 기준금리: 시장의 가장 큰 동인. 단기 충격과 장기 추세 모두 중요
+    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.30,m:0.20,s:0.25}, inverse:true, 
+      schedule: { months: [1,4,7,10], day: 15 } },
+
+    // [Tier 2] 제조업 PMI: 선행 지표이나 서비스업 대비 비중 고려하여 적절히 배분
+    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.10,m:0.15,s:0.10}, 
+      schedule: { months: null, day: 1 } },
+
+    // [Tier 1] 비농업 고용(NFP): 변동성이 크고 중요함. 단기 충격(s)을 주되 기존보단 완화
+    { title:"비농업 고용 증가량", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.15,m:0.20,s:0.25}, 
+      schedule: { months: null, day: 5 } },
+
+    // [Tier 2] 실업률: 고용 데이터의 결과값. 추세 반영 위주
+    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.20,m:0.10,s:0.08}, inverse: true, 
+      schedule: { months: null, day: 5 } },
+
+    // [Tier 1] CPI: 인플레이션 핵심 지표. 단기 충격(s) 높음
+    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.15,m:0.20,s:0.28}, inverse:true, 
+      schedule: { months: null, day: 10 } },
+
+    // [Tier 2] 소매판매: 소비 심리 확인. 중간 정도의 영향력
+    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.10,m:0.15,s:0.12}, 
+      schedule: { months: null, day: 15 } },
+
+    // [Tier 3] 신규 실업수당: 매주 발표되어 노이즈가 심함. 영향력 대폭 축소 (0.50 -> 0.05)
+    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.05,m:0.05,s:0.05}, inverse:true, 
+      schedule: { months: null, day: 20 } },
+
+    // [Tier 1] PCE: 연준이 선호하는 물가 지표. CPI와 유사하게 중요
+    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.15,m:0.20,s:0.25}, inverse:true, 
+      schedule: { months: null, day: 28 } },
     
-    // 나머지 지표들 (일정 임의 배정)
-    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.15,m:0.30,s:0.40}, 
+    // [Tier 3] 소비자 신뢰지수: 심리 지표(Soft Data). 영향력 낮음
+    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.05,m:0.08,s:0.08}, 
       schedule: { months: null, day: 22 } },
-    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.25,m:0.35,s:0.40}, 
+
+    // [Tier 2] 서비스 PMI: 미국 경제의 큰 축. 제조업보다 약간 더 중요하거나 비슷하게
+    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.10,m:0.15,s:0.12}, 
       schedule: { months: null, day: 3 } },
-    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.55,m:0.25,s:0.10}, 
+
+    // [Special] 장단기 금리차: 경기 침체의 강력한 선행 지표. 장기 추세(l)에 집중
+    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.35,m:0.10,s:0.02}, 
       schedule: { months: null, day: 18 } }
   ],
 
@@ -1033,15 +1051,15 @@ function scheduleFutureNews() {
     let expectedDelta = (valForecast - valPrev) / template.dev; // Z-Score
     if (template.inverse) expectedDelta *= -1;
 
-    // 선반영 강도 (약 20%)
-    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
+    // 선반영 강도 (약 10%)
+    const pricingInFactor = expectedDelta * template.weight.s * 0.1; 
     
     state.spot *= (1 + pricingInFactor);
     state.fairValue *= (1 + pricingInFactor);
 
     if (Math.abs(pricingInFactor) > 0.001) {
        const direction = pricingInFactor > 0 ? "상승" : "하락";
-       pushEventLog(`📢 [예상] ${template.title}: ${fmt2(valForecast)} 예상 (${direction} 선반영)`);
+       pushEventLog(`📢 [지표] ${template.title}: ${fmt2(valForecast)} 예상`);
     }
 
     const newNews = {
@@ -1116,7 +1134,7 @@ function tryTriggerHeadline() {
 }
 
 
-/* [수정] Z-Score 기반 서프라이즈 계산 & 반전(Reversal) 효과 강화 */
+/* [수정] 실망 매물(되돌림) 로직 & Z-Score 충격 */
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
@@ -1135,40 +1153,54 @@ function checkNewsTrigger() {
       const actual = n._valActual;
       const forecast = n._valForecast;
       
-      // [수정] 표준편차(dev)를 이용한 정규화 (Z-Score 방식)
-      // 값이 0에 가까워도 표준편차는 고정값이므로 안전함
       const dev = n._templateRef ? n._templateRef.dev : 1.0;
       
-      // 서프라이즈 강도 = (실제 - 예상) / 표준편차
-      // 결과값이 1.0이면 "표준편차 1배만큼 빗나감" (꽤 큰일)
+      // 1. 기본 서프라이즈 계산 (Z-Score)
+      // (실제 - 예상) / 표준편차
       let surpriseZ = (actual - forecast) / dev;
-      
       if (n._inverse) surpriseZ *= -1;
 
-      // [로직]
-      // 1. 예상 부합 (surpriseZ ≈ 0): 변동 거의 없음
-      // 2. 서프라이즈 (|surpriseZ| > 1): 변동폭 증폭 (제곱 효과)
-      // 3. 반전 효과: 이미 선반영된 방향과 반대로 나오면 더 크게 움직임
-      
-      // 충격 계수 (Z-Score가 클수록 가중치 부여)
-      // 예: Z=0.1 -> factor=0.1, Z=2.0 -> factor=2.0 * 1.5(가중) = 3.0
-      let shockFactor = surpriseZ;
-      if (Math.abs(surpriseZ) > 1.0) {
-          shockFactor *= 1.5; // 큰 서프라이즈일수록 더 민감하게 반응
+      // 2. 실망/안도 매물 효과 (Correction Logic)
+      // 이전에 선반영된 방향(_preImpact)과 실제 서프라이즈 방향이 반대인 경우
+      // 예: 좋게 예상해서 올랐는데(_preImpact > 0), 까보니 예상보다 구림(surpriseZ < 0)
+      // -> "실망 매물"이 쏟아지며 하락폭 증폭
+      let correctionMult = 1.0;
+      if (n._preImpact && Math.sign(n._preImpact) !== Math.sign(surpriseZ)) {
+          // 방향이 반대라면 충격 1.5배 (되돌림 강화)
+          correctionMult = 1.5;
+          // 만약 선반영이 아주 강했다면 더 크게 응징
+          if (Math.abs(n._preImpact) > 0.005) correctionMult = 2.0;
       }
 
-      // 최종 영향력 계산 (기본 가중치 * 서프라이즈 팩터 * 스케일러)
-      // 0.03은 전체적인 변동성 조절 상수
-      impact = shockFactor * n._weight.s * 0.03; 
+      // 3. 충격 계수 산출
+      let shockFactor = surpriseZ * correctionMult;
+      
+      // 서프라이즈 자체가 크면 제곱 효과
+      if (Math.abs(surpriseZ) > 1.0) {
+          shockFactor *= 1.5; 
+      }
 
-      if (n._templateRef) {
-        n._templateRef.lastValue = n._valActual; // 원본 데이터 업데이트
+      impact = shockFactor * n._weight.s * 0.02; 
+
+      // 값 업데이트 (디버그용)
+      if (n._templateRef) n._templateRef.lastValue = n._valActual;
+
+      // 금리 특수 처리
+      if (n.title.includes('기준금리')) {
+        RATE_BASE = n._valActual;
+        R = RATE_BASE * 0.01;
+        impact *= 2.0;
+        pushEventLog(`🏛️ 기준금리 확정: ${fmt2(n._valActual)}%`);
       }
       
       const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
-      const zScoreStr = surpriseZ.toFixed(2) + "σ"; // 시그마 단위 표시
+      const zScoreStr = surpriseZ.toFixed(2) + "σ"; 
       
-      pushEventLog(`${icon} ${n.title}: 이전 ${n.strPrev} / 실제 ${n.strActual} (예상 ${n.strForecast}) (${zScoreStr})`);
+      // 로그에 "실망" 또는 "안도" 코멘트 추가
+      let comment = "";
+      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (실망 매물)" : " (안도 랠리)";
+      
+      pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} / 예상 ${n.strForecast} ${comment}`);
 
     } else if (n.type === 'headline') {
       const p = n._power; 
@@ -1177,32 +1209,19 @@ function checkNewsTrigger() {
       pushEventLog(`${icon} [속보] ${n.title}`);
     }
 
-      // 금리 발표는 파급력 2배
-      if (n.title.includes('기준금리')) {
-        RATE_BASE = actual;
-        R = RATE_BASE * 0.01;
-        impact *= 2.0;
-        pushEventLog(`🏛️ 기준금리 확정: ${fmt2(actual)}%`);
-      }
-    
-    // 1. 가격 점프 (Gap)
+    // 최종 반영
     const jumpFactor = 1 + impact;
     state.spot *= jumpFactor;
-
-    // 2. 펀더멘탈(적정 주가) 재평가
-    // 펀더멘탈도 같이 움직여야 가격이 되돌아가지 않음
     state.fairValue *= jumpFactor;
 
-    // 3. 변동성 폭발 (불확실성 해소 후에도 여진 발생)
-    // 충격이 클수록(절대값) 변동성 펄스를 크게 줌
     const volPulse = Math.abs(impact) * 10.0;
-    // 최소 0.05는 보장 (뉴스 발표 효과)
-    addVolPulse(Math.max(0.05, volPulse), 6); // 6시간 지속
-    
+    addVolPulse(Math.max(0.05, volPulse), 6); 
+
     syncDebugEcon();
     renderNewsFeed();
   });
 }
+
 
 
 /* [추가] 시장 보호 장치 (1틱 = 1시간 기준) */
