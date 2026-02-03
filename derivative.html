@@ -235,7 +235,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.11</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.12</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -496,13 +496,30 @@ let Q = 0.0;
 const VOL_BASE = 0.20; // 기본 변동성 (기존의 0.2)
 let volatilityState = []; // { id, amp, halfLifeHours, createdAt: simDate }
 
-// [추가] 디버그 정보를 담을 전역 객체
+
+/* [수정] 디버그 정보를 담을 전역 객체 (경제지표 추가) */
 let debugInfo = {
+  // 기존 엔진 변수
   sigma: 0,
   volMult: 0,
   gap: 0,
-  force: 0
+  force: 0,
+
+  // 경제 지표 (Economic Indicators)
+  gdp: 0,
+  rate: 0,
+  cpi: 0,
+  pce: 0,   // 개인소비지출물가
+  nfp: 0,   // 비농업고용
+  ur: 0,    // 실업률
+  ic: 0,    // 신규실업수당청구
+  cci: 0,   // 소비자신뢰지수
+  pmi: 0,   // 제조업 pmi
+  spmi: 0,  // 서비스업 pmi
+  rs: 0,    // 소매판매
+  ys: 0     // 장단기금리차
 };
+
 
 
 // player
@@ -554,7 +571,7 @@ const NEWS_CONFIG = {
     // 매월 발표 (months: null)
     { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.20,m:0.30,s:0.45}, 
       schedule: { months: null, day: 1 } }, // 매월 1일
-    { title:"비농업 고용 증가", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45}, 
+    { title:"비농업 고용 증가량", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.25,m:0.30,s:0.45}, 
       schedule: { months: null, day: 5 } }, // 매월 5일
     { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.35,m:0.30,s:0.25}, inverse: true, 
       schedule: { months: null, day: 5 } }, // 매월 5일 (고용과 같이)
@@ -918,6 +935,7 @@ function scheduleFutureNews() {
       type: 'indicator',
       title: template.title,
       unit: template.unit,
+      base: template.base,
       
       strPrev: fmt2(valPrev) + template.unit,
       strForecast: fmt2(valForecast) + template.unit,
@@ -1010,7 +1028,7 @@ if (n.type === 'indicator') {
       
       // Surprise 계산
       // 분모가 0일 경우 1로 대체하여 에러 방지
-      const div = (actual === 0) ? 1.0 : Math.abs(actual);
+      const div = Math.abs(n.base);
       
       let surprise = (actual - forecast) / div;
       if (n._inverse) surprise *= -1;
@@ -1215,6 +1233,7 @@ function stepMarket(){
     debugInfo.force = pull; // 회귀력
     debugInfo.volMult = volMult;
     debugInfo.sigma = sigma;
+    syncDebugEcon(); 
     // ==========================================
     
     // GBM 실행
@@ -2540,7 +2559,7 @@ function renderAll() {
   updateDetails();
   renderEventLog();
 
-  updateDebugPanel();
+  updatePanel();
 }
 
 /* ----------------------------
@@ -2630,6 +2649,32 @@ function updateDebugPanel() {
   else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "UNSTABLE (불안정)";
   else stateText.innerText = "Normal (안정)";
 }
+
+/* [추가] NEWS_CONFIG의 최신 지표 값을 debugInfo로 동기화 */
+function syncDebugEcon() {
+  const mapTitleToKey = {
+    "GDP 성장률": "gdp",
+    "기준금리 결정": "rate",
+    "소비자 물가 지수 (CPI)": "cpi",
+    "PCE 물가 지수": "pce",
+    "비농업 고용 증가": "nfp",
+    "실업률": "ur",
+    "신규 실업수당 청구건수": "ic",
+    "소비자 신뢰지수": "cci",
+    "제조업 PMI": "pmi",
+    "서비스 PMI": "spmi",
+    "소매판매 증가율": "rs",
+    "장단기 금리차": "ys"
+  };
+
+  NEWS_CONFIG.indicators.forEach(ind => {
+    const key = mapTitleToKey[ind.title];
+    if (key) {
+      debugInfo[key] = ind.lastValue;
+    }
+  });
+}
+
 
   
 /* ----------------------------
