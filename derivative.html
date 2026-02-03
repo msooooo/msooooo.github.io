@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.5</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.6</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1343,16 +1343,16 @@ function checkMarketProtections(currentPrice, time) {
   const currentHour = time.getHours();
   const isNearClose = (currentHour >= 11); 
 
-  // 1. Level 1 (7% 하락) -> 1시간 정지
+  // 1. Level 1 (7% 하락) -> 30분 정지
   if (dropRate >= 0.07 && !marketControl.cbLevel1 && !isNearClose) {
-    triggerHalt(3, "📉 서킷브레이거 1단계 - 7% 변동");
+    triggerHalt(30, "📉 서킷브레이거 1단계 - 7% 변동");
     marketControl.cbLevel1 = true;
     return;
   }
   
-  // 2. Level 2 (13% 하락) -> 2시간 정지
+  // 2. Level 2 (13% 하락) -> 60분 정지
   if (dropRate >= 0.13 && !marketControl.cbLevel2 && !isNearClose) {
-    triggerHalt(3, "📉 서킷브레이커 2단계 - 13% 변동");
+    triggerHalt(60, "📉 서킷브레이커 2단계 - 13% 변동");
     marketControl.cbLevel2 = true;
     return;
   }
@@ -1369,7 +1369,7 @@ function checkMarketProtections(currentPrice, time) {
   if (marketControl.luldAvgPrice > 0) {
     const dev = Math.abs(currentPrice - marketControl.luldAvgPrice) / marketControl.luldAvgPrice;
     if (dev >= 0.05) { 
-        triggerHalt(2, `⚡ 변동성 완화 발동 - 괴리율 ${fmt2(dev*100)}%`);
+        triggerHalt(30, `⚡ 변동성 완화 발동 - 괴리율 ${fmt2(dev*100)}%`);
         marketControl.luldAvgPrice = currentPrice; 
         return;
     }
@@ -1384,7 +1384,7 @@ function triggerHalt(ticks, reason) {
   marketControl.halted = true;
   marketControl.haltTicksLeft = ticks;
   marketControl.haltReason = reason;
-  pushEventLog(`⛔ ${reason} | ${ticks}시간 거래 정지`);
+  pushEventLog(`⛔ ${reason} | ${ticks}분 거래 정지`);
   notify(reason, 5000);
 }
 
@@ -3059,7 +3059,7 @@ function injectManualNews() {
   
   // 5일 뒤 날짜 계산 (실제치 발표용)
   const targetDate = new Date(today);
-  targetDate.setDate(targetDate.getDate() + 5);
+  targetDate.setDate(targetDate.getDate() + 2);
   const dateStrTarget = nowStr(targetDate).slice(0,10);
 
   if (mode === 'ind') {
@@ -3096,8 +3096,8 @@ function injectManualNews() {
     // [Step 2] 실제치 발표 예약 (5일 뒤 02:00)
     const newNews = {
       id: Date.now() + Math.random(),
-      date: dateStrTarget, // 5일 뒤
-      time: "02:00",       // 새벽 2시 발표
+      date: dateStrTarget, // 2일 뒤
+      time: "10:00",       // 10시 발표
       type: 'indicator',
       title: template.title,
       unit: template.unit,
