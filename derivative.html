@@ -953,7 +953,7 @@ if (n.type === 'indicator') {
 
       // 지표별 기본 가중치에 스트레스 멀티플라이어 적용
       // 시장이 비정상적인 상황일수록 뉴스 하나하나에 민감하게 반응함
-      impact = surprise * n._weight.s * 0.1 * stressMult; 
+      impact = surprise * n._weight.s * 0.4 * stressMult; 
   
       const icon = surprise > 0 ? '📈 ' : (surprise < 0 ? '📉 ' : '📍 ');
       const pctLog = (surprise * 100).toFixed(1) + '%';
@@ -1313,7 +1313,6 @@ function checkExpiries() {
             player.cash += f.lockedMargin + pnl;
             pushEventLog(`📦 선물 만기 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
           
-            witchingActiveTicks = Math.max(witchingActiveTicks, 4);
             player.positions.futures.splice(i, 1); // clear selection if it pointed here
             if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
         }
@@ -1334,7 +1333,7 @@ function checkExpiries() {
                 player.cash -= total;
                 pushEventLog(`💸 옵션 Short 만기 ::  지급금 ${fmt2(total)}`);
             }
-            witchingActiveTicks = Math.max(witchingActiveTicks, 3);
+          
             player.positions.options.splice(i, 1);
             if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
         }
