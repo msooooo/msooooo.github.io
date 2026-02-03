@@ -235,7 +235,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.12</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.13</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -868,106 +868,97 @@ function calcVolumeMultiplier(d) {
   const newsFactor = 1 + Math.log(1 + newsActivity * 10); 
   const noise = 0.8 + Math.random() * 0.4; 
 
-  // [중요] 최대 10배를 넘지 않도록 제한
-  return Math.min(10.0, baseVol * newsFactor * noise);
+  // [중요] 최대 1000배를 넘지 않도록 제한
+  return Math.min(1000.0, baseVol * newsFactor * noise);
 }
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
-
-/* [수정] 5일 뒤 일정을 확인하여 정해진 스케줄대로 뉴스 생성 */
+/* [수정] 5일 전 예보 시점에 '기대감'을 가격에 선반영(Pricing-in) */
 function scheduleFutureNews() {
-  const FORECAST_DAYS = 5; // 5일 전 예보
+  const FORECAST_DAYS = 5; 
 
-  // 1. 타겟 날짜 계산 (오늘로부터 5일 뒤)
   const targetDate = new Date(simDate);
   targetDate.setDate(targetDate.getDate() + FORECAST_DAYS);
   
-  const tMonth = targetDate.getMonth() + 1; // 1~12
+  const tMonth = targetDate.getMonth() + 1; 
   const tDay = targetDate.getDate();
   const dateStr = nowStr(targetDate).slice(0, 10);
 
-  // 2. 설정된 스케줄 확인
   NEWS_CONFIG.indicators.forEach(template => {
-    // (A) 날짜(일) 체크
     if (template.schedule.day !== tDay) return;
-
-    // (B) 월 체크 (months가 지정된 경우만)
     if (template.schedule.months && !template.schedule.months.includes(tMonth)) return;
-
-    // (C) 중복 생성 방지
     if (newsData.some(n => n.date === dateStr && n.title === template.title)) return;
 
-   // --- 뉴스 데이터 생성 (값 결정) ---
+    // --- 값 생성 ---
     const valPrev = template.lastValue;
-    const baseVal = template.base; // 기준값 (예: 금리 3.5%)
-
-    // [핵심 1] 평균 회귀 (Mean Reversion) - Ornstein-Uhlenbeck Process 변형
-    // 현재값이 기준값(base)과 멀어질수록 반대 방향으로 당기는 힘 생성
-    // reversionStrength: 0.0(힘 없음) ~ 1.0(즉시 복귀). 0.1~0.2 정도가 적당함
-    const reversionStrength = 0.15; 
-    const pull = (baseVal - valPrev) * reversionStrength;
-
-    // [핵심 2] 랜덤 변동 (Random Shock)
-    // 기존 로직 유지하되, pull을 더해줌
-    let randomShock = (Math.random() - 0.5) * 2 * template.dev;
     
-    // 가끔 큰 변동 (Tail Event)
-    if (Math.random() < 0.2) randomShock *= 1.5; 
-
-    // 최종 실제값 = 이전값 + 복원력 + 랜덤충격
-    let valActual = valPrev + pull + randomShock;
-
-    // step 보정 (금리 등 0.25 단위)
+    // 실제값 생성 (Random Walk)
+    let change = (Math.random() - 0.5) * 2 * template.dev;
+    if (Math.random() < 0.2) change *= 1.5; 
+    let valActual = valPrev + change;
     if (template.step) valActual = Math.round(valActual / template.step) * template.step;
     valActual = Number(valActual.toFixed(2));
 
-    // 예상치(Forecast): 실제값 근처에 오차 추가
-    // 5일 전 시점에서의 예측이므로 오차가 존재함
+    // 예상치 생성 (실제값 근처 노이즈)
     const marketError = (Math.random() - 0.5) * template.dev * 0.4;
     let valForecast = valActual + marketError;
     if (template.step) valForecast = Math.round(valForecast / template.step) * template.step;
     valForecast = Number(valForecast.toFixed(2));
 
+    // ---------------------------------------------------------
+    // [신규 로직] 예상치 발표 효과 (Pricing-in)
+    // ---------------------------------------------------------
+    // 1. 예상되는 변화량 계산 (예상치 - 이전치)
+    // 2. 표준편차(dev)로 나누어 정규화 (Z-Score) -> 0 나누기 문제 해결
+    let expectedDelta = (valForecast - valPrev) / template.dev;
+    
+    // 역방향 지표(실업률, 금리 등) 처리
+    if (template.inverse) expectedDelta *= -1;
+
+    // 선반영 강도: 실제 발표 충격의 약 20% 정도만 미리 반영
+    // 시장은 불확실하므로 예상치만으로는 크게 움직이지 않음
+    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
+    
+    // 가격 및 적정주가 이동
+    state.spot *= (1 + pricingInFactor);
+    state.fairValue *= (1 + pricingInFactor);
+
+    // 로그 출력 (예상치 발표로 인한 변동)
+    if (Math.abs(pricingInFactor) > 0.001) { // 0.1% 이상 변동 시만 로그
+       const direction = pricingInFactor > 0 ? "상승" : "하락";
+       pushEventLog(`📢 [예상] ${template.title}: ${fmt2(valForecast)} 예상 (${direction} 선반영)`);
+    }
+    // ---------------------------------------------------------
+
     const newNews = {
       id: Date.now() + Math.random(),
       date: dateStr,
-      time: "02:00", // 발표 시간 고정
+      time: "02:00",
       type: 'indicator',
       title: template.title,
       unit: template.unit,
-      base: template.base,
-      
       strPrev: fmt2(valPrev) + template.unit,
       strForecast: fmt2(valForecast) + template.unit,
       strActual: fmt2(valActual) + template.unit,
-
       _valPrev: valPrev,
       _valForecast: valForecast,
       _valActual: valActual,
-      
       _weight: template.weight,
       _inverse: template.inverse || false,
       _templateRef: template,
-      
       impactLevel: 'mid',
       processed: false
     };
-    
-    // 예정된 발표치를 새로운 이전치로 갱신
-    template.lastValue = valActual;
 
     newsData.push(newNews);
-    
-    // UI 알림: 캘린더에 일정이 추가되었음을 알림
-    pushEventLog(`📅 일정 추가: 5일 뒤 [${template.title}] 발표 예정`);
   });
   
-  // 날짜순 정렬 및 청소
   newsData.sort((a,b) => new Date(a.date) - new Date(b.date));
   if (newsData.length > 50) newsData.shift();
 
   renderCalendar();
 }
+
 
 /* [추가] 즉발성 헤드라인 뉴스 생성 (예약 없이 바로 newsData에 꽂아넣음) */
 function tryTriggerHeadline() {
@@ -1005,7 +996,8 @@ function tryTriggerHeadline() {
   notify(`[속보] ${item.text}`, 5000);
 }
 
-/* [수정] 뉴스 = 시장 충격(Shock) 및 펀더멘탈(FairValue) 변화 */
+
+/* [수정] Z-Score 기반 서프라이즈 계산 & 반전(Reversal) 효과 강화 */
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
@@ -1018,77 +1010,74 @@ function checkNewsTrigger() {
 
   targets.forEach(n => {
     n.processed = true;
+    let impact = 0;
 
-    // 영향력(Magnitude) 계산
-    let impact = 0; // 퍼센트 변화율 (예: 0.01 = 1%)
-
-if (n.type === 'indicator') {
+    if (n.type === 'indicator') {
       const actual = n._valActual;
       const forecast = n._valForecast;
       
-      // Surprise 계산
-      // 분모가 0일 경우 1로 대체하여 에러 방지
-      const div = Math.abs(n.base);
+      // [수정] 표준편차(dev)를 이용한 정규화 (Z-Score 방식)
+      // 값이 0에 가까워도 표준편차는 고정값이므로 안전함
+      const dev = n._templateRef ? n._templateRef.dev : 1.0;
       
-      let surprise = (actual - forecast) / div;
-      if (n._inverse) surprise *= -1;
-
-      // [핵심 3] 위기 가중치 (Stress Multiplier) 계산
-      // 현재 발표된 값(actual)이 기준값(base)에서 얼마나 벗어났는가?
-      // 예: 금리 base 3.5인데 actual 6.0이면 -> 차이 2.5
-      // dev(표준편차) 대비 몇 배나 벗어났는지를 봅니다.
-      const baseVal = n._templateRef ? n._templateRef.base : actual;
-      const devVal = n._templateRef ? n._templateRef.dev : 1.0;
+      // 서프라이즈 강도 = (실제 - 예상) / 표준편차
+      // 결과값이 1.0이면 "표준편차 1배만큼 빗나감" (꽤 큰일)
+      let surpriseZ = (actual - forecast) / dev;
       
-      const deviation = Math.abs(actual - baseVal);
-      const sigmaDist = deviation / devVal; // 표준편차 몇 배 거리인가?
+      if (n._inverse) surpriseZ *= -1;
 
-      // 거리가 멀수록 영향력 증폭 (기본 1.0배 ~ 최대 3.0배 등)
-      // 예: 1시그마(정상범위) -> 1.0배, 3시그마(위기) -> 1.5배 이상
-      let stressMult = 1.0 + (sigmaDist * 0.2); 
-
-      // 지표별 기본 가중치에 스트레스 멀티플라이어 적용
-      // 시장이 비정상적인 상황일수록 뉴스 하나하나에 민감하게 반응함
-      impact = surprise * n._weight.s * 0.4 * stressMult; 
-  
-      const icon = surprise > 0 ? '📈 ' : (surprise < 0 ? '📉 ' : '📍 ');
-      const pctLog = (surprise * 100).toFixed(1) + '%';
-      pushEventLog(`${icon} ${n.title}: 이전 ${n.strPrev} / 발표 ${n.strActual} (${pctLog}) (예상 ${n.strForecast})`);
+      // [로직]
+      // 1. 예상 부합 (surpriseZ ≈ 0): 변동 거의 없음
+      // 2. 서프라이즈 (|surpriseZ| > 1): 변동폭 증폭 (제곱 효과)
+      // 3. 반전 효과: 이미 선반영된 방향과 반대로 나오면 더 크게 움직임
       
-      // 금리 발표는 영향력 2배
-      if (n.title.includes('기준금리')) {
-        RATE_BASE = actual;
-        R = RATE_BASE * 0.01;
-        impact *= 2.0;
-        pushEventLog(`🏛️ 기준금리 변경: ${fmt2(actual)}%`);
+      // 충격 계수 (Z-Score가 클수록 가중치 부여)
+      // 예: Z=0.1 -> factor=0.1, Z=2.0 -> factor=2.0 * 1.5(가중) = 3.0
+      let shockFactor = surpriseZ;
+      if (Math.abs(surpriseZ) > 1.0) {
+          shockFactor *= 1.5; // 큰 서프라이즈일수록 더 민감하게 반응
       }
+
+      // 최종 영향력 계산 (기본 가중치 * 서프라이즈 팩터 * 스케일러)
+      // 0.03은 전체적인 변동성 조절 상수
+      impact = shockFactor * n._weight.s * 0.03; 
+
+      const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
+      const zScoreStr = surpriseZ.toFixed(2) + "σ"; // 시그마 단위 표시
+      
+      pushEventLog(`${icon} ${n.title}: 이전 ${n.strPrev} / 실제 ${n.strActual} (예상 ${n.strForecast}) (${zScoreStr})`);
 
     } else if (n.type === 'headline') {
       const p = n._power; 
-      // 헤드라인의 power 기반 충격지수
-      impact = p * 0.03; 
-
+      impact = p * 0.1; 
       const icon = p > 0 ? '🔥' : '⛈️';
       pushEventLog(`${icon} [속보] ${n.title}`);
     }
 
-    // [핵심 1] 가격 점프 (Immediate Shock)
-    // 뉴스는 즉각적인 가격 변동을 유발함 (Gap)
+      // 금리 발표는 파급력 2배
+      if (n.title.includes('기준금리')) {
+        RATE_BASE = actual;
+        R = RATE_BASE * 0.01;
+        impact *= 2.0;
+        pushEventLog(`🏛️ 기준금리 확정: ${fmt2(actual)}%`);
+      }
+    
+    // 1. 가격 점프 (Gap)
     const jumpFactor = 1 + impact;
     state.spot *= jumpFactor;
 
-    // [핵심 2] 펀더멘탈(적정 주가) 재평가 (Fundamental Shift)
-    // 뉴스는 단순 노이즈가 아니라, 기업/국가의 가치를 바꿈 -> 회귀 기준점이 이동함
-    // 적정 주가도 같이 이동시켜서, 가격이 튄 다음 다시 원래대로 돌아오지 않게 함
+    // 2. 펀더멘탈(적정 주가) 재평가
+    // 펀더멘탈도 같이 움직여야 가격이 되돌아가지 않음
     state.fairValue *= jumpFactor;
 
-    // [핵심 3] 변동성 폭발 (Uncertainty)
-    // 뉴스가 터지면 불확실성으로 인해 변동성이 커짐
-    addVolPulse(Math.abs(impact) * 3.0, 6); // 강한 펄스, 6시간 지속
+    // 3. 변동성 폭발 (불확실성 해소 후에도 여진 발생)
+    // 충격이 클수록(절대값) 변동성 펄스를 크게 줌
+    const volPulse = Math.abs(impact) * 10.0;
+    // 최소 0.05는 보장 (뉴스 발표 효과)
+    addVolPulse(Math.max(0.05, volPulse), 6); // 6시간 지속
 
     renderNewsFeed();
   });
-  renderAll();
 }
 
 
@@ -2623,15 +2612,14 @@ function adjustQty(inputId, delta) {
   if (inputId === 'optQty') updateOptPremiumDisplay();
 }
 
-// 3. 디버그 패널 업데이트 (renderAll에서 호출)
+/* [수정] 디버그 패널 업데이트 (경제지표 포함) */
 function updateDebugPanel() {
-  // 요소가 없으면 패스 (혹시나 HTML 적용 안됐을 경우 대비)
   const elFair = document.getElementById('dbgFair');
   if (!elFair) return;
 
+  // 1. 핵심 엔진 변수 업데이트
   elFair.innerText = fmt2(state.fairValue);
   
-  // Gap: 퍼센트로 표시
   const gapPct = debugInfo.gap * 100;
   const elGap = document.getElementById('dbgGap');
   elGap.innerText = (gapPct > 0 ? '+' : '') + fmt2(gapPct) + '%';
@@ -2639,16 +2627,61 @@ function updateDebugPanel() {
 
   document.getElementById('dbgSigma').innerText = fmt2(debugInfo.sigma * 100) + '%';
   document.getElementById('dbgVolMult').innerText = 'x' + fmt2(debugInfo.volMult);
-  document.getElementById('dbgRate').innerText = fmt2(RATE_BASE) + '%';
+  document.getElementById('dbgRate').innerText = fmt2(debugInfo.rate) + '%'; // 기준금리는 rate 사용
   document.getElementById('dbgForce').innerText = fmt2(debugInfo.force);
   
-  // 시장 상태 텍스트 (재미 요소)
+  // 2. 시장 상태 텍스트
   const stateText = document.getElementById('dbgStateText');
   if (marketControl.halted) stateText.innerText = "HALTED (정지)";
   else if (debugInfo.sigma > 0.5) stateText.innerText = "PANIC (공포)";
   else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "UNSTABLE (불안정)";
   else stateText.innerText = "Normal (안정)";
+
+  // 3. [추가] 경제 지표 리스트 (DOM이 없을 경우 생성)
+  let econList = document.getElementById('dbgEconList');
+  if (!econList) {
+    const container = document.querySelector('#secDebug .sectionContent');
+    // 기존 내용 아래에 구분선과 그리드 컨테이너 추가
+    const sep = document.createElement('div');
+    sep.style.cssText = "margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);";
+    container.appendChild(sep);
+
+    const title = document.createElement('div');
+    title.className = "small muted";
+    title.innerText = "Macro Indicators";
+    title.style.marginBottom = "4px";
+    container.appendChild(title);
+
+    econList = document.createElement('div');
+    econList.id = 'dbgEconList';
+    econList.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:4px 12px;";
+    container.appendChild(econList);
+  }
+
+  // 지표 목록 렌더링 (매번 갱신)
+  // 포맷: {키: [라벨, 단위]}
+  const indicators = [
+    { k: 'gdp', label: 'GDP', unit: '%' },
+    { k: 'cpi', label: 'CPI', unit: '%' },
+    { k: 'pce', label: 'PCE', unit: '%' },
+    { k: 'nfp', label: 'NFP', unit: 'K' },
+    { k: 'ur',  label: 'Unemp', unit: '%' },
+    { k: 'ic',  label: 'Jobless', unit: 'K' },
+    { k: 'pmi', label: 'PMI(M)', unit: '' },
+    { k: 'spmi', label: 'PMI(S)', unit: '' },
+    { k: 'rs',  label: 'Retail', unit: '%' },
+    { k: 'cci', label: 'Conf', unit: '' },
+    { k: 'ys',  label: 'Y-Spread', unit: '%' },
+  ];
+
+  econList.innerHTML = indicators.map(item => `
+    <div style="display:flex; justify-content:space-between;">
+      <span class="dbg-label">${item.label}</span>
+      <span class="dbg-val" style="color:#d1d5db">${fmt2(debugInfo[item.k])}${item.unit}</span>
+    </div>
+  `).join('');
 }
+
 
 /* [추가] NEWS_CONFIG의 최신 지표 값을 debugInfo로 동기화 */
 function syncDebugEcon() {
