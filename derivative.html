@@ -92,6 +92,35 @@
   }
   /* tablet-friendly small controls */
   .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+
+  /* [추가] 접기/펼치기 및 디버그, 수량 조절 스타일 */
+  .sectionHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+    padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;
+  }
+  .sectionHeader:hover { color: #fff; }
+  .toggleIcon { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+  .collapsed .toggleIcon { transform: rotate(-90deg); }
+  .sectionContent { display: block; }
+  .sectionContent.hidden { display: none; }
+
+  /* 수량 조절 버튼 그룹 */
+  .qty-group { display: flex; align-items: center; gap: 4px; width: 100%; }
+  .qty-btn {
+    background: #0b2740; color: var(--accent); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px; width: 30px; height: 30px; cursor: pointer; font-weight: bold; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qty-btn:hover { background: var(--accent); color: #000; }
+  .qty-input { text-align: center; flex: 1; } /* 입력칸 가운데 정렬 */
+
+  /* 디버그 패널 값 색상 */
+  .dbg-label { color: var(--muted); font-size: 11px; }
+  .dbg-val { font-family: monospace; font-size: 12px; color: #fff; text-align: right; }
+  .dbg-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+  
   /* chart-attached scrollbars */
   /* hScroll: 차트 하단 전체, 오른쪽은 조금 남겨서 화면 끝과 겹치지 않게 함 */
   .hScroll {
@@ -206,7 +235,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.10</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.11</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -234,48 +263,88 @@
       </div>
     </div>
 
-    <div class="section">
-      <h3 style="margin:0">선물 (Futures)</h3>
-      <label>포지션</label>
-      <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
-      <label>레버리지 | 증거금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
-        <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option><option>200</option><option>500</option></select>
-        <div class="dataBox" id="futMarginDisplay">0.00</div>
+    <div class="section" id="secFutures">
+      <div class="sectionHeader" onclick="toggleSection('secFutures')">
+        <h3 style="margin:0">선물 (Futures)</h3>
+        <span class="toggleIcon">▼</span>
       </div>
-      <label>손실 한계치</label>
-      <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">-50%</option><option value="100">-100%</option><option value="200">-200%</option><option value="300">-300%</option></select>
-      <label>만기</label>
-      <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
-      <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
-        <input id="futQty" type="number" min="1" value="1" />
-        <div class="dataBox" id="futTotalDisplay">0.00</div>
+      <div class="sectionContent">
+        <label>포지션</label>
+        <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+        <label>레버리지 | 증거금</label>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select>
+          <div class="dataBox" id="futMarginDisplay">0.00</div>
+        </div>
+        <label>손실 한계치</label>
+        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">-50%</option><option value="100">-100%</option></select>
+        <label>만기</label>
+        <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
+        
+        <label>수량 | 예상 거래금</label>
+        <div class="qty-group">
+          <button class="qty-btn" onclick="adjustQty('futQty', -1)">-</button>
+          <input id="futQty" type="number" min="1" value="1" class="qty-input" />
+          <button class="qty-btn" onclick="adjustQty('futQty', 1)">+</button>
+        </div>
+        <div class="dataBox" id="futTotalDisplay" style="margin-top:4px;">0.00</div>
+        
+        <button id="openFut">포지션 열기</button>
       </div>
-      <button id="openFut">포지션 열기</button>
     </div>
 
-    <div class="section">
-      <h3 style="margin:0">옵션 (Option)</h3>
-      <label>종류</label>
-      <select id="optType"><option value="Call">Call</option><option value="Put">Put</option></select>
-      <label>포지션</label>
-      <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
-      <label>행사가 | 프리미엄</label>
-      <div style="display:flex; gap:12px; align-items:center;">
-        <input id="optK" type="number" value="10000" step="10" />
-        <div class="dataBox" id="optPremiumDisplay">0.00</div>
+
+    <div class="section" id="secOptions">
+      <div class="sectionHeader" onclick="toggleSection('secOptions')">
+        <h3 style="margin:0">옵션 (Option)</h3>
+        <span class="toggleIcon">▼</span>
       </div>
-      <label>만기</label>
-      <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
-      <label>수량 | 예상 거래금</label>
-      <div style="display:flex; gap:12px; align-items:center;">
-        <input id="optQty" type="number" min="1" value="1" />
-        <div class="dataBox" id="optTotalDisplay">0.00</div>
+      <div class="sectionContent">
+        <label>종류</label>
+        <select id="optType"><option value="Call">Call</option><option value="Put">Put</option></select>
+        <label>포지션</label>
+        <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
+        <label>행사가 | 프리미엄</label>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <input id="optK" type="number" value="10000" step="10" />
+          <div class="dataBox" id="optPremiumDisplay">0.00</div>
+        </div>
+        <label>만기</label>
+        <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
+        
+        <label>수량 | 예상 거래금</label>
+        <div class="qty-group">
+          <button class="qty-btn" onclick="adjustQty('optQty', -1)">-</button>
+          <input id="optQty" type="number" min="1" value="1" class="qty-input" />
+          <button class="qty-btn" onclick="adjustQty('optQty', 1)">+</button>
+        </div>
+        <div class="dataBox" id="optTotalDisplay" style="margin-top:4px;">0.00</div>
+        
+        <button id="tradeOpt">옵션 거래</button>
       </div>
-      <button id="tradeOpt">옵션 거래</button>
     </div>
 
+
+    <div class="section" id="secDebug">
+      <div class="sectionHeader" onclick="toggleSection('secDebug')">
+        <h3 style="margin:0; color:#ffd166;">🛠️ Debug Engine</h3>
+        <span class="toggleIcon">▼</span>
+      </div>
+      <div class="sectionContent">
+        <div class="dbg-row"><span class="dbg-label">Fair Value (적정가)</span> <span id="dbgFair" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Gap (괴리율)</span> <span id="dbgGap" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Sigma (변동성)</span> <span id="dbgSigma" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Vol Mult (거래량배수)</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Base Rate (금리)</span> <span id="dbgRate" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Force (회귀력)</span> <span id="dbgForce" class="dbg-val">--</span></div>
+        
+        <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">
+          <div class="small muted">시장 상태: <span id="dbgStateText">Normal</span></div>
+        </div>
+      </div>
+    </div>
+
+    
   </div>
 
   <!-- CENTER -->
@@ -426,6 +495,15 @@ let Q = 0.0;
 */
 const VOL_BASE = 0.20; // 기본 변동성 (기존의 0.2)
 let volatilityState = []; // { id, amp, halfLifeHours, createdAt: simDate }
+
+// [추가] 디버그 정보를 담을 전역 객체
+let debugInfo = {
+  sigma: 0,
+  volMult: 0,
+  gap: 0,
+  force: 0
+};
+
 
 // player
 let player = {
@@ -1132,6 +1210,13 @@ function stepMarket(){
     // 최종 Drift(mu) = 기본성장 + 회귀력
     const mu = fvDrift + pull;
 
+    // ========== [추가] 디버그 정보 저장 ==========
+    debugInfo.gap = gap;
+    debugInfo.force = pull; // 회귀력
+    debugInfo.volMult = volMult;
+    debugInfo.sigma = sigma;
+    // ==========================================
+    
     // GBM 실행
     let u2=0,v2=0; while(u2===0) u2=Math.random(); while(v2===0) v2=Math.random();
     const z2 = Math.sqrt(-2*Math.log(u2))*Math.cos(2*Math.PI*v2);
@@ -2454,6 +2539,8 @@ function renderAll() {
 
   updateDetails();
   renderEventLog();
+
+  updateDebugPanel();
 }
 
 /* ----------------------------
@@ -2485,6 +2572,66 @@ function updateOptPremiumDisplay() {
 
 }
 
+
+/* =========================================
+   UI HELPERS: Toggle, Qty, Debug
+   ========================================= */
+
+// 1. 섹션 접기/펼치기
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const content = el.querySelector('.sectionContent');
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    el.classList.remove('collapsed');
+  } else {
+    content.classList.add('hidden');
+    el.classList.add('collapsed');
+  }
+}
+
+// 2. 수량 조절 버튼 (+/-)
+function adjustQty(inputId, delta) {
+  const input = document.getElementById(inputId);
+  let val = parseInt(input.value) || 0;
+  val += delta;
+  if (val < 1) val = 1; // 최소값 1
+  input.value = val;
+  
+  // 값 변경 후 예상 금액 업데이트 트리거
+  if (inputId === 'futQty') updateFutMarginDisplay();
+  if (inputId === 'optQty') updateOptPremiumDisplay();
+}
+
+// 3. 디버그 패널 업데이트 (renderAll에서 호출)
+function updateDebugPanel() {
+  // 요소가 없으면 패스 (혹시나 HTML 적용 안됐을 경우 대비)
+  const elFair = document.getElementById('dbgFair');
+  if (!elFair) return;
+
+  elFair.innerText = fmt2(state.fairValue);
+  
+  // Gap: 퍼센트로 표시
+  const gapPct = debugInfo.gap * 100;
+  const elGap = document.getElementById('dbgGap');
+  elGap.innerText = (gapPct > 0 ? '+' : '') + fmt2(gapPct) + '%';
+  elGap.style.color = gapPct > 0 ? '#39ff88' : (gapPct < 0 ? '#ff6b6b' : '#fff');
+
+  document.getElementById('dbgSigma').innerText = fmt2(debugInfo.sigma * 100) + '%';
+  document.getElementById('dbgVolMult').innerText = 'x' + fmt2(debugInfo.volMult);
+  document.getElementById('dbgRate').innerText = fmt2(RATE_BASE) + '%';
+  document.getElementById('dbgForce').innerText = fmt2(debugInfo.force);
+  
+  // 시장 상태 텍스트 (재미 요소)
+  const stateText = document.getElementById('dbgStateText');
+  if (marketControl.halted) stateText.innerText = "HALTED (정지)";
+  else if (debugInfo.sigma > 0.5) stateText.innerText = "PANIC (공포)";
+  else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "UNSTABLE (불안정)";
+  else stateText.innerText = "Normal (안정)";
+}
+
+  
 /* ----------------------------
    Reset system (debug)
 -----------------------------*/
