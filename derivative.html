@@ -120,6 +120,18 @@
   .dbg-val { font-family: monospace; font-size: 12px; color: #fff; text-align: right; }
   .dbg-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
 
+  /* [추가] 디버그 뉴스 주입기 스타일 */
+  .dbg-tools { margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
+  .dbg-btn-group { display: flex; gap: 6px; margin-bottom: 8px; }
+  .dbg-btn-group button { flex: 1; font-size: 11px; padding: 4px; margin: 0; background: #0b2740; border: 1px solid rgba(255,255,255,0.1); }
+  .dbg-btn-group button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .dbg-input-row { display: flex; gap: 6px; margin-top: 6px; }
+  .dbg-input-row input, .dbg-input-row select { font-size: 12px; padding: 4px; margin: 0; }
+
+  input[type=range].dbg-slider { width: 100%; margin: 0; height: 6px; }
+  .impact-label { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; margin-top: 2px; }
+
   
   /* chart-attached scrollbars */
   /* hScroll: 차트 하단 전체, 오른쪽은 조금 남겨서 화면 끝과 겹치지 않게 함 */
@@ -327,22 +339,55 @@
 
     <div class="section" id="secDebug">
       <div class="sectionHeader" onclick="toggleSection('secDebug')">
-        <h3 style="margin:0; color:#ffd166;">🛠️ Debug Engine</h3>
+        <h3 style="margin:0; color:#ffd166;">🛠️ God Mode (Debug)</h3>
         <span class="toggleIcon">▼</span>
       </div>
       <div class="sectionContent">
-        <div class="dbg-row"><span class="dbg-label">Fair Value (적정가)</span> <span id="dbgFair" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Gap (괴리율)</span> <span id="dbgGap" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Sigma (변동성)</span> <span id="dbgSigma" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Vol Mult (거래량배수)</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Base Rate (금리)</span> <span id="dbgRate" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Force (회귀력)</span> <span id="dbgForce" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Fair Value</span> <span id="dbgFair" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Gap</span> <span id="dbgGap" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Sigma</span> <span id="dbgSigma" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Vol Mult</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Rate (Base)</span> <span id="dbgRate" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">Force</span> <span id="dbgForce" class="dbg-val">--</span></div>
         
         <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">
-          <div class="small muted">시장 상태: <span id="dbgStateText">Normal</span></div>
+          <div class="small muted">상태: <span id="dbgStateText">Normal</span></div>
         </div>
+
+        <div id="dbgEconContainer"></div>
+
+        <div class="dbg-tools">
+          <div class="small" style="color:#ffd166; font-weight:bold; margin-bottom:4px;">이벤트 강제 생성</div>
+          
+          <div class="dbg-btn-group">
+            <button id="tabInd" class="active" onclick="switchDebugTab('ind')">지표 발표</button>
+            <button id="tabHead" onclick="switchDebugTab('head')">속보(Text)</button>
+          </div>
+
+          <div id="formInd">
+            <select id="dbgIndSel" onchange="onDbgIndSelect()"></select>
+            <div class="dbg-input-row">
+              <input id="dbgIndForecast" type="number" placeholder="예상" step="0.01" title="예상치">
+              <input id="dbgIndActual" type="number" placeholder="실제" step="0.01" title="실제치">
+            </div>
+            <div class="small muted" style="margin-top:2px; text-align:right;">(단위: <span id="dbgIndUnit"></span>)</div>
+          </div>
+
+          <div id="formHead" style="display:none;">
+            <input id="dbgHeadText" type="text" placeholder="속보 제목 입력..." value="긴급: 시장 강제 개입 선언">
+            <div style="margin-top:8px;">
+              <div class="impact-label"><span>악재(-1.0)</span><span>영향력</span><span>호재(+1.0)</span></div>
+              <input id="dbgHeadPower" class="dbg-slider" type="range" min="-1" max="1" step="0.1" value="-0.5" oninput="document.getElementById('dbgPowerVal').innerText=this.value">
+              <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--accent);" id="dbgPowerVal">-0.5</div>
+            </div>
+          </div>
+
+          <button onclick="injectManualNews()" style="background:#ffd166; color:#000; margin-top:8px;">이벤트 발동 (Inject)</button>
+        </div>
+
       </div>
     </div>
+
 
     
   </div>
@@ -921,7 +966,7 @@ function scheduleFutureNews() {
 
     // 선반영 강도: 실제 발표 충격의 약 20% 정도만 미리 반영
     // 시장은 불확실하므로 예상치만으로는 크게 움직이지 않음
-    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
+    const pricingInFactor = expectedDelta * template.weight.s * 0.05; 
     
     // 가격 및 적정주가 이동
     state.spot *= (1 + pricingInFactor);
@@ -2642,7 +2687,27 @@ function updateDebugPanel() {
   else stateText.innerText = "Normal (안정)";
 
   // 3. [추가] 경제 지표 리스트 (DOM이 없을 경우 생성)
+  const container = document.getElementById('dbgEconContainer');
   let econList = document.getElementById('dbgEconList');
+  
+  if (container && !econList) {
+    // 구분선 및 타이틀
+    const sep = document.createElement('div');
+    sep.style.cssText = "margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);";
+    container.appendChild(sep);
+    
+    const title = document.createElement('div');
+    title.className = "small muted";
+    title.innerText = "Macro Indicators";
+    title.style.marginBottom = "4px";
+    container.appendChild(title);
+
+    econList = document.createElement('div');
+    econList.id = 'dbgEconList';
+    econList.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:4px 12px;";
+    container.appendChild(econList);
+  }
+  
   if (!econList) {
     const container = document.querySelector('#secDebug .sectionContent');
     // 기존 내용 아래에 구분선과 그리드 컨테이너 추가
@@ -2711,6 +2776,129 @@ function syncDebugEcon() {
     }
   });
 }
+
+/* =========================================
+   GOD MODE: Manual News Injection
+   ========================================= */
+
+// 1. 초기화: 지표 목록 채우기
+function initDebugTools() {
+  const sel = document.getElementById('dbgIndSel');
+  if (!sel) return;
+  
+  sel.innerHTML = '';
+  NEWS_CONFIG.indicators.forEach((ind, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.text = ind.title;
+    sel.appendChild(opt);
+  });
+  
+  // 초기값 설정
+  onDbgIndSelect();
+}
+
+// 2. 지표 선택 시 입력창 자동 채우기
+function onDbgIndSelect() {
+  const idx = document.getElementById('dbgIndSel').value;
+  const template = NEWS_CONFIG.indicators[idx];
+  if (!template) return;
+
+  document.getElementById('dbgIndUnit').innerText = template.unit;
+  // 기본적으로 현재 값(LastValue)을 예상치/실제치에 넣어줌
+  document.getElementById('dbgIndForecast').value = template.lastValue;
+  document.getElementById('dbgIndActual').value = template.lastValue;
+}
+
+// 3. 탭 전환 (지표 vs 헤드라인)
+function switchDebugTab(mode) {
+  document.getElementById('tabInd').className = (mode === 'ind' ? 'active' : '');
+  document.getElementById('tabHead').className = (mode === 'head' ? 'active' : '');
+  
+  document.getElementById('formInd').style.display = (mode === 'ind' ? 'block' : 'none');
+  document.getElementById('formHead').style.display = (mode === 'head' ? 'block' : 'none');
+}
+
+// 4. 뉴스 강제 주입 (핵심 로직)
+function injectManualNews() {
+  const mode = document.getElementById('tabInd').classList.contains('active') ? 'ind' : 'head';
+  const nowTimeStr = nowStr(simDate); 
+  const dateStr = nowTimeStr.slice(0,10);
+  const timeStr = nowTimeStr.slice(11,16); // HH:mm
+
+  let newNews = null;
+
+  if (mode === 'ind') {
+    // --- 지표 모드 ---
+    const idx = document.getElementById('dbgIndSel').value;
+    const template = NEWS_CONFIG.indicators[idx];
+    const forecast = parseFloat(document.getElementById('dbgIndForecast').value);
+    const actual = parseFloat(document.getElementById('dbgIndActual').value);
+
+    if (isNaN(forecast) || isNaN(actual)) return notify('값을 입력해주세요');
+
+    newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: timeStr, // 현재 시간으로 설정 -> 즉시 발동
+      type: 'indicator',
+      title: template.title,
+      unit: template.unit,
+      
+      strPrev: fmt2(template.lastValue) + template.unit, // 이전값은 기록된 것 사용
+      strForecast: fmt2(forecast) + template.unit,
+      strActual: fmt2(actual) + template.unit,
+
+      _valPrev: template.lastValue,
+      _valForecast: forecast,
+      _valActual: actual,
+      
+      _weight: template.weight,
+      _inverse: template.inverse || false,
+      _templateRef: template,
+      
+      impactLevel: 'high', // 강제 주입은 중요도가 높다고 가정
+      processed: false
+    };
+
+    pushEventLog(`🛠️ [God Mode] 지표 강제 주입: ${template.title}`);
+
+  } else {
+    // --- 헤드라인 모드 ---
+    const text = document.getElementById('dbgHeadText').value;
+    const power = parseFloat(document.getElementById('dbgHeadPower').value);
+
+    if (!text) return notify('속보 내용을 입력해주세요');
+
+    newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: timeStr,
+      type: 'headline',
+      title: text,
+      unit: '',
+      strPrev: '-', strForecast: '-', strActual: '-',
+      
+      _power: power, // 슬라이더 값 (-1.0 ~ 1.0)
+      impactLevel: Math.abs(power) > 0.5 ? 'high' : 'mid',
+      processed: false
+    };
+    
+    pushEventLog(`🛠️ [God Mode] 속보 생성: ${text} (${power})`);
+  }
+
+  // 뉴스 배열에 추가
+  newsData.push(newNews);
+  
+  // 즉시 처리를 위해 checkNewsTrigger 호출 (다음 틱까지 안 기다림)
+  checkNewsTrigger(); 
+  
+  notify('이벤트가 강제 실행되었습니다.', 2000);
+}
+
+// 초기화 실행
+initDebugTools();
+
 
 
   
