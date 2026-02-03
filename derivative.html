@@ -494,7 +494,7 @@
 
 // simulation time
 let simDate = new Date("2025-01-01T00:00:00");
-let hoursPerTick = 0.5; // controlled by UI speed
+let hoursPerTick = 1; // controlled by UI speed
 
 // market state — initialize candle arrays so updateCandles() won't fail
 let state = {
@@ -3074,7 +3074,7 @@ state.history.push({ t: new Date(simDate), price: state.spot });
 pushEventLog('🚀 미니 파생상품 게임 시작 (현물 시작가: 10,000)');
 renderAll();
 drawChart();
-setInterval(() => { stepMarket(); }, 100);
+setInterval(() => { stepMarket(); }, 2000);
 
 
 </script>
