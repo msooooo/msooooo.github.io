@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.6</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.7</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -963,7 +963,7 @@ function getSessionPhysics(d) {
       // U자형 커브: 장 시작(09:30)과 마감(16:00) 부근에서 거래량 폭발
       // 9.5 ~ 16.0 정규화 -> x: -1 ~ 1
       const x = (timeVal - 12.75) / 3.25; 
-      volMult = 1.0 + 2.0 * Math.pow(x, 4); // 중앙은 1.0, 양끝은 약 3.0
+      volMult = 0.5 + 4.0 * Math.pow(x, 4); // 중앙은 0.5, 양끝은 약 4.5
       volNoise = 1.0; 
       break;
 
@@ -1391,6 +1391,7 @@ function triggerHalt(ticks, reason) {
 
 /* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
 /* [수정] 메인 루프: 디버그 데이터 동기화 및 물리 엔진 보정 */
+/* [수정] 서킷브레이커(Halt) 시 거래량 0 & 가격 동결 로직 적용 */
 function stepMarket() {
   // loopsPerFrame만큼 1분씩 전진 (배속 처리)
   for (let i = 0; i < loopsPerFrame; i++) {
@@ -1399,15 +1400,19 @@ function stepMarket() {
     simDate = new Date(simDate.getTime() + 60 * 1000); 
 
     // 2. 세션 및 물리 파라미터 계산
-    const { session, volMult, volNoise } = getSessionPhysics(simDate);
+    let { session, volMult, volNoise } = getSessionPhysics(simDate);
     currentSession = session; 
 
-    // 3. 갭(Gap) 처리 로직
-    // 정규/프리/애프터: 즉시 반영, 데이/주말: 갭 누적
+    // [추가] 서킷브레이커(Halt) 상태면 거래량과 노이즈를 0으로 강제
+    if (marketControl.halted) {
+        volMult = 0;
+        volNoise = 0;
+    }
+
+    // 3. 갭(Gap) 처리 로직 (프리마켓 오픈)
     const h = simDate.getHours();
     const m = simDate.getMinutes();
     
-    // 04:00 프리마켓 오픈 시 갭 반영
     if (h === 4 && m === 0) { 
         if (Math.abs(gapAccumulator - 1.0) > 0.001) {
             state.spot *= gapAccumulator;
@@ -1421,68 +1426,73 @@ function stepMarket() {
     checkNewsTrigger(); 
     tryTriggerHeadline();
     
-    // 5. 물리 엔진 (GBM) - 1분 단위
-    const dt = 1 / (24 * 60 * 365); // 연 단위로 환산한 1분
+    // 5. 물리 엔진 (GBM)
+    const dt = 1 / (24 * 60 * 365); // 1분
     
-    // 적정주가(FairValue) Random Walk (연 8% 성장)
+    // [중요] 적정주가(FairValue)는 장이 멈춰도 뉴스에 따라 계속 변함 (그래야 재개 시 갭 발생)
     const fvDrift = 0.08; 
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // 가격 결정 (Mean Reversion)
-    // sigma: 기본 변동성 + 뉴스 충격(Pulse)
-    let sigma = getCurrentVol() * volNoise; 
-    
-    // 괴리율 계산
-    const gap = (state.fairValue - state.spot) / state.spot;
-    const pull = gap * 1.5; // 회귀력 (Gap이 클수록 강하게 당김)
-    const mu = fvDrift + pull;
-    
-    let u2=Math.random(), v2=Math.random();
-    let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
-    
-    // 거래량에 따른 변동성 적용
-    let tickSigma = sigma * Math.sqrt(volMult); 
-    
-    // 가격 갱신
-    const factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
-    
-    // DAY 세션(주말/밤)에는 가격 변동을 spot에 바로 반영하지 않고 갭으로 쌓음
-    // 단, 선물 시장의 리얼함을 위해 미세하게는 움직이게 설정 (volMult가 이미 낮음)
+    // [중요] 가격 결정 (GBM) - Halt 상태가 아닐 때만 계산
+    let factor = 1.0; // 기본값: 변동 없음
+    let sigma = 0;
+    let gap = 0;
+    let pull = 0;
+
+    if (!marketControl.halted) {
+        // sigma: 기본 변동성 + 뉴스 충격
+        sigma = getCurrentVol() * volNoise; 
+        
+        // 괴리율 계산 (FairValue 쪽으로 끌려감)
+        gap = (state.fairValue - state.spot) / state.spot;
+        pull = gap * 1.5; 
+        const mu = fvDrift + pull;
+        
+        let u2=Math.random(), v2=Math.random();
+        let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
+        
+        // 거래량에 따른 변동성 적용
+        let tickSigma = sigma * Math.sqrt(volMult); 
+        
+        // 가격 변동 계수 산출
+        factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
+    }
+
+    // DAY 세션(야간) 갭 누적 vs 즉시 반영
     if (currentSession === SESSION.DAY) {
-       // 아주 미세한 변동만 허용하거나, 아예 멈추고 gap만 쌓을 수도 있음.
-       // 여기서는 리얼함을 위해 gapAccumulator에만 큰 충격을 주고, spot은 횡보시킴
+       // 야간에는 가격 멈춤 (혹은 미세 변동). 여기선 리얼함을 위해 factor 적용하되 volMult가 낮아서 거의 안 움직임.
+       // 만약 Halt 상태라면 factor가 1.0이므로 완벽히 멈춤.
        state.spot *= factor; 
     } else {
        state.spot *= factor;
     }
     
-    // 6. 데이터 저장 및 캔들 갱신
-    // 거래량이 있는 경우에만 캔들 업데이트 (혹은 미세 거래량이라도)
+    // 6. 캔들 갱신
+    // volMult가 0이면 tickVolume도 0이 됨 -> 거래량 없는 캔들 생성
+    // (단, Halted 상태에서도 시간은 흐르므로 'ㅡ'자 캔들이 계속 그려짐)
     const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
     updateCandles(state.spot, simDate, tickVolume);
     
-    // 7. 기타 처리 & 디버그 데이터 동기화
-    decayVolPulses(1/60); // 1분 경과 (시간 단위로 환산하여 전달)
-    
+    // 7. 기타 처리
+    decayVolPulses(1/60); 
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
     liquidateFutures();
 
-    // ★★★ [수정] 디버그 정보 갱신 (여기가 핵심) ★★★
-    debugInfo.sigma = sigma;
+    // 디버그 정보 갱신
+    debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol(); // 멈추면 0 표시
     debugInfo.volMult = volMult;
-    debugInfo.gap = gap;
+    debugInfo.gap = (state.fairValue - state.spot) / state.spot; // 갭은 계속 계산됨
     debugInfo.force = pull;
     debugInfo.rate = RATE_BASE;
-    // 경제지표 수치는 checkNewsTrigger나 주입 시 갱신됨
   }
   
-  // 렌더링
   renderAll();
 }
+
 
 
 
