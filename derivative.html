@@ -235,7 +235,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.13</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.14</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -722,6 +722,10 @@ let selectedDetail = null;
 
 // event log (for UI)
 let eventLog = []; // {t:string, msg:string}
+
+toggleSection('secFutures');
+toggleSection('secOptions');
+toggleSection('secDebug');
 
 /* ----------------------------
    Utilities (unchanged)
