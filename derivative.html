@@ -235,7 +235,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.14</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.15</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -2552,7 +2552,7 @@ function renderAll() {
   updateDetails();
   renderEventLog();
 
-  updatePanel();
+  updateDebugPanel();
 }
 
 /* ----------------------------
@@ -2694,7 +2694,7 @@ function syncDebugEcon() {
     "기준금리 결정": "rate",
     "소비자 물가 지수 (CPI)": "cpi",
     "PCE 물가 지수": "pce",
-    "비농업 고용 증가": "nfp",
+    "비농업 고용 증가량": "nfp",
     "실업률": "ur",
     "신규 실업수당 청구건수": "ic",
     "소비자 신뢰지수": "cci",
