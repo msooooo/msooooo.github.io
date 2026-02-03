@@ -247,21 +247,20 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.20</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.0</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
-        <select id="speedSelect" title="시뮬레이션 배속" style="margin-top:6px;">
+        <select id="speedSelect" title="시뮬레이션 속도" style="margin-top:6px;">
           <option value="0">정지</option>
-          <option selected value="1">1x</option>
-          <option value="2">2x</option>
-          <option value="4">4x</option>
-          <option value="8">8x</option>
-          <option value="24">24x</option>
-          <option value="48">48x</option>
-          <option value="148">148x</option>
-          <option value="720">720x</option>
+          <option selected value="1">1x (실시간)</option>
+          <option value="5">5x</option>
+          <option value="30">30x</option>
+          <option value="60">60x</option>
+          <option value="240">240x</option>
+          <option value="1440">1440x</option>
         </select>
+
       </div>
     </div>
 
@@ -409,13 +408,12 @@
     </div>
 
     <div id="chartControls">
-      <button class="periodBtn active" data-type="1H">1H</button>
+      <button class="periodBtn active" data-type="1m">1m</button>
+      <button class="periodBtn" data-type="5m">5m</button>
+      <button class="periodBtn" data-type="10m">10m</button>
+      <button class="periodBtn" data-type="1H">1H</button>
       <button class="periodBtn" data-type="1D">1D</button>
-      <button class="periodBtn" data-type="1W">1W</button>
-      <button class="periodBtn" data-type="1M">1M</button>
-      <button class="periodBtn" data-type="1Y">1Y</button>
-
-      <!-- ZOOM controls -->
+      
       <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
         <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
         <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
@@ -423,6 +421,7 @@
 
       <div class="dataBox" id="periodReturn">+0.00%</div>
     </div>
+
   
     <div id="below">
       <!-- ECON panel (left half of below) -->
@@ -493,16 +492,38 @@
    ============================ */
 
 // simulation time
-let simDate = new Date("2025-01-01T00:00:00");
-let hoursPerTick = 1; // controlled by UI speed
+// [변경] 시작 시간을 09:30 (개장 직전)으로 설정하여 테스트 용이하게 함
+let simDate = new Date("2025-01-01T09:00:00");
 
-// market state — initialize candle arrays so updateCandles() won't fail
+// [변경] loopsPerFrame: 한 번의 화면 갱신(requestAnimationFrame) 동안 몇 분을 진행시킬지 결정
+let loopsPerFrame = 1; 
+
+// [신규] 갭(Gap) 누적 변수 (장 마감 중 발생한 뉴스 충격 저장)
+let gapAccumulator = 1.0; 
+
+// market state
 let state = {
   spot: 10000.0,
   fairValue: 10000.0,
-  history: [], // [{t:Date, price:number}]
-  candles: {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []}
+  history: [], 
+  // [수정] 분봉 데이터 저장소 추가
+  candles: {
+    '1m': [], '5m': [], '10m': [],
+    '1H': [], '1D': [], '1W': [], '1M': [], '1Y': []
+  }
 };
+
+// [신규] 세션 정의 상수
+const SESSION = {
+  PRE: 'Pre-Market',      // 04:00 ~ 09:30
+  REGULAR: 'Regular',     // 09:30 ~ 16:00 (Main)
+  AFTER: 'After-Hours',   // 16:00 ~ 20:00
+  DAY: 'Day/Overnight',   // 20:00 ~ 04:00 (Global/Korea)
+  CLOSED: 'Closed'        // Weekend
+};
+
+// 현재 세션 상태
+let currentSession = SESSION.PRE;
 
 // MA/차트 렌더 상태 캐시
 let maAll = { ema5: [], ema20: [], ema60: [] }; // 전체 캔들 기준 MA
@@ -912,31 +933,67 @@ function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
 /* ----------------------------
    Time stepping (now hourly sub-steps when hoursPerTick>1)
 -----------------------------*/
-function isSpotOpenAt(d){ const h=d.getHours(); return (h>=0 && h<=12); }
-
-/* [수정] 거래량 배수 계산 (변동성 폭증 방지 캡 적용) */
-function calcVolumeMultiplier(d) {
+/* [신규] 현재 날짜/시간에 따른 세션 반환 */
+function getMarketSession(d) {
+  const day = d.getDay(); // 0:Sun, 6:Sat
   const h = d.getHours();
   const m = d.getMinutes();
-  const timeVal = h + m/60; 
+  const timeVal = h + m/60;
 
-  let baseVol = 0;
-  // 1. 장 운영 시간 (00:00 ~ 12:00)
-  if (timeVal >= 0 && timeVal < 12) {
-    baseVol = 1.0 + 0.08 * Math.pow(timeVal - 6, 2); 
-    if (timeVal < 1) baseVol *= 1.2; 
-    if (timeVal > 11) baseVol *= 1.3; 
-  } else {
-    baseVol = 0.25; // 장외
+  // 주말은 24시간 'Day/Overnight' (또는 휴장) 처리. 여기선 Overnight으로 처리해 뉴스 반영
+  if (day === 0 || day === 6) return SESSION.DAY; 
+
+  // 평일 스케줄 (ET 기준)
+  if (timeVal >= 4.0 && timeVal < 9.5) return SESSION.PRE;
+  if (timeVal >= 9.5 && timeVal < 16.0) return SESSION.REGULAR;
+  if (timeVal >= 16.0 && timeVal < 20.0) return SESSION.AFTER;
+  return SESSION.DAY; // 20:00 ~ 04:00
+}
+
+/* [수정] 세션별 거래량 및 변동성 특성 계산 */
+function getSessionPhysics(d) {
+  const session = getMarketSession(d);
+  let volMult = 0.1; // 기본 거래량
+  let volNoise = 1.0; // 변동성 증폭 계수 (호가 얇음 구현)
+
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const timeVal = h + m/60;
+
+  switch (session) {
+    case SESSION.REGULAR:
+      // U자형 커브: 장 시작(09:30)과 마감(16:00) 부근에서 거래량 폭발
+      // 9.5 ~ 16.0 정규화 -> x: -1 ~ 1
+      const x = (timeVal - 12.75) / 3.25; 
+      volMult = 1.0 + 2.0 * Math.pow(x, 4); // 중앙은 1.0, 양끝은 약 3.0
+      volNoise = 1.0; 
+      break;
+
+    case SESSION.PRE:
+      // 장 시작 직전(08:00~)에 거래량 상승
+      if (timeVal > 8.0) volMult = 0.5 + (timeVal - 8.0) * 0.3;
+      else volMult = 0.2;
+      volNoise = 2.0; // 호가 얇음 -> 가격 잘 튐
+      break;
+
+    case SESSION.AFTER:
+      // 장 마감 직후(16:00~) 반짝 상승 후 소멸
+      if (timeVal < 17.0) volMult = 0.5 * (17.0 - timeVal);
+      else volMult = 0.1;
+      volNoise = 2.5; // 애프터장이 가장 변동성 큼 (실적발표 등)
+      break;
+
+    case SESSION.DAY:
+      volMult = 0.05; // 거의 거래 없음 (야간 선물)
+      volNoise = 0.5; // 변동성도 죽음
+      break;
   }
 
-  // 3. 뉴스 영향력 (로그 함수로 완화 + 최대 10배 제한)
+  // 뉴스 영향력 추가
   const newsActivity = volatilityState.reduce((sum, p) => sum + p.amp, 0);
-  const newsFactor = 1 + Math.log(1 + newsActivity * 10); 
-  const noise = 0.8 + Math.random() * 0.4; 
+  volMult *= (1 + Math.log(1 + newsActivity * 20));
 
-  // [중요] 최대 1000배를 넘지 않도록 제한
-  return Math.min(1000.0, baseVol * newsFactor * noise);
+  return { session, volMult, volNoise };
 }
 
 /* --- 뉴스 생성 및 처리 모듈 --- */
@@ -1209,10 +1266,21 @@ function checkNewsTrigger() {
       pushEventLog(`${icon} [속보] ${n.title}`);
     }
 
-    // 최종 반영
-    const jumpFactor = 1 + impact;
-    state.spot *= jumpFactor;
-    state.fairValue *= jumpFactor;
+    // [수정] 세션에 따른 가격 반영 vs 갭 누적 분기
+    // 정규/프리/애프터 장이면 즉시 반영, DAY(밤/주말)이면 갭 누적
+    if (currentSession === SESSION.DAY) {
+        gapAccumulator *= jumpFactor;
+        pushEventLog(`💤 야간/주말 뉴스: 갭 누적 중... (x${fmt2(jumpFactor)})`);
+    } else {
+        state.spot *= jumpFactor;
+        // 펀더멘탈은 언제나 변함
+        state.fairValue *= jumpFactor;
+    }
+    
+    // 단, 펀더멘탈은 세션 상관없이 즉시 반영 (그래야 갭 계산시 괴리율 발생)
+    if (currentSession === SESSION.DAY) {
+        state.fairValue *= jumpFactor; 
+    }
 
     const volPulse = Math.abs(impact) * 10.0;
     addVolPulse(Math.max(0.05, volPulse), 6); 
@@ -1279,118 +1347,91 @@ function triggerHalt(ticks, reason) {
 }
 
 
-
-
-
-/* [수정] stepMarket: 구버전의 안정성(평균회귀) + 신버전의 기능(뉴스/거래량/CB) 통합 */
-function stepMarket(){
-  for (let step=0; step<Math.max(0,hoursPerTick); step++){
+/* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
+function stepMarket() {
+  // loopsPerFrame만큼 1분씩 전진 (배속 처리)
+  for (let i = 0; i < loopsPerFrame; i++) {
     
-    // 1. 시간 전진
-    simDate = new Date(simDate.getTime() + 1*3600*1000);
-    const curDay = simDate.getDate();
-    const curMonth = simDate.getMonth() + 1;
+    // 1. 시간 1분 전진
+    simDate = new Date(simDate.getTime() + 60 * 1000); 
+
+    // 2. 세션 및 물리 파라미터 계산
+    const { session, volMult, volNoise } = getSessionPhysics(simDate);
+    currentSession = session; // 전역 변수 업데이트
+
+    // 3. 갭(Gap) 처리 로직
+    // DAY(오버나이트) 세션에서는 가격을 직접 움직이지 않고 gapAccumulator에 쌓음
+    // PRE나 REGULAR가 시작되는 순간 적용
+    const isActiveSession = (session === SESSION.PRE || session === SESSION.REGULAR || session === SESSION.AFTER);
     
-    // 날짜 변경 체크 (서킷브레이커 리셋 등)
-    if (typeof lastTickDay !== 'undefined' && lastTickDay !== null && curDay !== lastTickDay){
-       marketControl.prevClose = state.spot;
-       marketControl.cbLevel1 = false;
-       marketControl.cbLevel2 = false;
-       marketControl.cbLevel3 = false;
-       marketControl.luldAvgPrice = state.spot;
+    // 세션 전환 감지 (DAY -> PRE/REGULAR) 시 갭 폭발
+    // (간단 구현을 위해 04:00 정각, 09:30 정각 체크)
+    const h = simDate.getHours();
+    const m = simDate.getMinutes();
+    
+    if (h === 4 && m === 0) { // 프리마켓 오픈: 밤새 쌓인 갭 반영
+        if (Math.abs(gapAccumulator - 1.0) > 0.001) {
+            state.spot *= gapAccumulator;
+            state.fairValue *= gapAccumulator;
+            pushEventLog(`⚡ 프리마켓 개장: 오버나이트 갭 반영 (${fmt2((gapAccumulator-1)*100)}%)`);
+            gapAccumulator = 1.0; // 리셋
+        }
     }
-    window.lastTickDay = curDay; 
 
-    // 2. 뉴스 체크 (이벤트 발생 시 spot과 fairValue가 점프함)
-    if (simDate.getHours() === 0) scheduleFutureNews();
-    checkNewsTrigger();
+    // 4. 뉴스 체크 (이제 분 단위로 정확히 체크)
+    checkNewsTrigger(); 
     tryTriggerHeadline();
-
-    // 3. 펄스 감쇠 (변동성 안정화)
-    decayVolPulses(1);
-
-    // [거래 정지 처리] (서킷브레이커 등)
-    if (marketControl.halted) {
-      marketControl.haltTicksLeft--;
-      if (marketControl.haltTicksLeft <= 0) {
-        marketControl.halted = false;
-        pushEventLog(`▶ 거래 재개`);
-        notify('거래 재개', 2000);
-      }
-      // 정지 중: 가격 변동 없음, 거래량 0 기록
-      state.history.push({ t: new Date(simDate), price: state.spot });
-      updateCandles(state.spot, simDate, 0); 
-      continue; // 다음 루프로 건너뜀 (가격 변동 로직 패스)
-    }
-
-    // 4. 가격 결정 엔진 (Old Logic: Mean Reversion)
-    const dt = 1 / (24*365); // 1시간
     
-    // (A) 적정 주가(FairValue)의 자연스러운 흐름
-    // 적정 주가도 가만히 있지 않고 매년 8% 성장 + 약간의 랜덤 워크를 함
-    const fvDrift = 0.08; // 연 8% 기본 성장
-    const fvVol = 0.08;   // 펀더멘탈 자체의 미세한 변동
+    // 5. 물리 엔진 (GBM)
+    // 1분 단위 dt
+    const dt = 1 / (24 * 60 * 365); 
     
-    // 적정 주가 갱신 (Random Walk)
-    let u1=0,v1=0; while(u1===0) u1=Math.random(); while(v1===0) v1=Math.random();
-    const z1 = Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*v1);
+    // 적정주가(FairValue) Random Walk (연 8% 성장)
+    const fvDrift = 0.08; 
+    const fvVol = 0.08;
+    let u1=Math.random(), v1=Math.random();
+    let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // (B) 시장 가격(Spot)의 움직임
-    // Spot은 FairValue 주변을 맴돌려는 성질(Mean Reversion)을 가짐
+    // 가격 결정
+    let sigma = getCurrentVol() * volNoise; // 세션별 노이즈 반영
     
-    // 괴리율 계산: (적정가 - 현재가)
+    // DAY 세션이면 가격 변동을 spot에 바로 반영 안 하고 Accumulator에 저장 (단, 선물은 움직여야 하므로 spot도 움직이되 캔들엔 반영 안 할수도.. 
+    // 하지만 사용자 요청은 "갭"이므로, DAY세션엔 거래량이 거의 없어 가격이 멈춘 듯 보이다가 아침에 튀는게 리얼함.
+    // 여기선 거래량(volMult)을 0.05로 매우 낮췄으므로 자연스럽게 횡보함.
+    // 갭은 "뉴스 충격" 시에만 gapAccumulator를 쓰는 것으로 checkNewsTrigger 수정 필요.
+    
+    // 일반적인 랜덤 워크
     const gap = (state.fairValue - state.spot) / state.spot;
-    
-    // 회귀력(Pull): 갭의 1.5배만큼 당김 (강할수록 적정가에 붙어서 움직임)
-    const pull = gap * 1.5; 
-    
-    // 변동성 계산 (거래량 시스템 반영)
-    const volMult = calcVolumeMultiplier(simDate);
-    const tickVolume = Math.round(1000 * volMult);
-    
-    let sigma = getCurrentVol(); // 기본 변동성 + 뉴스 펄스
-    
-    // 거래량에 따른 변동성 스케일링 (1.2.9 기능 유지)
-    if (volMult < 0.3) sigma *= 0.1; // 장외 시간
-    else sigma *= Math.pow(volMult, 0.5); // 거래량 많으면 변동성 증가
-    
-    if (isNaN(sigma) || sigma <= 0) sigma = 0.01;
-
-    // 최종 Drift(mu) = 기본성장 + 회귀력
+    const pull = gap * 1.5; // Mean Reversion
     const mu = fvDrift + pull;
-
-    // ========== [추가] 디버그 정보 저장 ==========
-    debugInfo.gap = gap;
-    debugInfo.force = pull; // 회귀력
-    debugInfo.volMult = volMult;
-    debugInfo.sigma = sigma;
-    syncDebugEcon(); 
-    // ==========================================
     
-    // GBM 실행
-    let u2=0,v2=0; while(u2===0) u2=Math.random(); while(v2===0) v2=Math.random();
-    const z2 = Math.sqrt(-2*Math.log(u2))*Math.cos(2*Math.PI*v2);
+    let u2=Math.random(), v2=Math.random();
+    let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
     
-    const factor = Math.exp((mu - 0.5*sigma*sigma)*dt + sigma*Math.sqrt(dt)*z2);
-    let newPrice = state.spot * factor;
+    // 거래량 반영한 변동성 스케일링
+    let tickSigma = sigma * Math.sqrt(volMult); 
+    
+    const factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
+    
+    state.spot *= factor;
 
-    // 안전장치
-    if (isNaN(newPrice) || newPrice < 0.01) newPrice = state.spot;
-
-    // 5. 반영
-    state.spot = newPrice;
-    checkMarketProtections(state.spot, simDate); // 서킷브레이커 체크
-
-    // 6. 저장
-    state.history.push({ t: new Date(simDate), price: state.spot });
+    // 6. 데이터 저장
+    // 거래량이 너무 적은 DAY 세션은 캔들을 갱신하되 시각적 변화가 미미함
+    const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
     updateCandles(state.spot, simDate, tickVolume);
-
+    
+    // 7. 기타 처리
+    decayVolPulses(1/60); // 분 단위 감쇠
+    checkMarketProtections(state.spot, simDate);
     checkExpiries();
     liquidateFutures();
   }
+  
+  // 렌더링은 루프 밖에서 한 번만
   renderAll();
 }
+
 
 
 
@@ -1650,16 +1691,14 @@ function computeEquity() {
     };
 }
 
+/* [수정] 타임프레임별 키 생성 (타임스탬프 내림 처리) */
 function getCandleKey(date, type) {
-  // returns ms timestamp representing the normalized start time for given candle type
   const d = new Date(date);
-
-  if (type === '1H') {
-    d.setMinutes(0, 0, 0);
-  }
-  else if (type === '1D') {
-    d.setHours(0, 0, 0, 0);
-  }
+  if (type === '1m') { d.setSeconds(0,0); }
+  else if (type === '5m') { d.setMinutes(Math.floor(d.getMinutes()/5)*5, 0, 0); }
+  else if (type === '10m') { d.setMinutes(Math.floor(d.getMinutes()/10)*10, 0, 0); }
+  else if (type === '1H') { d.setMinutes(0, 0, 0); }
+  else if (type === '1D') { d.setHours(0, 0, 0, 0); }
   else if (type === '1W') {
     // normalize to Monday 00:00 (week starts Monday)
     const day = d.getDay(); // 0=Sun,1=Mon...
@@ -1678,39 +1717,38 @@ function getCandleKey(date, type) {
     d.setDate(1);
     d.setHours(0, 0, 0, 0);
   }
-
   return d.getTime();
 }
 
-/* [수정] volume 매개변수 추가 */
+/* [수정] 모든 타임프레임 캔들 동시 갱신 */
 function updateCandles(price, time, volume) {
-  const types = ['1H', '1D', '1W', '1M', '1Y'];
+  // 갱신할 타임프레임 목록
+  const types = ['1m','5m','10m','1H','1D','1W','1M','1Y'];
+  
   types.forEach(type => {
-    if (!Array.isArray(state.candles[type])) state.candles[type] = [];
-    const key = getCandleKey(time, type);
+    if (!state.candles[type]) state.candles[type] = [];
     const arr = state.candles[type];
+    const key = getCandleKey(time, type);
     const last = arr.length ? arr[arr.length - 1] : null;
 
     if (!last || last.time !== key) {
-      // new candle
-      arr.push({
-        time: key,
-        open: price,
-        high: price,
-        low: price,
-        close: price,
-        volume: volume // [추가] 초기 거래량
-      });
-      if (arr.length > 20000) arr.splice(0, arr.length - 20000);
+      // 새로운 봉 시작
+      arr.push({ time: key, open: price, high: price, low: price, close: price, volume: volume });
+      
+      // 메모리 최적화: 하위 분봉은 5000개까지만 유지
+      if (type.includes('m') && arr.length > 5000) arr.shift();
+      else if (arr.length > 20000) arr.shift(); // 상위 봉은 넉넉하게
+      
     } else {
-      // update existing candle
+      // 현재 봉 갱신
       last.high = Math.max(last.high, price);
-      last.low  = Math.min(last.low, price);
+      last.low = Math.min(last.low, price);
       last.close = price;
-      last.volume += volume; // [추가] 거래량 누적
+      last.volume += volume;
     }
   });
 }
+
 
 /* ----------------------------
    Chart drawing (update: period semantics start->now)
@@ -3047,21 +3085,25 @@ document.getElementById('tradeOpt').addEventListener('click', tradeOption);
 document.getElementById('optK').addEventListener('input', updateOptPremiumDisplay);
 document.getElementById('optType').addEventListener('change', updateOptPremiumDisplay);
 document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
-document.getElementById('speedSelect').addEventListener('change', (e) => { hoursPerTick = e.target.value; });
+document.getElementById('speedSelect').addEventListener('change', (e) => { loopsPerFrame = parseInt(e.target.value); });
+
 
 // bind candle type buttons
 document.querySelectorAll('.periodBtn').forEach(btn => {
   btn.addEventListener('click', () => {
-    // toggle active class
     document.querySelectorAll('.periodBtn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
 
     const t = btn.dataset.type;
-    if (t && ['1H','1D','1W','1M','1Y'].includes(t)) {
+    // [수정] 분봉 타입 지원 추가
+    if (t && ['1m','5m','10m','1H','1D','1W','1M','1Y'].includes(t)) {
       candleType = t;
-      candleOffset = 0; // reset scroll
-      visibleCount = (t === '1H') ? 240 : (t === '1D') ? 60 : (t === '1W') ? 26 : (t === '1M') ? 24 : 10;
-      // keep visibleCount heuristic; adjust to taste
+      candleOffset = 0; 
+      // 화면에 보여줄 캔들 개수 조정 (분봉은 더 많이 보여줌)
+      if(t.includes('m')) visibleCount = 120;
+      else if(t === '1H') visibleCount = 60;
+      else visibleCount = 40;
+      
       renderAll();
     }
   });
