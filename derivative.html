@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.3.18</div>
+        <div class="small muted">1초 = 1시간 • ver 1.3.19</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1059,7 +1059,7 @@ function scheduleFutureNews() {
 
     if (Math.abs(pricingInFactor) > 0.001) {
        const direction = pricingInFactor > 0 ? "상승" : "하락";
-       pushEventLog(`📢 [지표] ${template.title}: ${fmt2(valForecast)} 예상`);
+       pushEventLog(`📢 [지표] ${template.title}: 예상 ${fmt2(valForecast)} / 현재 ${fmt2(valPrev)}`);
     }
 
     const newNews = {
@@ -1166,10 +1166,10 @@ function checkNewsTrigger() {
       // -> "실망 매물"이 쏟아지며 하락폭 증폭
       let correctionMult = 1.0;
       if (n._preImpact && Math.sign(n._preImpact) !== Math.sign(surpriseZ)) {
-          // 방향이 반대라면 충격 1.5배 (되돌림 강화)
-          correctionMult = 1.5;
+          // 방향이 반대라면 충격 1.6배 (되돌림 강화)
+          correctionMult = 1.6;
           // 만약 선반영이 아주 강했다면 더 크게 응징
-          if (Math.abs(n._preImpact) > 0.005) correctionMult = 2.0;
+          if (Math.abs(n._preImpact) > 0.005) correctionMult = 2.3;
       }
 
       // 3. 충격 계수 산출
@@ -1177,7 +1177,7 @@ function checkNewsTrigger() {
       
       // 서프라이즈 자체가 크면 제곱 효과
       if (Math.abs(surpriseZ) > 1.0) {
-          shockFactor *= 1.5; 
+          shockFactor *= 1.3; 
       }
 
       impact = shockFactor * n._weight.s * 0.02; 
@@ -1189,7 +1189,7 @@ function checkNewsTrigger() {
       if (n.title.includes('기준금리')) {
         RATE_BASE = n._valActual;
         R = RATE_BASE * 0.01;
-        impact *= 2.0;
+        impact *= 1.8;
         pushEventLog(`🏛️ 기준금리 확정: ${fmt2(n._valActual)}%`);
       }
       
@@ -1198,7 +1198,7 @@ function checkNewsTrigger() {
       
       // 로그에 "실망" 또는 "안도" 코멘트 추가
       let comment = "";
-      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (실망 매물)" : " (안도 랠리)";
+      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (미스)" : " (비트)";
       
       pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} / 예상 ${n.strForecast} ${comment}`);
 
@@ -1235,14 +1235,14 @@ function checkMarketProtections(currentPrice, time) {
 
   // 1. Level 1 (7% 하락) -> 1시간 정지
   if (dropRate >= 0.07 && !marketControl.cbLevel1 && !isNearClose) {
-    triggerHalt(3, "📉 서킷 I - 7% 변동");
+    triggerHalt(3, "📉 서킷브레이거 1단계 - 7% 변동");
     marketControl.cbLevel1 = true;
     return;
   }
   
   // 2. Level 2 (13% 하락) -> 2시간 정지
   if (dropRate >= 0.13 && !marketControl.cbLevel2 && !isNearClose) {
-    triggerHalt(3, "📉 서킷 II - 13% 변동");
+    triggerHalt(3, "📉 서킷브레이커 2단계 - 13% 변동");
     marketControl.cbLevel2 = true;
     return;
   }
@@ -1250,7 +1250,7 @@ function checkMarketProtections(currentPrice, time) {
   // 3. Level 3 (20% 하락) -> 당일 장 종료
   if (dropRate >= 0.20 && !marketControl.cbLevel3) {
     const ticksLeftInDay = 24 - currentHour;
-    triggerHalt(ticksLeftInDay, "📉 서킷 III - 20% 변동");
+    triggerHalt(ticksLeftInDay, "📉 서킷브레이커 3단계 - 20% 변동");
     marketControl.cbLevel3 = true;
     return;
   }
@@ -1259,7 +1259,7 @@ function checkMarketProtections(currentPrice, time) {
   if (marketControl.luldAvgPrice > 0) {
     const dev = Math.abs(currentPrice - marketControl.luldAvgPrice) / marketControl.luldAvgPrice;
     if (dev >= 0.05) { 
-        triggerHalt(2, `⚡ 변동성 완화(LULD) 발동 (괴리율 ${fmt2(dev*100)}%)`);
+        triggerHalt(2, `⚡ 변동성 완화 발동 - 괴리율 ${fmt2(dev*100)}%)`);
         marketControl.luldAvgPrice = currentPrice; 
         return;
     }
@@ -2596,7 +2596,7 @@ function renderAll() {
   // [수정] 상태 표시 (Halt 반영)
   const statusEl = document.getElementById('marketStatus');
   if (marketControl.halted) {
-    statusEl.innerText = `⛔ 거래 정지 (${marketControl.haltReason})`;
+    statusEl.innerText = `⛔ 거래 정지`;
   } else if (isSpotOpenAt(simDate)) {
     statusEl.innerText = '🟢 장 열림';
   } else {
