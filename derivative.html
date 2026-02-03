@@ -247,13 +247,13 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.1</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.2</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
         <select id="speedSelect" title="시뮬레이션 속도" style="margin-top:6px;">
           <option value="0">정지</option>
-          <option selected value="1">1x (실시간)</option>
+          <option selected value="1">1x</option>
           <option value="5">5x</option>
           <option value="30">30x</option>
           <option value="60">60x</option>
@@ -473,8 +473,6 @@
     <div class="section">
       <h3 style="margin:0">옵션 목록</h3>
       <div id="optHoldings" class="posList small">없음</div>
-    </div>
- 
     </div>
 
     <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
@@ -1131,10 +1129,23 @@ function scheduleFutureNews() {
        pushEventLog(`📢 [지표] ${template.title}: 예상 ${fmt2(valForecast)} / 현재 ${fmt2(valPrev)}`);
     }
 
+    // [수정] 지표별 리얼한 발표 시간 설정
+    let releaseTime = "09:00"; // 기본값
+    
+    if (template.title.includes("고용") || template.title.includes("CPI") || template.title.includes("PPI") || template.title.includes("소매")) {
+        releaseTime = "08:30"; // 장 시작 전 (개장 갭 유발)
+    } else if (template.title.includes("PMI") || template.title.includes("소비자 신뢰")) {
+        releaseTime = "10:00"; // 장 초반 (변동성)
+    } else if (template.title.includes("기준금리")) {
+        releaseTime = "14:00"; // 장 중 (최대 변동성)
+    } else if (template.title.includes("GDP")) {
+        releaseTime = "08:30";
+    }
+    
     const newNews = {
       id: Date.now() + Math.random(),
       date: dateStr,
-      time: "02:00", // 발표 시간 (예: 새벽 2시)
+      time: releaseTime, // 발표 시간 (예: 새벽 2시)
       type: 'indicator',
       title: template.title,
       unit: template.unit,
@@ -1475,6 +1486,12 @@ function sellSpot() {
 }
 
 function openFuture() {
+    const h = simDate.getHours();
+    // 17시~18시 사이는 브레이크 타임 (데이장 중 휴식)
+    if (h === 17) {
+        return notify("🚫 선물 휴장: 일일 유지보수 시간 (17:00 ~ 18:00)", 3000);
+    }
+  
     const side = document.getElementById('futSide').value;
     const lev = Number(document.getElementById('futLev').value) || 1;
     const months = Number(document.getElementById('futExp').value) || 1;
@@ -1517,6 +1534,11 @@ function openFuture() {
 }
 
 function tradeOption() {
+    // 1. 세션 체크
+    if (currentSession !== SESSION.REGULAR) {
+        return notify(`🚫 옵션 거래 불가: 정규장(09:30~16:00)에만 가능합니다. (현재: ${currentSession})`, 3000);
+    }
+  
     const kind = document.getElementById('optType').value;
     const side = document.getElementById('optSide').value;
     const K = Number(document.getElementById('optK').value) || state.spot;
@@ -1632,6 +1654,9 @@ function checkExpiries() {
 }
 
 function closeFuture(idx) {
+    const h = simDate.getHours();
+    if (h === 17) return notify("🚫 선물 휴장: 청산 불가 (17:00 ~ 18:00)", 3000);
+      
     const f = player.positions.futures[idx];
     const tau = tauYearsFromExpiry(f.expiryDate);
     const curF = state.spot * Math.exp((R - Q) * tau);
@@ -1646,6 +1671,7 @@ function closeFuture(idx) {
 }
 
 function closeOption(idx) {
+    if (currentSession !== SESSION.REGULAR) { return notify(`🚫 옵션 청산 불가: 정규장이 닫혔습니다.`, 3000); }
     const o = player.positions.options[idx];
     const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
     let pnl = 0;
@@ -2046,7 +2072,7 @@ function drawYAxis(ctx, innerX, innerY, innerW, innerH, min, max){
   ctx.restore();
 }
 
-// draw bottom X axis labels (dates) - shows 5 ticks
+// [수정] 차트 X축: 분봉일 때는 시간, 일봉일 때는 날짜 표시
 function drawXAxis(ctx, innerX, innerY, innerW, innerH, slice){
   ctx.save();
   ctx.font = "11px system-ui";
@@ -2054,17 +2080,29 @@ function drawXAxis(ctx, innerX, innerY, innerW, innerH, slice){
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const len = slice.length;
-  const ticks = Math.min(6, len);
+  // 틱 개수를 좀 더 넉넉하게 (5 -> 6개)
+  const ticks = 6; 
+  
   for (let i=0;i<ticks;i++){
     const idx = Math.floor((i/(ticks-1 || 1)) * (len-1));
     const c = slice[idx];
     const dt = new Date(c.time);
-    const label = `${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+    
+    let label = "";
+    // candleType이 'm'(분봉)이나 'H'(시간봉)을 포함하면 시간 표시
+    if (candleType.includes('m') || candleType === '1H') {
+       label = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+       // 날짜가 바뀌는 지점이나 첫 틱에는 날짜도 같이 표기해주면 좋음 (공간상 생략 가능)
+    } else {
+       label = `${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+    }
+
     const x = innerX + idx * (innerW / len) + (innerW / len) * 0.5;
     ctx.fillText(label, x, innerY + innerH + 4);
   }
   ctx.restore();
 }
+
 
 /* [수정] 크로스헤어: 가격 영역과 거래량 영역 대응 */
 function drawCrosshairAndTooltip(hover, innerX, innerY, innerW, priceH, min, max, volY, volH){
@@ -2643,16 +2681,34 @@ function renderAll() {
   
   document.getElementById('spotPrice').innerText = fmt2(state.spot);
 
-  // [수정] 상태 표시 (Halt 반영)
+  // [수정] 상태 표시 (세션 정보 포함)
   const statusEl = document.getElementById('marketStatus');
+  
   if (marketControl.halted) {
-    statusEl.innerText = `⛔ 거래 정지`;
-  } else if (isSpotOpenAt(simDate)) {
-    statusEl.innerText = '🟢 장 열림';
+    statusEl.innerText = `⛔ 거래 정지 (${marketControl.haltReason})`;
+    statusEl.style.color = '#ff6b6b';
   } else {
-    statusEl.innerText = '🔴 장 닫힘';
-  }
+    // 세션에 따라 색상과 텍스트 변경
+    let color = '#fff';
+    let text = currentSession; // PRE, REGULAR...
 
+    if (currentSession === SESSION.REGULAR) {
+        color = '#39ff88'; // 초록 (정규장)
+        text = "🟢 정규장 (Regular)";
+    } else if (currentSession === SESSION.PRE) {
+        color = '#ffd166'; // 노랑 (프리장)
+        text = "🟠 프리마켓 (Pre-Market)";
+    } else if (currentSession === SESSION.AFTER) {
+        color = '#ffd166'; // 노랑 (애프터장)
+        text = "🟠 애프터마켓 (After-Hours)";
+    } else {
+        color = '#8fb0d6'; // 파랑 (데이장/휴장)
+        text = "🔵 데이장 (Global)";
+    }
+
+    statusEl.innerText = text;
+    statusEl.style.color = color;
+  }
 
   updateFutMarginDisplay();
   updateOptPremiumDisplay();
@@ -3076,13 +3132,6 @@ initDebugTools();
 -----------------------------*/
 function resetSystem() {
   simDate = new Date("2025-01-01T00:00:00");
-  hoursPerTick = 1;
-  state.spot = 10000.0;
-  state.history = [{ t: new Date(simDate), price: state.spot }];
-  state.candles = {'1H': [],'1D': [],'1W': [],'1M': [],'1Y': []};
-  player = { cash: 100000.0, positions: { spot: { qty: 0, avg: 0 }, futures: [], options: [] }, log: [] };
-  eventLog = [];
-  selectedDetail = null;
   pushEventLog('🔁 시스템 초기화 완료');
   renderAll();
 }
