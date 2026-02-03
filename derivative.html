@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.2</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.3</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -412,8 +412,9 @@
       <button class="periodBtn" data-type="5m">5m</button>
       <button class="periodBtn" data-type="10m">10m</button>
       <button class="periodBtn" data-type="1H">1H</button>
+      <button class="periodBtn" data-type="1D">1D</button>
       <button class="periodBtn" data-type="1W">1W</button>
-      <button class="periodBtn" data-type="1Y">1M</button>
+      <button class="periodBtn" data-type="1M">1M</button>
  
       <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
         <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
@@ -544,9 +545,9 @@ let zoomOutBtn = null;
 
 // chart period state
 // let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
-let candleType = '1H'; // '1H' | '1D' | '1W'  ...
+let candleType = '1m'; // '1H' | '1D' | '1W'  ...
 let candleOffset = 0; // 왼쪽으로 밀린 봉 수
-let visibleCount = 240; // 화면에 보이는 봉 개수
+let visibleCount = 120; // 화면에 보이는 봉 개수
 let hoverIndex = null; // for crosshair
 
 /* ====== ECON / NEWS 연결 개선: volatility + forecast/actual 흐름 ====== */
@@ -1179,8 +1180,8 @@ function scheduleFutureNews() {
 
 /* [추가] 즉발성 헤드라인 뉴스 생성 (예약 없이 바로 newsData에 꽂아넣음) */
 function tryTriggerHeadline() {
-  // 매 시간 1% 확률로 속보 발생 (확률은 조정 가능)
-  if (Math.random() > 0.01) return;
+  // 매 시간 0.1% 확률로 속보 발생 (확률은 조정 가능)
+  if (Math.random() > 0.001) return;
 
   const isGood = Math.random() < 0.5;
   const list = isGood ? NEWS_CONFIG.headlines.good : NEWS_CONFIG.headlines.bad;
@@ -2685,7 +2686,7 @@ function renderAll() {
   const statusEl = document.getElementById('marketStatus');
   
   if (marketControl.halted) {
-    statusEl.innerText = `⛔ 거래 정지 (${marketControl.haltReason})`;
+    statusEl.innerText = `⛔ 거래 정지`;
     statusEl.style.color = '#ff6b6b';
   } else {
     // 세션에 따라 색상과 텍스트 변경
@@ -2694,16 +2695,16 @@ function renderAll() {
 
     if (currentSession === SESSION.REGULAR) {
         color = '#39ff88'; // 초록 (정규장)
-        text = "🟢 정규장 (Regular)";
+        text = "🟢 정규장";
     } else if (currentSession === SESSION.PRE) {
         color = '#ffd166'; // 노랑 (프리장)
-        text = "🟠 프리마켓 (Pre-Market)";
+        text = "🟠 프리마켓";
     } else if (currentSession === SESSION.AFTER) {
         color = '#ffd166'; // 노랑 (애프터장)
-        text = "🟠 애프터마켓 (After-Hours)";
+        text = "🟠 애프터마켓";
     } else {
         color = '#8fb0d6'; // 파랑 (데이장/휴장)
-        text = "🔵 데이장 (Global)";
+        text = "🔵 데이마켓";
     }
 
     statusEl.innerText = text;
