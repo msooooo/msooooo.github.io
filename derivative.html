@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.0</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.1</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -412,8 +412,9 @@
       <button class="periodBtn" data-type="5m">5m</button>
       <button class="periodBtn" data-type="10m">10m</button>
       <button class="periodBtn" data-type="1H">1H</button>
-      <button class="periodBtn" data-type="1D">1D</button>
-      
+      <button class="periodBtn" data-type="1W">1W</button>
+      <button class="periodBtn" data-type="1Y">1M</button>
+ 
       <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
         <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
         <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
@@ -472,6 +473,8 @@
     <div class="section">
       <h3 style="margin:0">옵션 목록</h3>
       <div id="optHoldings" class="posList small">없음</div>
+    </div>
+ 
     </div>
 
     <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
@@ -996,6 +999,15 @@ function getSessionPhysics(d) {
   return { session, volMult, volNoise };
 }
 
+/* [복구] 기존 함수 호환성을 위한 장 운영 여부 체크 */
+function isSpotOpenAt(d) {
+  // 새로 만든 세션 로직을 사용하여 판단
+  const session = getMarketSession(d);
+  // 프리장, 정규장, 애프터장에서는 현물 거래 가능 (데이장/주말 제외)
+  return (session === SESSION.PRE || session === SESSION.REGULAR || session === SESSION.AFTER);
+}
+
+  
 /* --- 뉴스 생성 및 처리 모듈 --- */
 
 /* [신규] 매크로 상관관계 엔진: 다른 지표의 상태를 보고 편향(Bias) 계산 */
