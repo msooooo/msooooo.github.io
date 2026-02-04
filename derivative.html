@@ -1411,7 +1411,7 @@ function stepMarket() {
     simDate = new Date(simDate.getTime() + 60 * 1000);
 
     // [Fix] 매일 개장(09:00)에 5일 뒤의 경제 지표를 자동 예약
-    if (h === 9 && m === 00) {
+    if (h === 9 && m === 0) {
         scheduleFutureNews();
     }
 
