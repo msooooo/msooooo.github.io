@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.16</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.17</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -421,7 +421,7 @@
         <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
       </div>
 
-      <div class="dataBox" id="period">+0.00%</div>
+      <div class="dataBox" id="periodReturn">+0.00%</div>
     </div>
 
   
@@ -817,7 +817,7 @@ toggleSection('secDebug');
    Utilities (unchanged)
 -----------------------------*/
 function fmt2(x){
-  if (isNaN(x) || x === undefined || x === null)  "0.00";
+  if (isNaN(x) || x === undefined || x === null) return "0.00";
   return Number(x).toFixed(2);
 }
 function nowStr(d){
