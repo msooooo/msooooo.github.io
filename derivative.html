@@ -1339,7 +1339,7 @@ function checkMarketProtections(currentPrice, time) {
 
   const dropRate = (marketControl.prevClose - currentPrice) / marketControl.prevClose;
   const currentHour = time.getHours();
-  const isNearClose = (currentHour >= 11); 
+  const isNearClose = (currentHour >= 15); 
 
   // 1. Level 1 (7% 하락) -> 30분 정지
   if (dropRate >= 0.07 && !marketControl.cbLevel1 && !isNearClose) {
@@ -1415,6 +1415,10 @@ function stepMarket() {
     // [Fix] 매일 개장(09:30)에 5일 뒤의 경제 지표를 자동 예약
     if (h === 9 && m === 30) {
         scheduleFutureNews();
+    }
+
+    if (h === 20 && m === 00) {
+        marketControl.prevClose = state.spot;
     }
 
     // 거래정지 해제 체크
@@ -1494,8 +1498,8 @@ function stepMarket() {
        state.spot *= factor;
     }
 
-    if (state.spot < 0.01) state.spot = 0.01;
-    if (state.fairValue < 0.01) state.fairValue = 0.01;
+    if (state.spot < 0.00) state.spot = 0.00;
+    if (state.fairValue < 0.00) state.fairValue = 0.00;
     
     // 6. 캔들 갱신
     const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
