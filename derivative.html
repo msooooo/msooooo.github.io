@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.14</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.15</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1378,13 +1378,22 @@ function checkMarketProtections(currentPrice, time) {
   marketControl.luldAvgPrice = marketControl.luldAvgPrice * (1-alpha) + currentPrice * alpha;
 }
 
+/* [수정] haltUntil 시간 계산 로직 추가 */
 function triggerHalt(ticks, reason) {
   marketControl.halted = true;
   marketControl.haltTicksLeft = ticks;
   marketControl.haltReason = reason;
+
+  // [Fix 3] 현재 시간 + 정지 시간(분)을 계산하여 해제 시점 설정
+  marketControl.haltUntil = new Date(simDate.getTime() + ticks * 60 * 1000);
+
   pushEventLog(`⛔ ${reason} | ${ticks}분 거래 정지`);
   notify(reason, 5000);
+  
+  // 상태 즉시 갱신
+  renderAll();
 }
+
 
 
 /* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
@@ -1392,7 +1401,10 @@ function triggerHalt(ticks, reason) {
 /* [수정] 서킷브레이커(Halt) 시 거래량 0 & 가격 동결 로직 적용 */
 /* [수정] 거래정지 해제 체크 + 가격 음수 방지 로직 추가 */
 /* [수정] 헤드라인 추세(Trend)와 지표 충격(Shock)을 분리한 물리 엔진 */
+/* [수정] 1. renderAll 루프 밖으로 이동 (배속 해결) */
+/* [수정] 2. 추세 역행 방지 로직 추가 */
 function stepMarket() {
+  // loopsPerFrame만큼 내부 연산만 반복 (화면 갱신 X)
   for (let i = 0; i < loopsPerFrame; i++) {
     
     // 1. 시간 1분 전진
@@ -1433,33 +1445,35 @@ function stepMarket() {
     const dt = 1 / (24 * 60 * 365); // 1분 단위
 
     // [핵심 1] 적정주가(FairValue) 움직임
-    // 기본 성장(0.06) + 헤드라인이 만든 추세(trendForce) 반영
-    const baseDrift = 0.06; 
-    
-    // trendForce가 있으면 적정주가가 그 방향으로 계속 미끄러져 감 (추세 형성)
+    const baseDrift = 0.08; 
     const fvDrift = baseDrift + state.trendForce; 
     
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
     
-    // FairValue 갱신
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
     // [핵심 2] 가격(Spot) 움직임
     let factor = 1.0;
     let sigma = 0;
     let gap = 0;
+    let pull = 0;
 
     if (!marketControl.halted) {
-        // 변동성: 지표 발표 직후엔 크지만, 헤드라인 때는 작을 수 있음
         sigma = getCurrentVol() * volNoise; 
         
         // 괴리율에 의한 회귀
         gap = (state.fairValue - state.spot) / state.spot;
-        let pull = gap * 1.5; 
+        pull = gap * 1.5; 
         
-        // 가격도 추세를 따라가려는 성질 추가
+        // [Fix 2] 추세 역행 방지 (Trend Following)
+        // 추세(Trend)와 회귀력(Pull)의 방향이 반대이고, 추세가 강하면 회귀력을 억제함
+        // 예: 악재(Trend < 0)인데 저평가(Pull > 0)라서 오르는 현상 방지
+        if (Math.abs(state.trendForce) > 0.5 && Math.sign(state.trendForce) !== Math.sign(pull)) {
+             pull *= 0.1; // 회귀력 90% 약화 -> 뉴스 방향대로 감
+        }
+
         const mu = fvDrift + pull;
         
         let u2=Math.random(), v2=Math.random();
@@ -1469,14 +1483,12 @@ function stepMarket() {
         factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
     }
 
-    // 가격 반영
     if (currentSession === SESSION.DAY) {
        state.spot *= factor; 
     } else {
        state.spot *= factor;
     }
 
-    // 하한선 안전장치
     if (state.spot < 0.01) state.spot = 0.01;
     if (state.fairValue < 0.01) state.fairValue = 0.01;
     
@@ -1486,32 +1498,24 @@ function stepMarket() {
     
     // 7. 감쇠(Decay) 처리
     decayVolPulses(1/60); 
-    
-    // [핵심 3] 추세 모멘텀의 자연 소멸 (관성)
-    // 1분마다 0.4%씩 힘이 빠짐 -> 약 4~6시간 뒤면 영향력 소멸
-    // 헤드라인의 '약발'이 떨어지는 효과
-    state.trendForce *= 0.996; 
+    state.trendForce *= 0.998; 
 
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
     liquidateFutures();
 
-    // [수정] 디버그 정보 매핑 세분화
     debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
     debugInfo.volMult = volMult;
-    debugInfo.gap = gap; // (Fair - Spot) / Spot
-    
-    // [신규] Momentum: 헤드라인이 만든 외부 추세
+    debugInfo.gap = gap; 
     debugInfo.momentum = state.trendForce; 
-    
-    // [변경] Force: 내부 회귀력 (Gap * 1.5)
     debugInfo.force = (!marketControl.halted) ? pull : 0; 
-    
     debugInfo.rate = RATE_BASE;
   }
   
+  // [Fix 1] 렌더링은 루프 밖에서 1번만 수행 (배속 성능 핵심)
   renderAll();
 }
+
 
 
 
@@ -3152,7 +3156,6 @@ function injectManualNews() {
     
     // 캘린더 갱신 (5일 뒤 점 찍히도록)
     renderCalendar();
-    notify(`예상치 반영 완료. 실제 발표는 5일 뒤(${dateStrTarget}) 02:00에 예약됨.`, 3000);
 
   } else {
     // --- 헤드라인 모드 (기존 동일) ---
@@ -3176,7 +3179,6 @@ function injectManualNews() {
     
     newsData.push(headline);
     checkNewsTrigger(); // 즉시 발동
-    notify('속보가 강제 실행되었습니다.', 2000);
   }
 }
 
