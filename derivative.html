@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.18</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.19</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1120,7 +1120,7 @@ function scheduleFutureNews() {
     if (template.inverse) expectedDelta *= -1;
 
     // 선반영 강도 (약 10%)
-    const pricingInFactor = expectedDelta * template.weight.s * 1.0; 
+    const pricingInFactor = expectedDelta * template.weight.s * 0.1; 
     
     state.spot *= (1 + pricingInFactor);
     state.fairValue *= (1 + pricingInFactor);
@@ -1265,7 +1265,7 @@ function checkNewsTrigger() {
       if (Math.abs(surpriseZ) > 1.0) shockFactor *= 1.5; 
 
       // 즉발적인 충격 (Impact)
-      let impact = shockFactor * n._weight.s * 0.03; 
+      let impact = shockFactor * n._weight.s * 0.1; 
       
       const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
       const zScoreStr = surpriseZ.toFixed(2) + "σ"; 
