@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.9</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.10</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -258,7 +258,6 @@
           <option value="30">30x</option>
           <option value="60">60x</option>
           <option value="240">240x</option>
-          <option value="1440">1440x</option>
         </select>
 
       </div>
@@ -1321,10 +1320,6 @@ function checkNewsTrigger() {
       // 추세가 생기는 것이지, 위아래로 미친듯이 흔들리는 건 아님
       addVolPulse(Math.abs(p) * 2.0, 4.0); // 4시간 동안 은은한 변동성
       
-      // 로그용 표시
-      if(Math.abs(p) > 0.1) {
-          pushEventLog(`🌊 시장 추세 변화 감지: ${p > 0 ? '상승' : '하락'} 모멘텀 발생`);
-      }
     }
 
     syncDebugEcon();
@@ -1686,7 +1681,7 @@ function checkExpiries() {
     const curS = state.spot;
     for (let i = player.positions.futures.length - 1; i >= 0; i--) {
         const f = player.positions.futures[i];
-        const exp = new Date(f.expiryDate + 'T00:00:00');
+        const exp = new Date(f.expiryDate + 'T16:00:00');
         if (today >= exp) {
             const pnlPer = (curS - f.entry) * (f.side === 'Long' ? 1 : -1);
             const pnl = pnlPer * f.qty;
@@ -1700,7 +1695,7 @@ function checkExpiries() {
     }
     for (let i = player.positions.options.length - 1; i >= 0; i--) {
         const o = player.positions.options[i];
-        const exp = new Date(o.expiryDate + 'T00:00:00');
+        const exp = new Date(o.expiryDate + 'T16:00:00');
         if (today >= exp) {
             const S = state.spot;
             let payoffPer = 0;
