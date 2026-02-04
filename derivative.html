@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.17</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.18</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1409,9 +1409,11 @@ function stepMarket() {
     
     // 1. 시간 1분 전진
     simDate = new Date(simDate.getTime() + 60 * 1000);
-
-    // [Fix] 매일 개장(09:00)에 5일 뒤의 경제 지표를 자동 예약
-    if (h === 9 && m === 0) {
+    const h = simDate.getHours();
+    const m = simDate.getMinutes();
+    
+    // [Fix] 매일 개장(09:30)에 5일 뒤의 경제 지표를 자동 예약
+    if (h === 9 && m === 30) {
         scheduleFutureNews();
     }
 
@@ -1431,8 +1433,6 @@ function stepMarket() {
     if (marketControl.halted) { volMult = 0; volNoise = 0; }
 
     // 3. 갭(Gap) 처리
-    const h = simDate.getHours();
-    const m = simDate.getMinutes();
     if (h === 4 && m === 0) { 
         if (Math.abs(gapAccumulator - 1.0) > 0.001) {
             state.spot *= gapAccumulator;
