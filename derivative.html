@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.15</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.16</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1134,13 +1134,13 @@ function scheduleFutureNews() {
     let releaseTime = "09:00"; // 기본값
     
     if (template.title.includes("고용") || template.title.includes("CPI") || template.title.includes("PPI") || template.title.includes("소매")) {
-        releaseTime = "08:30"; // 장 시작 전 (개장 갭 유발)
+        releaseTime = "09:30"; // 장 시작 직후 (개장 갭 유발)
     } else if (template.title.includes("PMI") || template.title.includes("소비자 신뢰")) {
         releaseTime = "10:00"; // 장 초반 (변동성)
     } else if (template.title.includes("기준금리")) {
         releaseTime = "14:00"; // 장 중 (최대 변동성)
     } else if (template.title.includes("GDP")) {
-        releaseTime = "08:30";
+        releaseTime = "09:30";
     }
     
     const newNews = {
@@ -1408,7 +1408,12 @@ function stepMarket() {
   for (let i = 0; i < loopsPerFrame; i++) {
     
     // 1. 시간 1분 전진
-    simDate = new Date(simDate.getTime() + 60 * 1000); 
+    simDate = new Date(simDate.getTime() + 60 * 1000);
+
+    // [Fix] 매일 개장(09:00)에 5일 뒤의 경제 지표를 자동 예약
+    if (h === 9 && m === 00) {
+        scheduleFutureNews();
+    }
 
     // 거래정지 해제 체크
     if (marketControl.halted && marketControl.haltUntil) {
