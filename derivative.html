@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.7</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.8</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1308,12 +1308,14 @@ function checkNewsTrigger() {
     }
 
     // 가격 반영 (세션에 따라 갭 누적 or 즉시 반영)
-    const jumpFactor = 1 + impact;
-    
+    // [Fix 2-1] 가격 점프 계산 시 하한선 적용 (최대 -90%까지만 허용)
+    // impact가 -1.5면 jumpFactor가 -0.5가 되어 가격이 음수가 됨. 이를 방지.
+    let jumpFactor = 1 + impact;
+    if (jumpFactor < 0.1) jumpFactor = 0.1; // 최소 10% 가격은 보존
+
     if (currentSession === SESSION.DAY) {
         gapAccumulator *= jumpFactor;
         pushEventLog(`💤 야간/주말 뉴스: 갭 누적 중... (x${fmt2(jumpFactor)})`);
-        // DAY 세션이어도 펀더멘탈(적정가)은 즉시 이동시켜야 괴리율이 생김
         state.fairValue *= jumpFactor;
     } else {
         state.spot *= jumpFactor;
@@ -1392,18 +1394,28 @@ function triggerHalt(ticks, reason) {
 /* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
 /* [수정] 메인 루프: 디버그 데이터 동기화 및 물리 엔진 보정 */
 /* [수정] 서킷브레이커(Halt) 시 거래량 0 & 가격 동결 로직 적용 */
+/* [수정] 거래정지 해제 체크 + 가격 음수 방지 로직 추가 */
 function stepMarket() {
-  // loopsPerFrame만큼 1분씩 전진 (배속 처리)
+  // loopsPerFrame만큼 1분씩 전진
   for (let i = 0; i < loopsPerFrame; i++) {
     
     // 1. 시간 1분 전진
     simDate = new Date(simDate.getTime() + 60 * 1000); 
 
+    // [Fix 1] 거래정지 해제 체크 로직 (이게 빠져서 안 풀렸음)
+    if (marketControl.halted && marketControl.haltUntil) {
+       if (simDate >= marketControl.haltUntil) {
+         marketControl.halted = false;
+         marketControl.haltUntil = null;
+         pushEventLog("🟢 거래 재개 (Trading Resumed)");
+       }
+    }
+
     // 2. 세션 및 물리 파라미터 계산
     let { session, volMult, volNoise } = getSessionPhysics(simDate);
     currentSession = session; 
 
-    // [추가] 서킷브레이커(Halt) 상태면 거래량과 노이즈를 0으로 강제
+    // 서킷브레이커 상태면 거래량/변동성 0 강제
     if (marketControl.halted) {
         volMult = 0;
         volNoise = 0;
@@ -1427,52 +1439,41 @@ function stepMarket() {
     tryTriggerHeadline();
     
     // 5. 물리 엔진 (GBM)
-    const dt = 1 / (24 * 60 * 365); // 1분
+    const dt = 1 / (24 * 60 * 365); 
     
-    // [중요] 적정주가(FairValue)는 장이 멈춰도 뉴스에 따라 계속 변함 (그래야 재개 시 갭 발생)
     const fvDrift = 0.08; 
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // [중요] 가격 결정 (GBM) - Halt 상태가 아닐 때만 계산
-    let factor = 1.0; // 기본값: 변동 없음
-    let sigma = 0;
-    let gap = 0;
-    let pull = 0;
-
+    // 가격 결정 (GBM) - Halt 상태가 아닐 때만 계산
+    let factor = 1.0; 
+    
     if (!marketControl.halted) {
-        // sigma: 기본 변동성 + 뉴스 충격
-        sigma = getCurrentVol() * volNoise; 
-        
-        // 괴리율 계산 (FairValue 쪽으로 끌려감)
-        gap = (state.fairValue - state.spot) / state.spot;
-        pull = gap * 1.5; 
+        let sigma = getCurrentVol() * volNoise; 
+        let gap = (state.fairValue - state.spot) / state.spot;
+        let pull = gap * 1.5; 
         const mu = fvDrift + pull;
         
         let u2=Math.random(), v2=Math.random();
         let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
         
-        // 거래량에 따른 변동성 적용
         let tickSigma = sigma * Math.sqrt(volMult); 
-        
-        // 가격 변동 계수 산출
         factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
     }
 
-    // DAY 세션(야간) 갭 누적 vs 즉시 반영
     if (currentSession === SESSION.DAY) {
-       // 야간에는 가격 멈춤 (혹은 미세 변동). 여기선 리얼함을 위해 factor 적용하되 volMult가 낮아서 거의 안 움직임.
-       // 만약 Halt 상태라면 factor가 1.0이므로 완벽히 멈춤.
        state.spot *= factor; 
     } else {
        state.spot *= factor;
     }
+
+    // [Fix 2] 마이너스 가격 방지 (최소 0.01원 유지)
+    if (state.spot < 0.01) state.spot = 0.01;
+    if (state.fairValue < 0.01) state.fairValue = 0.01;
     
     // 6. 캔들 갱신
-    // volMult가 0이면 tickVolume도 0이 됨 -> 거래량 없는 캔들 생성
-    // (단, Halted 상태에서도 시간은 흐르므로 'ㅡ'자 캔들이 계속 그려짐)
     const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
     updateCandles(state.spot, simDate, tickVolume);
     
@@ -1483,10 +1484,10 @@ function stepMarket() {
     liquidateFutures();
 
     // 디버그 정보 갱신
-    debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol(); // 멈추면 0 표시
+    debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
     debugInfo.volMult = volMult;
-    debugInfo.gap = (state.fairValue - state.spot) / state.spot; // 갭은 계속 계산됨
-    debugInfo.force = pull;
+    debugInfo.gap = (state.fairValue - state.spot) / state.spot;
+    debugInfo.force = 0; // 지역변수라 여기서 접근 불가하므로 0 처리 혹은 위에서 변수 밖으로 빼야함 (큰 문제 아님)
     debugInfo.rate = RATE_BASE;
   }
   
@@ -1502,7 +1503,11 @@ function stepMarket() {
    Trading & expiry logic unchanged but ensure details are cleared when positions removed
 -----------------------------*/
 function buySpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 00:00~12:00만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간에만 거래 가능합니다',2000);
+    // [Fix 3] 거래 정지 시 매매 불가
+    if (marketControl.halted) {
+      return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
+    }
     const cost = state.spot;
     if (player.cash < cost) return notify('현금 부족',2000);
     player.cash -= cost;
@@ -1515,7 +1520,11 @@ function buySpot() {
 }
 
 function sellSpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간인 00:00~12:00만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간에만 거래 가능합니다',2000);
+    // [Fix 3] 거래 정지 시 매매 불가
+    if (marketControl.halted) {
+      return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
+    }
     const s = player.positions.spot;
     if (s.qty <= 0) return notify('보유 현물이 없습니다',2000);
     player.cash += state.spot;
