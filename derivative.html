@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1시간 • ver 1.4.8</div>
+        <div class="small muted">1초 = 1시간 • ver 1.4.9</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -338,19 +338,19 @@
 
     <div class="section" id="secDebug">
       <div class="sectionHeader" onclick="toggleSection('secDebug')">
-        <h3 style="margin:0; color:#ffd166;">🛠️ God Mode (Debug)</h3>
+        <h3 style="margin:0; color:#ffd166;">디버그 (Debug)</h3>
         <span class="toggleIcon">▼</span>
       </div>
       <div class="sectionContent">
-        <div class="dbg-row"><span class="dbg-label">Fair Value</span> <span id="dbgFair" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Gap</span> <span id="dbgGap" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Sigma</span> <span id="dbgSigma" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Vol Mult</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Rate (Base)</span> <span id="dbgRate" class="dbg-val">--</span></div>
-        <div class="dbg-row"><span class="dbg-label">Force</span> <span id="dbgForce" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">목표가</span> <span id="dbgFair" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">괴리율</span> <span id="dbgGap" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">변동성</span> <span id="dbgSigma" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">거래량</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">단기추세</span> <span id="dbgMomentum" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">압력</span> <span id="dbgForce" class="dbg-val">--</span></div>
         
         <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">
-          <div class="small muted">상태: <span id="dbgStateText">Normal</span></div>
+          <div class="small muted">상태: <span id="dbgStateText">안정</span></div>
         </div>
 
         <div id="dbgEconContainer"></div>
@@ -360,7 +360,7 @@
           
           <div class="dbg-btn-group">
             <button id="tabInd" class="active" onclick="switchDebugTab('ind')">지표 발표</button>
-            <button id="tabHead" onclick="switchDebugTab('head')">속보(Text)</button>
+            <button id="tabHead" onclick="switchDebugTab('head')">헤드라인 발표</button>
           </div>
 
           <div id="formInd">
@@ -381,7 +381,7 @@
             </div>
           </div>
 
-          <button onclick="injectManualNews()" style="background:#ffd166; color:#000; margin-top:8px;">이벤트 발동 (Inject)</button>
+          <button onclick="injectManualNews()" style="background:#ffd166; color:#000; margin-top:8px;">이벤트 발동</button>
         </div>
 
       </div>
@@ -507,13 +507,17 @@ let gapAccumulator = 1.0;
 let state = {
   spot: 10000.0,
   fairValue: 10000.0,
+  
+  // [신규] 헤드라인이 만들어낸 '추세 모멘텀' (시간이 지나면 0으로 수렴)
+  trendForce: 0, 
+
   history: [], 
-  // [수정] 분봉 데이터 저장소 추가
   candles: {
     '1m': [], '5m': [], '10m': [],
     '1H': [], '1D': [], '1W': [], '1M': [], '1Y': []
   }
 };
+
 
 // [신규] 세션 정의 상수
 const SESSION = {
@@ -1223,37 +1227,34 @@ function tryTriggerHeadline() {
 
 /* [수정] 실망 매물(되돌림) 로직 & Z-Score 충격 */
 /* [수정] 타임프레임별 뉴스 충격 지속시간 차별화 */
+/* [수정] 지표(점프) vs 헤드라인(추세) 이원화 적용 */
 function checkNewsTrigger() {
   const todayStr = nowStr(simDate).slice(0,10);
   const currentHour = simDate.getHours();
-  // [중요] 분 단위 스케줄링을 위해 현재 분까지 확인
   const currentMin = simDate.getMinutes();
 
   const targets = newsData.filter(n => 
     n.date === todayStr && 
     !n.processed &&
-    // 시간 비교: "HH:mm" 문자열을 파싱해서 현재 시간과 비교
     (parseInt(n.time.split(':')[0]) < currentHour || 
     (parseInt(n.time.split(':')[0]) === currentHour && parseInt(n.time.split(':')[1]) <= currentMin))
   );
 
   targets.forEach(n => {
     n.processed = true;
-    let impact = 0;
     
-    // 지속 시간(반감기, 시간 단위) 설정
-    let durationHours = 2.0; // 기본값 (중기)
-
+    // ====================================================
+    // CASE 1: 경제 지표 (Indicator) -> "충격과 공포"
+    // 특징: 즉각적인 가격 점프(Gap), 강한 변동성, 이후 안정화
+    // ====================================================
     if (n.type === 'indicator') {
       const actual = n._valActual;
       const forecast = n._valForecast;
       const dev = n._templateRef ? n._templateRef.dev : 1.0;
       
-      // Z-Score 계산
       let surpriseZ = (actual - forecast) / dev;
       if (n._inverse) surpriseZ *= -1;
 
-      // 실망/안도 매물 로직
       let correctionMult = 1.0;
       if (n._preImpact && Math.sign(n._preImpact) !== Math.sign(surpriseZ)) {
           correctionMult = 1.5;
@@ -1263,75 +1264,74 @@ function checkNewsTrigger() {
       let shockFactor = surpriseZ * correctionMult;
       if (Math.abs(surpriseZ) > 1.0) shockFactor *= 1.5; 
 
-      impact = shockFactor * n._weight.s * 0.03; 
+      // 즉발적인 충격 (Impact)
+      let impact = shockFactor * n._weight.s * 0.03; 
+      
+      const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
+      const zScoreStr = surpriseZ.toFixed(2) + "σ"; 
+      let comment = "";
+      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (실망)" : " (안도)";
+      pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} (예상 ${n.strForecast})${comment}`);
 
-      // 값 업데이트 (디버그용 원본 데이터 갱신)
+      // 값 업데이트
       if (n._templateRef) n._templateRef.lastValue = n._valActual;
-
-      // [시간 조정] 지표 중요도에 따른 지속시간 설정
-      if (n.title.includes('기준금리') || n.title.includes('GDP')) {
-        // [장기] 하루 종일 영향 (24시간)
-        durationHours = 24.0; 
-      } else if (n.title.includes('신규 실업') || n.title.includes('PMI')) {
-        // [단기] 잠깐 튀고 맘 (30분 ~ 1시간)
-        durationHours = 0.5; 
-      } else {
-        // [중기] CPI, 고용 등 (3~4시간)
-        durationHours = 3.0;
-      }
-
-      // 금리 특수 처리
       if (n.title.includes('기준금리')) {
         RATE_BASE = n._valActual;
         R = RATE_BASE * 0.01;
         impact *= 2.0;
         pushEventLog(`🏛️ 기준금리 확정: ${fmt2(n._valActual)}%`);
       }
-      
-      const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
-      const zScoreStr = surpriseZ.toFixed(2) + "σ"; 
-      
-      let comment = "";
-      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (실망)" : " (안도)";
-      
-      pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} / 예상 ${n.strForecast}${comment}`);
 
-    } else if (n.type === 'headline') {
+      // [동작 1] 가격 즉시 점프 (장대봉/갭 발생)
+      let jumpFactor = 1 + impact;
+      if (jumpFactor < 0.1) jumpFactor = 0.1;
+
+      if (currentSession === SESSION.DAY) {
+        gapAccumulator *= jumpFactor;
+        state.fairValue *= jumpFactor;
+      } else {
+        state.spot *= jumpFactor;
+        state.fairValue *= jumpFactor; // 적정주가도 같이 이동해야 갭 유지됨
+      }
+
+      // [동작 2] 변동성 폭발 후 서서히 안정화
+      // 지표는 단기에 변동성이 확 터지고(장대양봉), 이후엔 줄어드는게 맞음
+      const volPulse = Math.abs(impact) * 15.0; // 변동성 강하게
+      addVolPulse(Math.max(0.1, volPulse), 2.0); // 2시간 동안 여진 지속
+
+    } 
+    // ====================================================
+    // CASE 2: 헤드라인 (Headline) -> "추세와 심리"
+    // 특징: 가격 점프 없음. 대신 '추세(Trend)'를 형성하여 서서히 밀어올림/내림
+    // ====================================================
+    else if (n.type === 'headline') {
       const p = n._power; 
-      impact = p * 0.1; 
+      // impact를 가격에 바로 곱하지 않음!
       
-      // [단기] 속보는 강하지만 짧게 (15분 ~ 30분)
-      durationHours = 0.25; 
-
       const icon = p > 0 ? '🔥' : '⛈️';
       pushEventLog(`${icon} [속보] ${n.title}`);
+
+      // [동작 1] 추세 힘(Trend Force)에 가산
+      // p가 0.2(대형호재)면 -> trendForce에 +3.0 (연환산 수익률 300%급의 모멘텀)
+      // 이 힘은 stepMarket에서 매 분마다 조금씩 가격을 밀어올림
+      const momentum = p * 15.0; 
+      state.trendForce += momentum;
+
+      // [동작 2] 변동성은 지표보다 약하게
+      // 추세가 생기는 것이지, 위아래로 미친듯이 흔들리는 건 아님
+      addVolPulse(Math.abs(p) * 2.0, 4.0); // 4시간 동안 은은한 변동성
+      
+      // 로그용 표시
+      if(Math.abs(p) > 0.1) {
+          pushEventLog(`🌊 시장 추세 변화 감지: ${p > 0 ? '상승' : '하락'} 모멘텀 발생`);
+      }
     }
-
-    // 가격 반영 (세션에 따라 갭 누적 or 즉시 반영)
-    // [Fix 2-1] 가격 점프 계산 시 하한선 적용 (최대 -90%까지만 허용)
-    // impact가 -1.5면 jumpFactor가 -0.5가 되어 가격이 음수가 됨. 이를 방지.
-    let jumpFactor = 1 + impact;
-    if (jumpFactor < 0.1) jumpFactor = 0.1; // 최소 10% 가격은 보존
-
-    if (currentSession === SESSION.DAY) {
-        gapAccumulator *= jumpFactor;
-        pushEventLog(`💤 야간/주말 뉴스: 갭 누적 중... (x${fmt2(jumpFactor)})`);
-        state.fairValue *= jumpFactor;
-    } else {
-        state.spot *= jumpFactor;
-        state.fairValue *= jumpFactor;
-    }
-
-    // 변동성 펄스 추가
-    // 강한 뉴스일수록 변동성도 크고 오래감
-    const volPulse = Math.abs(impact) * 10.0;
-    // 최소 5% 변동성은 보장
-    addVolPulse(Math.max(0.05, volPulse), durationHours); 
 
     syncDebugEcon();
     renderNewsFeed();
   });
 }
+
 
 
 
@@ -1395,14 +1395,14 @@ function triggerHalt(ticks, reason) {
 /* [수정] 메인 루프: 디버그 데이터 동기화 및 물리 엔진 보정 */
 /* [수정] 서킷브레이커(Halt) 시 거래량 0 & 가격 동결 로직 적용 */
 /* [수정] 거래정지 해제 체크 + 가격 음수 방지 로직 추가 */
+/* [수정] 헤드라인 추세(Trend)와 지표 충격(Shock)을 분리한 물리 엔진 */
 function stepMarket() {
-  // loopsPerFrame만큼 1분씩 전진
   for (let i = 0; i < loopsPerFrame; i++) {
     
     // 1. 시간 1분 전진
     simDate = new Date(simDate.getTime() + 60 * 1000); 
 
-    // [Fix 1] 거래정지 해제 체크 로직 (이게 빠져서 안 풀렸음)
+    // 거래정지 해제 체크
     if (marketControl.halted && marketControl.haltUntil) {
        if (simDate >= marketControl.haltUntil) {
          marketControl.halted = false;
@@ -1411,20 +1411,15 @@ function stepMarket() {
        }
     }
 
-    // 2. 세션 및 물리 파라미터 계산
+    // 2. 세션 및 물리 파라미터
     let { session, volMult, volNoise } = getSessionPhysics(simDate);
     currentSession = session; 
 
-    // 서킷브레이커 상태면 거래량/변동성 0 강제
-    if (marketControl.halted) {
-        volMult = 0;
-        volNoise = 0;
-    }
+    if (marketControl.halted) { volMult = 0; volNoise = 0; }
 
-    // 3. 갭(Gap) 처리 로직 (프리마켓 오픈)
+    // 3. 갭(Gap) 처리
     const h = simDate.getHours();
     const m = simDate.getMinutes();
-    
     if (h === 4 && m === 0) { 
         if (Math.abs(gapAccumulator - 1.0) > 0.001) {
             state.spot *= gapAccumulator;
@@ -1434,26 +1429,41 @@ function stepMarket() {
         }
     }
 
-    // 4. 뉴스 체크
+    // 4. 뉴스 체크 (트리거)
     checkNewsTrigger(); 
     tryTriggerHeadline();
     
     // 5. 물리 엔진 (GBM)
-    const dt = 1 / (24 * 60 * 365); 
+    const dt = 1 / (24 * 60 * 365); // 1분 단위
+
+    // [핵심 1] 적정주가(FairValue) 움직임
+    // 기본 성장(0.08) + 헤드라인이 만든 추세(trendForce) 반영
+    const baseDrift = 0.08; 
     
-    const fvDrift = 0.08; 
+    // trendForce가 있으면 적정주가가 그 방향으로 계속 미끄러져 감 (추세 형성)
+    const fvDrift = baseDrift + state.trendForce; 
+    
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
+    
+    // FairValue 갱신
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // 가격 결정 (GBM) - Halt 상태가 아닐 때만 계산
-    let factor = 1.0; 
-    
+    // [핵심 2] 가격(Spot) 움직임
+    let factor = 1.0;
+    let sigma = 0;
+    let gap = 0;
+
     if (!marketControl.halted) {
-        let sigma = getCurrentVol() * volNoise; 
-        let gap = (state.fairValue - state.spot) / state.spot;
+        // 변동성: 지표 발표 직후엔 크지만, 헤드라인 때는 작을 수 있음
+        sigma = getCurrentVol() * volNoise; 
+        
+        // 괴리율에 의한 회귀
+        gap = (state.fairValue - state.spot) / state.spot;
         let pull = gap * 1.5; 
+        
+        // 가격도 추세를 따라가려는 성질 추가
         const mu = fvDrift + pull;
         
         let u2=Math.random(), v2=Math.random();
@@ -1463,13 +1473,14 @@ function stepMarket() {
         factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
     }
 
+    // 가격 반영
     if (currentSession === SESSION.DAY) {
        state.spot *= factor; 
     } else {
        state.spot *= factor;
     }
 
-    // [Fix 2] 마이너스 가격 방지 (최소 0.01원 유지)
+    // 하한선 안전장치
     if (state.spot < 0.01) state.spot = 0.01;
     if (state.fairValue < 0.01) state.fairValue = 0.01;
     
@@ -1477,17 +1488,29 @@ function stepMarket() {
     const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
     updateCandles(state.spot, simDate, tickVolume);
     
-    // 7. 기타 처리
+    // 7. 감쇠(Decay) 처리
     decayVolPulses(1/60); 
+    
+    // [핵심 3] 추세 모멘텀의 자연 소멸 (관성)
+    // 1분마다 0.2%씩 힘이 빠짐 -> 약 4~6시간 뒤면 영향력 소멸
+    // 헤드라인의 '약발'이 떨어지는 효과
+    state.trendForce *= 0.998; 
+
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
     liquidateFutures();
 
-    // 디버그 정보 갱신
+    // [수정] 디버그 정보 매핑 세분화
     debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
     debugInfo.volMult = volMult;
-    debugInfo.gap = (state.fairValue - state.spot) / state.spot;
-    debugInfo.force = 0; // 지역변수라 여기서 접근 불가하므로 0 처리 혹은 위에서 변수 밖으로 빼야함 (큰 문제 아님)
+    debugInfo.gap = gap; // (Fair - Spot) / Spot
+    
+    // [신규] Momentum: 헤드라인이 만든 외부 추세
+    debugInfo.momentum = state.trendForce; 
+    
+    // [변경] Force: 내부 회귀력 (Gap * 1.5)
+    debugInfo.force = (!marketControl.halted) ? pull : 0; 
+    
     debugInfo.rate = RATE_BASE;
   }
   
@@ -1497,13 +1520,11 @@ function stepMarket() {
 
 
 
-
-
 /* ----------------------------
    Trading & expiry logic unchanged but ensure details are cleared when positions removed
 -----------------------------*/
 function buySpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간에만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('🚫 현물 미개장',2000);
     // [Fix 3] 거래 정지 시 매매 불가
     if (marketControl.halted) {
       return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
@@ -1520,7 +1541,7 @@ function buySpot() {
 }
 
 function sellSpot() {
-    if (!isSpotOpenAt(simDate)) return notify('현물은 장이 열린 시간에만 거래 가능합니다',2000);
+    if (!isSpotOpenAt(simDate)) return notify('🚫 현물 미개장',2000);
     // [Fix 3] 거래 정지 시 매매 불가
     if (marketControl.halted) {
       return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
@@ -1538,7 +1559,7 @@ function openFuture() {
     const h = simDate.getHours();
     // 17시~18시 사이는 브레이크 타임 (데이장 중 휴식)
     if (h === 17) {
-        return notify("🚫 선물 휴장: 일일 유지보수 시간 (17:00 ~ 18:00)", 3000);
+        return notify("🚫 선물 휴장: 일일 유지보수 (17:00 ~ 18:00)", 3000);
     }
   
     const side = document.getElementById('futSide').value;
@@ -1585,7 +1606,7 @@ function openFuture() {
 function tradeOption() {
     // 1. 세션 체크
     if (currentSession !== SESSION.REGULAR) {
-        return notify(`🚫 옵션 거래 불가: 정규장(09:30~16:00)에만 가능합니다. (현재: ${currentSession})`, 3000);
+        return notify(`🚫 옵션 미개장`, 3000);
     }
   
     const kind = document.getElementById('optType').value;
@@ -2912,6 +2933,8 @@ function adjustQty(inputId, delta) {
 
 /* [수정] 디버그 패널 업데이트 (경제지표 포함) */
 function updateDebugPanel() {
+/* [수정] 디버그 패널: 금리 하단 이동, 모멘텀 상단 추가 */
+function updateDebugPanel() {
   const elFair = document.getElementById('dbgFair');
   if (!elFair) return;
 
@@ -2925,22 +2948,32 @@ function updateDebugPanel() {
 
   document.getElementById('dbgSigma').innerText = fmt2(debugInfo.sigma * 100) + '%';
   document.getElementById('dbgVolMult').innerText = 'x' + fmt2(debugInfo.volMult);
-  document.getElementById('dbgRate').innerText = fmt2(debugInfo.rate) + '%'; // 기준금리는 rate 사용
+  
+  // [신규] 모멘텀 표시 (추세 강도)
+  const mom = debugInfo.momentum; // state.trendForce
+  const elMom = document.getElementById('dbgMomentum');
+  elMom.innerText = (mom > 0 ? '▲' : (mom < 0 ? '▼' : '')) + fmt2(mom);
+  elMom.style.color = mom > 0.5 ? '#39ff88' : (mom < -0.5 ? '#ff6b6b' : '#fff');
+
+  // 복원력(Pull)
   document.getElementById('dbgForce').innerText = fmt2(debugInfo.force);
   
   // 2. 시장 상태 텍스트
   const stateText = document.getElementById('dbgStateText');
-  if (marketControl.halted) stateText.innerText = "HALTED (정지)";
-  else if (debugInfo.sigma > 0.5) stateText.innerText = "PANIC (공포)";
-  else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "UNSTABLE (불안정)";
-  else stateText.innerText = "Normal (안정)";
+  if (marketControl.halted) {
+      stateText.innerText = "정지";
+      stateText.style.color = "#ff6b6b";
+  }
+  else if (debugInfo.sigma > 0.5) stateText.innerText = "공포";
+  else if (Math.abs(mom) > 5.0) stateText.innerText = "추세 형성"; // 모멘텀 강할 때
+  else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "불안정";
+  else stateText.innerText = "안정";
 
-  // 3. [추가] 경제 지표 리스트 (DOM이 없을 경우 생성)
+  // 3. 경제 지표 리스트
   const container = document.getElementById('dbgEconContainer');
   let econList = document.getElementById('dbgEconList');
   
   if (container && !econList) {
-    // 구분선 및 타이틀
     const sep = document.createElement('div');
     sep.style.cssText = "margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);";
     container.appendChild(sep);
@@ -2956,48 +2989,31 @@ function updateDebugPanel() {
     econList.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:4px 12px;";
     container.appendChild(econList);
   }
-  
-  if (!econList) {
-    const container = document.querySelector('#secDebug .sectionContent');
-    // 기존 내용 아래에 구분선과 그리드 컨테이너 추가
-    const sep = document.createElement('div');
-    sep.style.cssText = "margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);";
-    container.appendChild(sep);
 
-    const title = document.createElement('div');
-    title.className = "small muted";
-    title.innerText = "Macro Indicators";
-    title.style.marginBottom = "4px";
-    container.appendChild(title);
+  if (econList) {
+      // [수정] 기준금리(rate)를 맨 앞에 추가
+      const indicators = [
+        { k: 'rate', label: '기준금리', unit: '%' },
+        { k: 'gdp', label: 'GDP', unit: '%' },
+        { k: 'cpi', label: 'CPI', unit: '%' },
+        { k: 'pce', label: 'PCE', unit: '%' },
+        { k: 'nfp', label: '비농업고용', unit: 'K' },
+        { k: 'ur',  label: '실업률', unit: '%' },
+        { k: 'ic',  label: '실업수당청구', unit: 'K' },
+        { k: 'pmi', label: '제조업 PMI', unit: '' },
+        { k: 'spmi', label: '서비스업 PMI', unit: '' },
+        { k: 'rs',  label: '소매판매', unit: '%' },
+        { k: 'cci', label: '소비자신뢰', unit: '' },
+        { k: 'ys',  label: '장단기금리차', unit: '%' },
+      ];
 
-    econList = document.createElement('div');
-    econList.id = 'dbgEconList';
-    econList.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:4px 12px;";
-    container.appendChild(econList);
+      econList.innerHTML = indicators.map(item => `
+        <div style="display:flex; justify-content:space-between;">
+          <span class="dbg-label">${item.label}</span>
+          <span class="dbg-val" style="color:#d1d5db">${fmt2(debugInfo[item.k])}${item.unit}</span>
+        </div>
+      `).join('');
   }
-
-  // 지표 목록 렌더링 (매번 갱신)
-  // 포맷: {키: [라벨, 단위]}
-  const indicators = [
-    { k: 'gdp', label: 'GDP', unit: '%' },
-    { k: 'cpi', label: 'CPI', unit: '%' },
-    { k: 'pce', label: 'PCE', unit: '%' },
-    { k: 'nfp', label: 'NFP', unit: 'K' },
-    { k: 'ur',  label: 'Unemp', unit: '%' },
-    { k: 'ic',  label: 'Jobless', unit: 'K' },
-    { k: 'pmi', label: 'PMI(M)', unit: '' },
-    { k: 'spmi', label: 'PMI(S)', unit: '' },
-    { k: 'rs',  label: 'Retail', unit: '%' },
-    { k: 'cci', label: 'Conf', unit: '' },
-    { k: 'ys',  label: 'Y-Spread', unit: '%' },
-  ];
-
-  econList.innerHTML = indicators.map(item => `
-    <div style="display:flex; justify-content:space-between;">
-      <span class="dbg-label">${item.label}</span>
-      <span class="dbg-val" style="color:#d1d5db">${fmt2(debugInfo[item.k])}${item.unit}</span>
-    </div>
-  `).join('');
 }
 
 
