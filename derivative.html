@@ -421,7 +421,7 @@
         <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
       </div>
 
-      <div class="dataBox" id="periodReturn">+0.00%</div>
+      <div class="dataBox" id="period">+0.00%</div>
     </div>
 
   
@@ -817,7 +817,7 @@ toggleSection('secDebug');
    Utilities (unchanged)
 -----------------------------*/
 function fmt2(x){
-  if (isNaN(x) || x === undefined || x === null) return "0.00";
+  if (isNaN(x) || x === undefined || x === null)  "0.00";
   return Number(x).toFixed(2);
 }
 function nowStr(d){
