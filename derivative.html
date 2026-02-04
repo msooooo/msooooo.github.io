@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.11</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.12</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -2946,7 +2946,7 @@ function updateDebugPanel() {
   // [신규] 모멘텀 표시 (추세 강도)
   const mom = debugInfo.momentum; // state.trendForce
   const elMom = document.getElementById('dbgMomentum');
-  elMom.innerText = (mom > 0 ? '▲' : (mom < 0 ? '▼' : '')) + fmt2(mom);
+  elMom.innerText = (mom > 0 ? '+' : (mom < 0 ? '-' : '')) + fmt2(mom);
   elMom.style.color = mom > 0.5 ? '#39ff88' : (mom < -0.5 ? '#ff6b6b' : '#fff');
 
   // 복원력(Pull)
