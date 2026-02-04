@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.12</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.13</div>
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1432,8 +1432,8 @@ function stepMarket() {
     const dt = 1 / (24 * 60 * 365); // 1분 단위
 
     // [핵심 1] 적정주가(FairValue) 움직임
-    // 기본 성장(0.08) + 헤드라인이 만든 추세(trendForce) 반영
-    const baseDrift = 0.08; 
+    // 기본 성장(0.06) + 헤드라인이 만든 추세(trendForce) 반영
+    const baseDrift = 0.06; 
     
     // trendForce가 있으면 적정주가가 그 방향으로 계속 미끄러져 감 (추세 형성)
     const fvDrift = baseDrift + state.trendForce; 
@@ -1487,9 +1487,9 @@ function stepMarket() {
     decayVolPulses(1/60); 
     
     // [핵심 3] 추세 모멘텀의 자연 소멸 (관성)
-    // 1분마다 0.2%씩 힘이 빠짐 -> 약 4~6시간 뒤면 영향력 소멸
+    // 1분마다 0.4%씩 힘이 빠짐 -> 약 4~6시간 뒤면 영향력 소멸
     // 헤드라인의 '약발'이 떨어지는 효과
-    state.trendForce *= 0.998; 
+    state.trendForce *= 0.996; 
 
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
@@ -2946,7 +2946,7 @@ function updateDebugPanel() {
   // [신규] 모멘텀 표시 (추세 강도)
   const mom = debugInfo.momentum; // state.trendForce
   const elMom = document.getElementById('dbgMomentum');
-  elMom.innerText = (mom > 0 ? '+' : (mom < 0 ? '-' : '')) + fmt2(mom);
+  elMom.innerText = (mom > 0 ? '+' : (mom < 0 ? '' : '')) + fmt2(mom);
   elMom.style.color = mom > 0.5 ? '#39ff88' : (mom < -0.5 ? '#ff6b6b' : '#fff');
 
   // 복원력(Pull)
