@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.23</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.24</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -913,7 +913,7 @@ function decayVolPulses(dtHours = 1) {
     const p = volatilityState[i];
     const decayFactor = Math.exp(- dtHours / p.halfLifeHours);
     p.amp *= decayFactor;
-    if (p.amp < 0.0005) volatilityState.splice(i, 1); // 너무 작으면 제거
+    if (p.amp < 0.005) volatilityState.splice(i, 1); // 너무 작으면 제거
   }
 }
   
@@ -921,7 +921,7 @@ function decayVolPulses(dtHours = 1) {
 function getCurrentVol() {
   const extra = volatilityState.reduce((s,p) => s + p.amp, 0);
   // clamp 전체 변동성 (안전 장치)
-  return Math.max(0.01, Math.min(2.0, VOL_BASE + extra));
+  return Math.max(0.01, Math.min(0.8, VOL_BASE + extra));
 }
 
 function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
@@ -1502,10 +1502,11 @@ function stepMarket() {
     updateCandles(state.spot, simDate, tickVolume);
     
     // 7. 감쇠(Decay) 가속화
-    decayVolPulses(1/60); 
+    decayVolPulses(5/60);
+    
     // [핵심 변경 D] 감쇠율 증가 (0.998 -> 0.985)
-    // 1분마다 1.5%씩 힘이 빠짐 -> 약 90분 뒤면 영향력 25% 미만으로 감소 (단기성 강화)
-    state.trendForce *= 0.985; 
+    // 1분마다 2%씩 힘이 빠짐 -> 약 90분 뒤면 영향력 25% 미만으로 감소 (단기성 강화)
+    state.trendForce *= 0.980; 
 
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
