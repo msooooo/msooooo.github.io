@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.21</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.22</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -2962,7 +2962,7 @@ function updateDebugPanel() {
   const elFair = document.getElementById('dbgFair');
   if (!elFair) return;
 
-  syncdebugecon();
+  syncDebugEcon();
   // 1. 핵심 엔진 변수 업데이트
   elFair.innerText = fmt2(state.fairValue);
   
