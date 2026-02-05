@@ -1443,7 +1443,7 @@ function stepMarket() {
     const dt = 1 / (24 * 60 * 365); 
 
     // [1] 적정주가(FV) 움직임
-    const baseDrift = 0.08; 
+    let baseDrift = 0.08; 
     const fvDrift = baseDrift + state.trendForce; 
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
