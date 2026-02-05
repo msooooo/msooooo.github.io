@@ -1474,19 +1474,19 @@ function stepMarket() {
         gap = (state.fairValue - state.spot) / state.spot;
         pull = gap * 1.5; 
         
-        // [Fix A] 추세가 Pull과 반대면 Pull 제거 (이전 수정 유지)
+        // [Fix A]
         if (Math.abs(state.trendForce) > 0.1) {
             if (Math.sign(state.trendForce) !== Math.sign(pull)) {
-                 pull = 0; 
+                 pull = 1.1; 
             } else {
                  pull *= 1.2;
             }
         }
 
         // [Fix B] 추세 증폭 (Trend Boost)
-        // dt가 너무 작아(10^-6) 추세가 묻히므로, 가격 결정식에는 추세 힘을 100배 키워서 반영
+        // dt가 너무 작아(10^-6) 추세가 묻히므로, 가격 결정식에는 추세 힘을 2배 키워서 반영
         // 이렇게 해야 "단기 분봉"에서도 추세가 눈에 보임
-        const boostedTrend = state.trendForce * 100.0;
+        const boostedTrend = state.trendForce * 2.0;
         
         const mu = baseDrift + boostedTrend + pull;
         
@@ -1497,10 +1497,10 @@ function stepMarket() {
         // 호재(Trend > 0)가 강하면 랜덤값(z2)이 음수가 나오지 않도록 밀어올림
         // 반대로 악재면 양수가 나오지 않도록 찍어누름
         if (state.trendForce > 1.0) { // 강한 호재
-             z2 += 0.5; // 확률 분포를 위로 이동
+             z2 += 0.1; // 확률 분포를 위로 이동
              if (z2 < -0.5) z2 = -0.5; // 하락폭 제한 (손실 방어)
         } else if (state.trendForce < -1.0) { // 강한 악재
-             z2 -= 0.5; // 확률 분포를 아래로 이동
+             z2 -= 0.1; // 확률 분포를 아래로 이동
              if (z2 > 0.5) z2 = 0.5; // 상승폭 제한 (반등 억제)
         }
 
