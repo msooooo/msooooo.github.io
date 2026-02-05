@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.24</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.25</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -287,7 +287,7 @@
           <div class="dataBox" id="futMarginDisplay">0.00</div>
         </div>
         <label>손실 한계치</label>
-        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="50">-50%</option><option value="100">-100%</option><option value="200">-200%</option><option value="500">-500%</option></select>
+        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="5">-5%</option><option value="10">-10%</option><option value="20">-20%</option><option value="50">-50%</option><option value="100">-100%</option><option value="200">-200%</option></select>
         <label>만기</label>
         <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
         
@@ -564,7 +564,7 @@ let Q = 0.0;
    - volatilityState: 현재 활성화된 "펄스" 리스트 (각 펄스는 시간이 지남에 따라 지수적으로 감소)
    - getCurrentVol()는 baseVol + (각 펄스의 기여 합) 를 반환
 */
-const VOL_BASE = 0.20; // 기본 변동성 (기존의 0.2)
+const VOL_BASE = 0.10; // 기본 변동성 (기존의 0.2)
 let volatilityState = []; // { id, amp, halfLifeHours, createdAt: simDate }
 
 
@@ -1287,7 +1287,7 @@ function checkNewsTrigger() {
         state.fairValue *= jumpFactor; 
       }
 
-      const volPulse = Math.abs(impact) * 15.0; 
+      const volPulse = Math.abs(impact) * 4; 
       addVolPulse(Math.max(0.1, volPulse), 2.0); 
 
     } 
@@ -1303,16 +1303,16 @@ function checkNewsTrigger() {
       // 설명: 기존 추세의 영향력을 50%로 줄이고, 새 뉴스의 충격을 더함.
       // 효과: 호재가 계속 터져도 합연산으로 폭주하지 않고, 최근 뉴스 위주로 재편됨.
       
-      const momentum = p * 15.0; 
+      const momentum = p * 12.0; 
       
       // 같은 방향일 때만 혼합 (반대 방향이면 상쇄해야 하므로 그냥 더함)
       if (Math.sign(state.trendForce) === Math.sign(momentum)) {
-          state.trendForce = state.trendForce * 0.5 + momentum;
+          state.trendForce = state.trendForce * 0.25 + momentum * 0.75;
       } else {
           state.trendForce += momentum;
       }
 
-      addVolPulse(Math.abs(p) * 2.0, 4.0); 
+      addVolPulse(Math.abs(p) * 1.5, 3.0); 
     }
 
     syncDebugEcon();
@@ -1459,20 +1459,21 @@ function stepMarket() {
     if (!marketControl.halted) {
         sigma = getCurrentVol() * volNoise; 
         gap = (state.fairValue - state.spot) / state.spot;
-        pull = gap * 1.5; 
+        pull = gap * 5; 
         
         // 추세가 있으면 펀더멘탈(pull) 무시 로직 (이전 유지)
-        if (Math.abs(state.trendForce) > 0.1) {
+        if (Math.abs(state.trendForce) > 0.4) {
             if (Math.sign(state.trendForce) !== Math.sign(pull)) {
-                 pull = 1.1; 
+                 pull *= 0.5;
+                 baseDrift = 0.01;
             } else {
-                 pull *= 1.3;
+                 pull *= 2;
             }
         }
 
         // [핵심 변경 A] 추세 반영 강도 완화 (100.0 -> 10.0)
         // 너무 강하게 밀어붙이지 않도록 조절하여, 변동성(Sigma)에 의해 역행할 여지를 줌
-        const boostedTrend = state.trendForce * 10.0;
+        const boostedTrend = state.trendForce * 15;
         
         const mu = baseDrift + boostedTrend + pull;
         
@@ -2792,10 +2793,9 @@ function updateDetails() {
 
       <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
       
-      <div class="indRow"><div class="small muted" style="color:#ff6b6b">청산 설정</div><div>${f.closeRate === 'inf' ? '무제한' : '-'+f.closeRate+'%'}</div></div>
+      <div class="indRow"><div class="small muted">청산 손실률</div><div>${f.closeRate === 'inf' ? '무제한' : '-'+f.closeRate+'%'}</div></div>
       <div class="indRow"><div class="small muted">청산 선물 가격</div><div>${f.closePrice}</div></div>
-      <div class="indRow"><div class="small muted" style="color:#ff6b6b">청산 예상 현물가</div><div style="color:#ff6b6b; font-weight:bold;">${liqStr}</div></div>
-      <div class="indRow"><div class="small muted">청산까지 거리</div><div>${dist}</div></div>
+      <div class="indRow"><div class="small muted">청산 예상 현물가</div><div style="color:#ff6b6b; font-weight:bold;">${liqStr}</div></div>
       
       <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
     `;
@@ -3055,7 +3055,6 @@ function updateDebugPanel() {
   const stateText = document.getElementById('dbgStateText');
   if (marketControl.halted) {
       stateText.innerText = "정지";
-      stateText.style.color = "#ff6b6b";
   }
   else if (debugInfo.sigma > 0.5) stateText.innerText = "공포";
   else if (Math.abs(mom) > 5.0) stateText.innerText = "추세 형성"; // 모멘텀 강할 때
