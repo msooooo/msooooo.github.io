@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.19</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.20</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1339,6 +1339,7 @@ function checkMarketProtections(currentPrice, time) {
 
   const dropRate = (marketControl.prevClose - currentPrice) / marketControl.prevClose;
   const currentHour = time.getHours();
+  const currentMinute = time.getMinutes();
   const isNearClose = (currentHour >= 15); 
 
   // 1. Level 1 (7% 하락) -> 30분 정지
@@ -1357,7 +1358,7 @@ function checkMarketProtections(currentPrice, time) {
   
   // 3. Level 3 (20% 하락) -> 당일 장 종료
   if (dropRate >= 0.20 && !marketControl.cbLevel3) {
-    const ticksLeftInDay = 24 - currentHour;
+    const ticksLeftInDay = (15 - currentHour)*60 + 60-currentMinute;
     triggerHalt(ticksLeftInDay, "📉 서킷브레이커 3단계 - 20% 변동");
     marketControl.cbLevel3 = true;
     return;
@@ -1453,17 +1454,16 @@ function stepMarket() {
     // 5. 물리 엔진 (GBM)
     const dt = 1 / (24 * 60 * 365); // 1분 단위
 
-    // [핵심 1] 적정주가(FairValue) 움직임
+    // [1] 적정주가(FV)는 순수 이론대로 움직임
     const baseDrift = 0.08; 
     const fvDrift = baseDrift + state.trendForce; 
     
     const fvVol = 0.08;
     let u1=Math.random(), v1=Math.random();
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
-    
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // [핵심 2] 가격(Spot) 움직임
+    // [2] 가격(Spot) 움직임 - 여기가 핵심 수정 사항
     let factor = 1.0;
     let sigma = 0;
     let gap = 0;
@@ -1471,31 +1471,41 @@ function stepMarket() {
 
     if (!marketControl.halted) {
         sigma = getCurrentVol() * volNoise; 
-        
-        // 괴리율에 의한 회귀
         gap = (state.fairValue - state.spot) / state.spot;
         pull = gap * 1.5; 
         
-        // [Fix 2] 추세 역행 방지 (Trend Following)
-        // 추세(Trend)와 회귀력(Pull)의 방향이 반대이고, 추세가 강하면 회귀력을 억제함
-        // 예: 악재(Trend < 0)인데 저평가(Pull > 0)라서 오르는 현상 방지
-        if (Math.abs(state.trendForce) > 0.5 && Math.sign(state.trendForce) !== Math.sign(pull)) {
-             pull *= 0.1; // 회귀력 90% 약화 -> 뉴스 방향대로 감
+        // [Fix A] 추세가 Pull과 반대면 Pull 제거 (이전 수정 유지)
+        if (Math.abs(state.trendForce) > 0.1) {
+            if (Math.sign(state.trendForce) !== Math.sign(pull)) {
+                 pull = 0; 
+            } else {
+                 pull *= 1.2;
+            }
         }
 
-        const mu = fvDrift + pull;
+        // [Fix B] 추세 증폭 (Trend Boost)
+        // dt가 너무 작아(10^-6) 추세가 묻히므로, 가격 결정식에는 추세 힘을 100배 키워서 반영
+        // 이렇게 해야 "단기 분봉"에서도 추세가 눈에 보임
+        const boostedTrend = state.trendForce * 100.0;
+        
+        const mu = baseDrift + boostedTrend + pull;
         
         let u2=Math.random(), v2=Math.random();
         let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
         
+        // [Fix C] 확률 편향 (Noise Bias)
+        // 호재(Trend > 0)가 강하면 랜덤값(z2)이 음수가 나오지 않도록 밀어올림
+        // 반대로 악재면 양수가 나오지 않도록 찍어누름
+        if (state.trendForce > 1.0) { // 강한 호재
+             z2 += 0.5; // 확률 분포를 위로 이동
+             if (z2 < -0.5) z2 = -0.5; // 하락폭 제한 (손실 방어)
+        } else if (state.trendForce < -1.0) { // 강한 악재
+             z2 -= 0.5; // 확률 분포를 아래로 이동
+             if (z2 > 0.5) z2 = 0.5; // 상승폭 제한 (반등 억제)
+        }
+
         let tickSigma = sigma * Math.sqrt(volMult); 
         factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
-    }
-
-    if (currentSession === SESSION.DAY) {
-       state.spot *= factor; 
-    } else {
-       state.spot *= factor;
     }
 
     if (state.spot < 0.00) state.spot = 0.00;
@@ -3248,7 +3258,7 @@ state.history.push({ t: new Date(simDate), price: state.spot });
 pushEventLog('🚀 미니 파생상품 게임 시작 (현물 시작가: 10,000)');
 renderAll();
 drawChart();
-setInterval(() => { stepMarket(); }, 1000);
+setInterval(() => { stepMarket(); }, 100);
 
 
 </script>
