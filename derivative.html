@@ -67,7 +67,7 @@
   /* RIGHT - player info */
   #right{ width:20%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
   h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
-  .posList{ max-height:150px; overflow:auto; }
+  .posList{ max-height:140px; overflow:auto; }
   .details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); }
   .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
   .posItem:hover{ background:#092135; }
@@ -2765,7 +2765,7 @@ function updateDetails() {
 
     // [신규] 청산 현물 가격 계산
     const liqSpot = getLiquidationSpotPrice(f);
-    const liqStr = liqSpot !== null ? fmt2(liqSpot) : "무제한 (Infinity)";
+    const liqStr = liqSpot !== null ? fmt2(liqSpot) : "무제한";
     // 현재가와의 거리 (안전마진)
     const dist = liqSpot !== null ? ((state.spot - liqSpot) / state.spot * 100).toFixed(2) + '%' : '-';
     
