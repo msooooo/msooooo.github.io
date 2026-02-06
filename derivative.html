@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.26</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.27</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -2180,7 +2180,7 @@ function computeAutoYRange(slice) {
   if (!isFinite(minP) || !isFinite(maxP)) { minP = 0; maxP = 1; }
 
   // padding: 범위의 5% 또는 최소 1 단위
-  const padding = Math.max((maxP - minP) * 0.02, Math.abs(maxP) * 0.010, 1e-6);
+  const padding = Math.max((maxP - minP) * 0.005, Math.abs(maxP) * 0.0010, 1e-6);
   return { min: minP - padding, max: maxP + padding };
 }
 
