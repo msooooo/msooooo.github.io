@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.25</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.5.0</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -517,6 +517,14 @@ let state = {
   }
 };
 
+/* --- 상수: 튜닝 값 (필요시 조절) --- */
+const T_DF = 5;                    // Student-t 자유도 (작을수록 꼬리 두꺼움)
+const JUMP_PROB_DAILY = 0.03;      // 하루 단위 점프 기대 빈도 (예: 3%)
+const JUMP_MEAN = -0.015;          // 점프 평균(음의 편향 허용)
+const JUMP_SD = 0.03;              // 점프 표준편차
+const LEVERAGE_PULSE_MULT = 3.0;   // 하락시 추가 volPulse 스케일
+const JUMP_MIN = -0.5;             // 점프 최소 (안전장치)
+const JUMP_MAX = 0.5;              // 점프 최대
 
 // [신규] 세션 정의 상수
 const SESSION = {
@@ -1389,6 +1397,34 @@ function triggerHalt(ticks, reason) {
 }
 
 
+/* --- 추가: 정규 난수(박스-뮬러) 재사용 함수 --- */
+function randNormal() {
+  // Box-Muller
+  let u = 0, v = 0;
+  while(u === 0) u = Math.random();
+  while(v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+/* --- 추가: Student-t(자유도 df) 샘플러 --- */
+function randStudentT(df = 5) {
+  // t = z / sqrt(chi2/df), where z ~ N(0,1), chi2 ~ sum_{i=1..df} N(0,1)^2
+  const z = randNormal();
+  let sumsq = 0;
+  for (let i = 0; i < df; i++) {
+    const n = randNormal();
+    sumsq += n * n;
+  }
+  const chi = sumsq / df;
+  return z / Math.sqrt(chi || 1e-9);
+}
+
+/* helper: minute 단위 점프 확률 계산 */
+function minuteJumpProb() {
+  // 대략 하루 기준(24*60분). 드문 사건은 포아송 근사.
+  return JUMP_PROB_DAILY / (24 * 60);
+}
+
 
 /* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
 /* [수정] 메인 루프: 디버그 데이터 동기화 및 물리 엔진 보정 */
@@ -1450,75 +1486,99 @@ function stepMarket() {
     let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
     state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
 
-    // [2] 가격(Spot) 움직임
+    // [2] 가격(Spot) 움직임 — 향상된 모델 (fat-tail + jumps + leverage + volume coupling)
     let factor = 1.0;
     let sigma = 0;
     let gap = 0;
     let pull = 0;
+    let realizedReturn = 0;
 
     if (!marketControl.halted) {
+        // 기본 sigma: 현재 변동성(기본 + 펄스)
         sigma = getCurrentVol() * volNoise; 
         gap = (state.fairValue - state.spot) / state.spot;
-        pull = gap * 5; 
-        
-        // 추세가 있으면 펀더멘탈(pull) 무시 로직 (이전 유지)
-        if (Math.abs(state.trendForce) > 0.4) {
-            if (Math.sign(state.trendForce) !== Math.sign(pull)) {
-                 pull *= 0.5;
-                 baseDrift = 0.01;
-            } else {
-                 pull *= 2;
-            }
+        pull = gap * 5;
+
+        // trendForce 기존 로직 유지하되 완화된 가중치 (원본에서도 boostedTrend 사용)
+        const boostedTrend = state.trendForce * 15;
+        const mu = baseDrift + boostedTrend + pull;
+
+        // 1) Student-t innovation (fat tails)
+        const z_t = randStudentT(T_DF);
+
+        // 2) occasional jump (Poisson-like)
+        let jump = 0;
+        if (Math.random() < minuteJumpProb()) {
+            // jump magnitude 샘플 (정규+클램프)
+            jump = JUMP_MEAN + randNormal() * JUMP_SD;
+            if (jump < JUMP_MIN) jump = JUMP_MIN;
+            if (jump > JUMP_MAX) jump = JUMP_MAX;
+            // 즉시 펄스 & 로그 이벤트
+            const volPulse = Math.min(1.0, Math.abs(jump) * 6.0);
+            addVolPulse(volPulse, 2.0); // 강한 단기 펄스
+            pushEventLog(`⚡ 점프 이벤트: ${ (jump * 100).toFixed(2) }%`);
         }
 
-        // [핵심 변경 A] 추세 반영 강도 완화 (100.0 -> 10.0)
-        // 너무 강하게 밀어붙이지 않도록 조절하여, 변동성(Sigma)에 의해 역행할 여지를 줌
-        const boostedTrend = state.trendForce * 15;
-        
-        const mu = baseDrift + boostedTrend + pull;
-        
-        let u2=Math.random(), v2=Math.random();
-        let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
-        
-        // [핵심 변경 B] 인위적인 확률 편향(z2 조작) 삭제
-        // 이제 추세가 있어도 z2(랜덤 운)가 나쁘면 가격이 하락할 수 있음 (부분적 하락/횡보 구현)
+        // 3) tick sigma (session+news scaling)
+        let tickSigma = sigma * Math.sqrt(volMult);
 
-        let tickSigma = sigma * Math.sqrt(volMult); 
-        factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
-    }
+        // 4) 레버리지 효과(하락시 변동성 즉시 증가)
+        //    - 음수 충격(예측 불가능한 실현수익)이면 즉시 volPulse를 가산하여 클러스터링 유도
+        //    (실현수익은 jump 포함 전의 연속 충격 기준으로 근사)
+        const contShock = tickSigma * z_t * Math.sqrt(dt);
+        const contFactor = Math.exp((mu - 0.5 * tickSigma * tickSigma) * dt + tickSigma * Math.sqrt(dt) * z_t);
 
-    // [핵심 변경 C] 가격 반영 코드 복구 (이게 없어서 가격이 안 움직였음)
-    if (currentSession === SESSION.DAY) {
-       state.spot *= factor; 
-    } else {
-       state.spot *= factor;
-    }
+        // 합성 factor (연속 충격 반영)
+        factor = contFactor;
 
-    // 하한선
+        // 적용할 추가 점프(지수 공간에서 곱해짐)
+        if (jump !== 0) {
+            const jumpFactor = Math.exp(jump); // jump already small (e.g., -0.02)
+            factor *= jumpFactor;
+        }
+
+        realizedReturn = factor - 1;
+
+        // 레버리지: 큰 음수 실현수익이면 변동성 즉시 증가
+        if (realizedReturn < 0 && Math.abs(realizedReturn) > 0.003) {
+            const pulseAmp = Math.min(0.6, Math.abs(realizedReturn) * LEVERAGE_PULSE_MULT * 10);
+            addVolPulse(pulseAmp, 2.5);
+        }
+
+    // 가격 반영 (원본과 동일하게 session 관계 없이 적용)
+    state.spot *= factor;
+
+    // 안전장치
     if (state.spot < 0.00) state.spot = 0.00;
     if (state.fairValue < 0.00) state.fairValue = 0.00;
-    
-    // 6. 데이터 저장
-    const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
-    updateCandles(state.spot, simDate, tickVolume);
-    
-    // 7. 감쇠(Decay) 가속화
-    decayVolPulses(5/60);
-    
-    // [핵심 변경 D] 감쇠율 증가 (0.998 -> 0.985)
-    // 1분마다 2%씩 힘이 빠짐 -> 약 90분 뒤면 영향력 25% 미만으로 감소 (단기성 강화)
-    state.trendForce *= 0.980; 
 
+    // 거래량: 기존 tickVolume에 수익률 결합 (절대값 기반)
+    // 원본 tickVolume: Math.round(1000 * volMult * (0.5 + Math.random()));
+    // 개선: 급격한 수익률일수록 거래량 증폭
+    const retMag = Math.min(10, Math.abs(realizedReturn) * 100); // 예: 0.02 -> 2
+    const coupling = 1 + retMag * 0.6; // 튜닝 가능
+    const baseTickVol = Math.round(1000 * volMult * (0.5 + Math.random()));
+    const tickVolume = Math.max(1, Math.round(baseTickVol * coupling));
+
+    updateCandles(state.spot, simDate, tickVolume);
+
+    // 감쇠(Decay) 가속화 (원본 유지)
+    decayVolPulses(5/60);
+
+    // trendForce 감쇠 (원본 값 유지)
+    state.trendForce *= 0.980;
+
+    // market protections, expiries 등 기존 호출 유지
     checkMarketProtections(state.spot, simDate);
     checkExpiries();
     liquidateFutures();
 
-    // 디버그 갱신
+    // 디버그 값 업데이트 (원본 구조 유지)
     debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
     debugInfo.volMult = volMult;
-    debugInfo.gap = gap; 
-    debugInfo.momentum = state.trendForce; 
-    debugInfo.force = (!marketControl.halted) ? pull : 0; 
+    debugInfo.gap = gap;
+    debugInfo.momentum = state.trendForce;
+    debugInfo.force = (!marketControl.halted) ? pull : 0;
     debugInfo.rate = RATE_BASE;
   }
   
