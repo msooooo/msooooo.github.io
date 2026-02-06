@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.5.0</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.5.1</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1522,68 +1522,153 @@ function stepMarket() {
         // 3) tick sigma (session+news scaling)
         let tickSigma = sigma * Math.sqrt(volMult);
 
-        // 4) 레버리지 효과(하락시 변동성 즉시 증가)
-        //    - 음수 충격(예측 불가능한 실현수익)이면 즉시 volPulse를 가산하여 클러스터링 유도
-        //    (실현수익은 jump 포함 전의 연속 충격 기준으로 근사)
+/* [수정 완료] 닫는 괄호 추가 및 renderAll 위치 최적화 */
+function stepMarket() {
+  for (let i = 0; i < loopsPerFrame; i++) {
+    
+    // 1. 시간 흐름
+    simDate = new Date(simDate.getTime() + 60 * 1000); 
+    const h = simDate.getHours();
+    const m = simDate.getMinutes();
+    
+    // 매일 아침 지표 자동 예약
+    if (h === 9 && m === 30) scheduleFutureNews();
+    if (h === 0 && m === 0) marketControl.prevClose = state.spot;
+
+    // 거래정지 해제 체크
+    if (marketControl.halted && marketControl.haltUntil) {
+       if (simDate >= marketControl.haltUntil) {
+         marketControl.halted = false;
+         marketControl.haltUntil = null;
+         pushEventLog("🟢 거래 재개 (Trading Resumed)");
+       }
+    }
+
+    // 2. 세션 및 물리 파라미터
+    let { session, volMult, volNoise } = getSessionPhysics(simDate);
+    currentSession = session; 
+
+    if (marketControl.halted) { volMult = 0; volNoise = 0; }
+
+    // 3. 갭 처리 (장전 시간)
+    if (h === 4 && m === 0) { 
+        if (Math.abs(gapAccumulator - 1.0) > 0.001) {
+            state.spot *= gapAccumulator;
+            state.fairValue *= gapAccumulator;
+            pushEventLog(`⚡ 프리마켓 개장: 밤사이 변동 반영 (${fmt2((gapAccumulator-1)*100)}%)`);
+            gapAccumulator = 1.0; 
+        }
+    }
+
+    // 4. 뉴스 체크
+    checkNewsTrigger(); 
+    tryTriggerHeadline();
+    
+    // 5. 물리 엔진
+    const dt = 1 / (24 * 60 * 365); 
+
+    // [1] 적정주가(FV) 움직임
+    let baseDrift = 0.08; 
+    const fvDrift = baseDrift + state.trendForce; 
+    const fvVol = 0.08;
+    let u1=Math.random(), v1=Math.random();
+    let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
+    state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
+
+    // [2] 가격(Spot) 움직임
+    let factor = 1.0;
+    let sigma = 0;
+    let gap = 0;
+    let pull = 0;
+    let realizedReturn = 0;
+
+    if (!marketControl.halted) {
+        // 기본 sigma: 현재 변동성(기본 + 펄스)
+        sigma = getCurrentVol() * volNoise; 
+        gap = (state.fairValue - state.spot) / state.spot;
+        pull = gap * 5;
+
+        // trendForce 기존 로직 유지
+        const boostedTrend = state.trendForce * 15;
+        const mu = baseDrift + boostedTrend + pull;
+
+        // 1) Student-t innovation (Fat tails 적용)
+        const z_t = randStudentT(T_DF);
+
+        // 2) Occasional jump (Poisson-like)
+        let jump = 0;
+        if (Math.random() < minuteJumpProb()) {
+            jump = JUMP_MEAN + randNormal() * JUMP_SD;
+            if (jump < JUMP_MIN) jump = JUMP_MIN;
+            if (jump > JUMP_MAX) jump = JUMP_MAX;
+            
+            const volPulse = Math.min(1.0, Math.abs(jump) * 6.0);
+            addVolPulse(volPulse, 2.0); 
+            pushEventLog(`⚡ 점프 이벤트: ${ (jump * 100).toFixed(2) }%`);
+        }
+
+        // 3) Tick sigma
+        let tickSigma = sigma * Math.sqrt(volMult);
+
+        // 4) 레버리지 효과 및 연속 충격
         const contShock = tickSigma * z_t * Math.sqrt(dt);
         const contFactor = Math.exp((mu - 0.5 * tickSigma * tickSigma) * dt + tickSigma * Math.sqrt(dt) * z_t);
 
-        // 합성 factor (연속 충격 반영)
         factor = contFactor;
 
-        // 적용할 추가 점프(지수 공간에서 곱해짐)
+        // 점프 적용
         if (jump !== 0) {
-            const jumpFactor = Math.exp(jump); // jump already small (e.g., -0.02)
+            const jumpFactor = Math.exp(jump);
             factor *= jumpFactor;
         }
 
         realizedReturn = factor - 1;
 
-        // 레버리지: 큰 음수 실현수익이면 변동성 즉시 증가
+        // 레버리지: 급락 시 변동성 증가
         if (realizedReturn < 0 && Math.abs(realizedReturn) > 0.003) {
             const pulseAmp = Math.min(0.6, Math.abs(realizedReturn) * LEVERAGE_PULSE_MULT * 10);
             addVolPulse(pulseAmp, 2.5);
         }
 
-    // 가격 반영 (원본과 동일하게 session 관계 없이 적용)
-    state.spot *= factor;
+        // 가격 반영
+        state.spot *= factor;
 
-    // 안전장치
-    if (state.spot < 0.00) state.spot = 0.00;
-    if (state.fairValue < 0.00) state.fairValue = 0.00;
+        // 안전장치
+        if (state.spot < 0.00) state.spot = 0.00;
+        if (state.fairValue < 0.00) state.fairValue = 0.00;
 
-    // 거래량: 기존 tickVolume에 수익률 결합 (절대값 기반)
-    // 원본 tickVolume: Math.round(1000 * volMult * (0.5 + Math.random()));
-    // 개선: 급격한 수익률일수록 거래량 증폭
-    const retMag = Math.min(10, Math.abs(realizedReturn) * 100); // 예: 0.02 -> 2
-    const coupling = 1 + retMag * 0.6; // 튜닝 가능
-    const baseTickVol = Math.round(1000 * volMult * (0.5 + Math.random()));
-    const tickVolume = Math.max(1, Math.round(baseTickVol * coupling));
+        // 거래량 계산
+        const retMag = Math.min(10, Math.abs(realizedReturn) * 100);
+        const coupling = 1 + retMag * 0.6;
+        const baseTickVol = Math.round(1000 * volMult * (0.5 + Math.random()));
+        const tickVolume = Math.max(1, Math.round(baseTickVol * coupling));
 
-    updateCandles(state.spot, simDate, tickVolume);
+        updateCandles(state.spot, simDate, tickVolume);
 
-    // 감쇠(Decay) 가속화 (원본 유지)
-    decayVolPulses(5/60);
+        // 감쇠 및 정리
+        decayVolPulses(5/60);
+        state.trendForce *= 0.980;
 
-    // trendForce 감쇠 (원본 값 유지)
-    state.trendForce *= 0.980;
+        // 시장 보호장치 및 만기 체크
+        checkMarketProtections(state.spot, simDate);
+        checkExpiries();
+        liquidateFutures();
 
-    // market protections, expiries 등 기존 호출 유지
-    checkMarketProtections(state.spot, simDate);
-    checkExpiries();
-    liquidateFutures();
+        // 디버그 데이터 업데이트
+        debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
+        debugInfo.volMult = volMult;
+        debugInfo.gap = gap;
+        debugInfo.momentum = state.trendForce;
+        debugInfo.force = (!marketControl.halted) ? pull : 0;
+        debugInfo.rate = RATE_BASE;
+    } // if (!halted) 끝
 
-    // 디버그 값 업데이트 (원본 구조 유지)
-    debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
-    debugInfo.volMult = volMult;
-    debugInfo.gap = gap;
-    debugInfo.momentum = state.trendForce;
-    debugInfo.force = (!marketControl.halted) ? pull : 0;
-    debugInfo.rate = RATE_BASE;
-  }
-  
+  } // for (loopsPerFrame) 끝
+
+  // 렌더링은 루프 밖에서 한 번만 실행 (성능 최적화)
   renderAll();
-}
+} // function stepMarket 끝 (이 괄호가 누락되어 있었습니다)
+
 
 
 
@@ -2041,7 +2126,7 @@ function drawChart() {
   if (slice.length === 0) return;
 
   // --- [핵심 변경] 레이아웃 분할 ---
-  const cw = canvas.clientWidth;
+  const cw = canvas.clientWih;
   const ch = canvas.clientHeight;
   const innerX = chartMarginLeft;
   const innerY = chartMarginTop;
