@@ -247,7 +247,7 @@
     <div class="topRow">
       <div class="xwrap">
         <div id="datetime">--</div>
-        <div class="small muted">1초 = 1분 ••• ver 1.4.27</div> <!-- ==================================================== 버전수정 ================================================ -->
+        <div class="small muted">1초 = 1분 ••• ver 1.4.28</div> <!-- ==================================================== 버전수정 ================================================ -->
       </div>
       <div style="text-align:right;">
         <div id="marketStatus" class="small muted">--</div>
@@ -1119,7 +1119,7 @@ function scheduleFutureNews() {
     if (template.inverse) expectedDelta *= -1;
 
     // 선반영 강도 (약 10%)
-    const pricingInFactor = expectedDelta * template.weight.s * 0.1; 
+    const pricingInFactor = expectedDelta * template.weight.s * 0.025; 
     
     state.spot *= (1 + pricingInFactor);
     state.fairValue *= (1 + pricingInFactor);
@@ -1261,7 +1261,7 @@ function checkNewsTrigger() {
       let shockFactor = surpriseZ * correctionMult;
       if (Math.abs(surpriseZ) > 1.0) shockFactor *= 1.5; 
 
-      let impact = shockFactor * n._weight.s * 0.1; 
+      let impact = shockFactor * n._weight.s * 0.07; 
       
       const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
       let comment = "";
@@ -1272,7 +1272,7 @@ function checkNewsTrigger() {
       if (n.title.includes('기준금리')) {
         RATE_BASE = n._valActual;
         R = RATE_BASE * 0.01;
-        impact *= 2.0;
+        impact *= 1.5;
         pushEventLog(`🏛️ 기준금리 확정: ${fmt2(n._valActual)}%`);
       }
 
@@ -1307,9 +1307,9 @@ function checkNewsTrigger() {
       
       // 같은 방향일 때만 혼합 (반대 방향이면 상쇄해야 하므로 그냥 더함)
       if (Math.sign(state.trendForce) === Math.sign(momentum)) {
-          state.trendForce = state.trendForce * 0.25 + momentum * 0.75;
+          state.trendForce = state.trendForce * 0.25 + momentum * 0.9;
       } else {
-          state.trendForce += momentum;
+          state.trendForce += momentum * 1.1;
       }
 
       addVolPulse(Math.abs(p) * 1.5, 3.0); 
