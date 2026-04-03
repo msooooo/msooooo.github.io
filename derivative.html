@@ -1,0 +1,3340 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Derivatives Game</title>
+<style>
+  :root{
+    --bg:#071028; --panel:#0b1730; --accent:#2fc3ff; --text:#e8eefc;
+    --muted:#8fb0d6; --profit:#39ff88; --loss:#ff6b6b;
+    --notify-bg: rgba(47,195,255,0.12);
+  }
+  html,body{ height:100%; margin:0; }
+  body{ font-family:system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans KR",Helvetica,Arial; background:var(--bg); color:var(--text); display:flex; height:100vh; box-sizing:border-box; }
+  /* LEFT - controls & econ indicators & logs */
+  #left{ width:15%; height:100%; min-width:260px; padding:12px; box-sizing:border-box; background:var(--panel); border-right:1px solid rgba(255,255,255,0.03); overflow:auto;}
+  .topRow{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  #datetime{ font-weight:700; width:60%; font-size:14px; }
+  .xwrap{ white-space: nowrap; }
+  #marketStatus{ font-size:13px; color:#cfeaff; }
+  #speedSelect{ background:#06223f; color:var(--text); border-radius:6px; padding:4px; border:1px solid rgba(255,255,255,0.03); }
+  .section{ background:#071a30; border-radius:8px; padding:8px; margin-bottom:10px; border:1px solid rgba(255,255,255,0.02); }
+  label{ display:block; font-size:12px; color:var(--muted); margin-top:6px; }
+  select,input[type="number"],input[type="text"]{ width:100%; padding:6px; border-radius:6px; border:1px solid rgba(255,255,255,0.03); background:#081b36; color:var(--text); box-sizing:border-box; margin-top:4px; }
+  button{ width:100%; padding:8px; border-radius:8px; border:none; background:var(--accent); color:#022; font-weight:700; cursor:pointer; margin-top:8px; }
+  .muted{ color:var(--muted); font-size:12px; }
+  .inline{ display:flex; gap:8px; align-items:center; }
+  .small{ font-size:12px; color:var(--muted); }
+  .dataBox{ min-width: 90px; padding: 10px 6px; background: #0c2747; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.3;}
+  .cenText{ text-align: center; }
+  /* CENTER - chart + econ/details row */
+  #center{ flex:1; display:flex; flex-direction:column; gap:10px; padding:12px; box-sizing:border-box; }
+  #chartWrap{
+    position: relative;      /* 중요: 절대위치 스크롤의 기준 */
+    width: 100%;
+    height: 50%;
+    background:#081226;
+    border-radius:10px;
+    padding:8px;
+    box-sizing:border-box;
+    border:1px solid rgba(255,255,255,0.03);
+    display:flex;
+    flex-direction:column;
+    overflow: hidden;        /* 캔버스/스크롤 겹침 안정화 */
+  }
+  #chartCanvas{
+    position: absolute; /* 캔버스를 wrapper 안에 절대 배치 */
+    inset: 8px;         /* wrapper padding(8px)을 고려해 안쪽에 배치 */
+    width: calc(100% - 16px);
+    height: calc(100% - 16px);
+    border-radius:6px;
+    background:#041026;
+    display:block;
+    z-index: 1;
+    touch-action: none; /* 터치 관련 (필요시 제거 가능) */
+  }
+  #chartControls{ display:flex; gap:8px; align-items:center; margin-top:8px; }
+  .periodBtn{ background:#062b44; color:var(--text); border:1px solid rgba(255,255,255,0.03); padding:6px 10px; border-radius:6px; cursor:pointer; }
+  .periodBtn.active{ background:var(--accent); color:#022; }
+  #periodReturn{ margin-left:12px; font-weight:700; }
+  #below{ display:flex; gap:10px; height:50%; min-height:180px; }
+  #econPanel{ width:25%; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #econHeader{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  #econDebugTools{ display:none; margin-top:8px; gap:8px; }
+  #Panel{ width:30%; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  #logs{ flex:1; background:#07162a; border-radius:10px; padding:12px; box-sizing:border-box; border:1px solid rgba(255,255,255,0.03); overflow:auto; position:relative;}
+  /* RIGHT - player info */
+  #right{ width:20%; height:100%; min-width:320px; background:#0b1730; padding:12px; box-sizing:border-box; overflow:auto; border-left:1px solid rgba(255,255,255,0.03); }
+  h2{ margin:4px 0 8px 0; color:var(--accent); font-size:16px; }
+  .posList{ max-height:135px; overflow:auto; }
+  .details{ flex:1; background:#07162a; border-radius:10px; padding:8px; box-sizing:border-box; overflow:auto; border:1px solid rgba(255,255,255,0.03); }
+  .posItem{ padding:8px; border-radius:6px; background:#061427; margin-bottom:6px; cursor:pointer; border:1px solid rgba(255,255,255,0.02); }
+  .posItem:hover{ background:#092135; }
+  .profit{ color:var(--profit); font-weight:700; }
+  .loss{ color:var(--loss); font-weight:700; }
+  .indRow{ display:flex; justify-content:space-between; margin-bottom:6px; align-items:center; }
+  .indName{ color:var(--muted); font-size:13px; }
+  .indValue{ font-weight:700; }
+  /* event log */
+  #eventLog{ flex:1; background:#061424; border-radius:6px; padding:8px; margin-top:8px; overflow:auto; border:1px solid rgba(255,255,255,0.02); font-size:13px; }
+  .logItem{ margin-bottom:6px; }
+  /* notification toast */
+  #notif{ position:fixed; right:24px; top:18px; background:var(--notify-bg); color:var(--text); padding:8px 12px; border-radius:6px; border:1px solid rgba(47,195,255,0.15); display:none; z-index:1000; }
+  /* debug small controls */
+  .debugBtn{ width:30%; background:#ffd166; color:#022; font-weight:700; border-radius:6px; padding:6px; border:none; cursor:pointer;}
+  .tinyd{ font-size:12px; padding:6px; }
+  /* responsive */
+  @media (max-width:1080px){
+    #left{ width:25%; }
+    #right{ width:25%; }
+    #center{ padding:8px; }
+  }
+  /* tablet-friendly small controls */
+  .tiny { font-size:13px; padding:6px 8px; border-radius:6px; background:#0b2740; color:var(--text); border:1px solid rgba(255,255,255,0.04); cursor:pointer; }
+
+  /* [추가] 접기/펼치기 및 디버그, 수량 조절 스타일 */
+  .sectionHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    cursor: pointer; user-select: none;
+    padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 8px;
+  }
+  .sectionHeader:hover { color: #fff; }
+  .toggleIcon { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+  .collapsed .toggleIcon { transform: rotate(-90deg); }
+  .sectionContent { display: block; }
+  .sectionContent.hidden { display: none; }
+
+  /* 수량 조절 버튼 그룹 */
+  .qty-group { display: flex; align-items: center; gap: 4px; width: 100%; }
+  .qty-btn {
+    background: #0b2740; color: var(--accent); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px; width: 30px; height: 30px; cursor: pointer; font-weight: bold; font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .qty-btn:hover { background: var(--accent); color: #000; }
+  .qty-input { text-align: center; flex: 1; } /* 입력칸 가운데 정렬 */
+
+  /* 디버그 패널 값 색상 */
+  .dbg-label { color: var(--muted); font-size: 11px; }
+  .dbg-val { font-family: monospace; font-size: 12px; color: #fff; text-align: right; }
+  .dbg-row { display: flex; justify-content: space-between; margin-bottom: 2px; }
+
+  /* [추가] 디버그 뉴스 주입기 스타일 */
+  .dbg-tools { margin-top: 12px; border-top: 1px dashed rgba(255,255,255,0.1); padding-top: 8px; }
+  .dbg-btn-group { display: flex; gap: 6px; margin-bottom: 8px; }
+  .dbg-btn-group button { flex: 1; font-size: 11px; padding: 4px; margin: 0; background: #0b2740; border: 1px solid rgba(255,255,255,0.1); }
+  .dbg-btn-group button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+  .dbg-input-row { display: flex; gap: 6px; margin-top: 6px; }
+  .dbg-input-row input, .dbg-input-row select { font-size: 12px; padding: 4px; margin: 0; }
+
+  input[type=range].dbg-slider { width: 100%; margin: 0; height: 6px; }
+  .impact-label { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; margin-top: 2px; }
+
+  
+  /* chart-attached scrollbars */
+  /* hScroll: 차트 하단 전체, 오른쪽은 조금 남겨서 화면 끝과 겹치지 않게 함 */
+  .hScroll {
+    position: absolute;
+    left: 8px;
+    right: 8px;       /* <-- 세로 스크롤 제거했으니 right를 줄임(기본 8px 여유) */
+    bottom: 6px;
+    height: 14px;
+    appearance:none;
+    -webkit-appearance: none;
+    background: rgba(255,255,255,0.03);
+    z-index: 40;
+    pointer-events: auto;
+  }
+
+  /* --- NEW: Calendar & News Panel UI --- */
+  #macroPanel {
+    width: 55%; /* 기존 econPanel보다 조금 더 넓게 확보 */
+    display: flex;
+    gap: 10px;
+    /* background, border 등은 내부 자식 요소가 가짐 */
+  }
+
+  /* 왼쪽: 달력 */
+  #calWrap {
+    width: 45%;
+    background: #07162a;
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.03);
+    display: flex;
+    flex-direction: column;
+  }
+  .calHeader {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 8px; font-weight: 700; color: var(--accent);
+  }
+  .calGrid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    text-align: center;
+    font-size: 12px;
+    flex: 1;
+  }
+  .calDayHead { color: var(--muted); font-size: 10px; padding-bottom: 4px; }
+  .calCell {
+    background: #0b1f36; border-radius: 4px; padding: 4px 2px;
+    cursor: pointer; position: relative; color: #aab8c9;
+    height: 32px; /* 고정 높이 */
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .calCell:hover { background: #122d4d; }
+  .calCell.today { border: 1px solid var(--accent); color: #fff; font-weight: bold; background: rgba(47,195,255,0.1); }
+  .calCell.selected { background: var(--accent); color: #000; font-weight: bold; }
+  .calCell.hasEvent::after {
+    content: ''; display: block; width: 4px; height: 4px;
+    background: #ff6b6b; border-radius: 50%; margin-top: 2px;
+  }
+  .calCell.empty { background: transparent; cursor: default; }
+
+  /* 오른쪽: 뉴스 피드 */
+  #newsWrap {
+    flex: 1;
+    background: #07162a;
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid rgba(255,255,255,0.03);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #newsHeader {
+    font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 8px; height: 8%;
+    display: flex; justify-content: space-between;
+    text-align: center;
+  }
+  #newsList {
+    flex: 1; overflow-y: auto; padding-right: 4px;
+  }
+  /* 스크롤바 커스텀 */
+  #newsList::-webkit-scrollbar { width: 4px; }
+  #newsList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+  .newsItem {
+    background: #091a2e; border-radius: 6px; padding: 8px; margin-bottom: 6px;
+    border-left: 3px solid var(--muted);
+    transition: background 0.2s;
+  }
+  .newsItem:hover { background: #0c213a; }
+  .newsItem.impact-high { border-left-color: #ff6b6b; } /* 붉은색: 중요 */
+  .newsItem.impact-good { border-left-color: #39ff88; } /* 초록색: 호재 */
+
+  .newsMeta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .newsTitle { font-size: 13px; font-weight: 600; color: #e8eefc; margin-bottom: 4px; line-height: 1.3; }
+  .newsData {
+    display: flex; gap: 8px; font-size: 11px; background: rgba(0,0,0,0.2);
+    padding: 4px 6px; border-radius: 4px; margin-top: 4px; width: fit-content;
+  }
+  .val-forecast { color: #aaa; }
+  .val-actual { color: #fff; font-weight: 700; }
+  .badge { padding: 2px 4px; border-radius: 3px; font-size: 10px; font-weight: bold; background: #333; color: #ccc;}
+
+</style>
+</head>
+<body>
+
+  <!-- NOTIFICATION -->
+  <div id="notif"></div>
+
+  <!-- LEFT: controls + econ snapshot + log -->
+  <div id="left">
+    <div class="topRow">
+      <div class="xwrap">
+        <div id="datetime">--</div>
+        <div class="small muted">1초 = 1분 ••• ver 1.4.28</div> <!-- ==================================================== 버전수정 ================================================ -->
+      </div>
+      <div style="text-align:right;">
+        <div id="marketStatus" class="small muted">--</div>
+        <select id="speedSelect" title="시뮬레이션 속도" style="margin-top:6px;">
+          <option value="0">정지</option>
+          <option selected value="1">1x</option>
+          <option value="5">5x</option>
+          <option value="30">30x</option>
+          <option value="60">60x</option>
+          <option value="240">240x</option>
+        </select>
+
+      </div>
+    </div>
+
+    <div class="section">
+      <h3 style="margin:0">현물 (Spot)</h3>
+      <div class="small muted">현재가</div>
+      <div style="font-size:20px; font-weight:700;" id="spotPrice">데이터 준비 중...</div>
+      <div class="inline" style="margin-top:8px;">
+        <button id="buySpot">시장가 매수</button>
+        <button id="sellSpot">시장가 매도</button>
+      </div>
+    </div>
+
+    <div class="section" id="secFutures">
+      <div class="sectionHeader" onclick="toggleSection('secFutures')">
+        <h3 style="margin:0">선물 (Futures)</h3>
+        <span class="toggleIcon">▼</span>
+      </div>
+      <div class="sectionContent">
+        <label>포지션</label>
+        <select id="futSide"><option value="Long">Long</option><option value="Short">Short</option></select>
+        <label>레버리지 | 증거금</label>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <select id="futLev"><option>1</option><option>2</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option>100</option></select>
+          <div class="dataBox" id="futMarginDisplay">0.00</div>
+        </div>
+        <label>손실 한계치</label>
+        <select id="futCloseRate"><option selected value="inf">Infinity</option><option value="5">-5%</option><option value="10">-10%</option><option value="20">-20%</option><option value="50">-50%</option><option value="100">-100%</option><option value="200">-200%</option></select>
+        <label>만기</label>
+        <select id="futExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
+        
+        <label>수량 | 예상 거래금</label>
+        <div class="qty-group">
+          <button class="qty-btn" onclick="adjustQty('futQty', -1)">-</button>
+          <input id="futQty" type="number" min="1" value="1" class="qty-input" />
+          <button class="qty-btn" onclick="adjustQty('futQty', 1)">+</button>
+        </div>
+        <div class="dataBox" id="futTotalDisplay" style="margin-top:4px;">0.00</div>
+        
+        <button id="openFut">포지션 열기</button>
+      </div>
+    </div>
+
+
+    <div class="section" id="secOptions">
+      <div class="sectionHeader" onclick="toggleSection('secOptions')">
+        <h3 style="margin:0">옵션 (Option)</h3>
+        <span class="toggleIcon">▼</span>
+      </div>
+      <div class="sectionContent">
+        <label>종류</label>
+        <select id="optType"><option value="Call">Call</option><option value="Put">Put</option></select>
+        <label>포지션</label>
+        <select id="optSide"><option value="Long">매수</option><option value="Short">매도</option></select>
+        <label>행사가 | 프리미엄</label>
+        <div style="display:flex; gap:12px; align-items:center;">
+          <input id="optK" type="number" value="10000" step="10" />
+          <div class="dataBox" id="optPremiumDisplay">0.00</div>
+        </div>
+        <label>만기</label>
+        <select id="optExp"><option value="1">+1월</option><option value="3">+3월</option><option value="6">+6월</option><option value="12">+12월</option></select>
+        
+        <label>수량 | 예상 거래금</label>
+        <div class="qty-group">
+          <button class="qty-btn" onclick="adjustQty('optQty', -1)">-</button>
+          <input id="optQty" type="number" min="1" value="1" class="qty-input" />
+          <button class="qty-btn" onclick="adjustQty('optQty', 1)">+</button>
+        </div>
+        <div class="dataBox" id="optTotalDisplay" style="margin-top:4px;">0.00</div>
+        
+        <button id="tradeOpt">옵션 거래</button>
+      </div>
+    </div>
+
+
+    <div class="section" id="secDebug">
+      <div class="sectionHeader" onclick="toggleSection('secDebug')">
+        <h3 style="margin:0; color:#ffd166;">디버그 (Debug)</h3>
+        <span class="toggleIcon">▼</span>
+      </div>
+      <div class="sectionContent">
+        <div class="dbg-row"><span class="dbg-label">목표가</span> <span id="dbgFair" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">괴리율</span> <span id="dbgGap" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">변동성</span> <span id="dbgSigma" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">거래량</span> <span id="dbgVolMult" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">단기추세</span> <span id="dbgMomentum" class="dbg-val">--</span></div>
+        <div class="dbg-row"><span class="dbg-label">압력</span> <span id="dbgForce" class="dbg-val">--</span></div>
+        
+        <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.1); padding-top:4px;">
+          <div class="small muted">상태: <span id="dbgStateText">안정</span></div>
+        </div>
+
+        <div id="dbgEconContainer"></div>
+
+        <div class="dbg-tools">
+          <div class="small" style="color:#ffd166; font-weight:bold; margin-bottom:4px;">이벤트 강제 생성</div>
+          
+          <div class="dbg-btn-group">
+            <button id="tabInd" class="active" onclick="switchDebugTab('ind')">지표 발표</button>
+            <button id="tabHead" onclick="switchDebugTab('head')">헤드라인 발표</button>
+          </div>
+
+          <div id="formInd">
+            <select id="dbgIndSel" onchange="onDbgIndSelect()"></select>
+            <div class="dbg-input-row">
+              <input id="dbgIndForecast" type="number" placeholder="예상" step="0.01" title="예상치">
+              <input id="dbgIndActual" type="number" placeholder="실제" step="0.01" title="실제치">
+            </div>
+            <div class="small muted" style="margin-top:2px; text-align:right;">(단위: <span id="dbgIndUnit"></span>)</div>
+          </div>
+
+          <div id="formHead" style="display:none;">
+            <input id="dbgHeadText" type="text" placeholder="속보 제목 입력..." value="긴급: 시장 강제 개입 선언">
+            <div style="margin-top:8px;">
+              <div class="impact-label"><span>악재(-1.0)</span><span>영향력</span><span>호재(+1.0)</span></div>
+              <input id="dbgHeadPower" class="dbg-slider" type="range" min="-1" max="1" step="0.1" value="-0.5" oninput="document.getElementById('dbgPowerVal').innerText=this.value">
+              <div style="text-align:center; font-size:12px; font-weight:bold; color:var(--accent);" id="dbgPowerVal">-0.5</div>
+            </div>
+          </div>
+
+          <button onclick="injectManualNews()" style="background:#ffd166; color:#000; margin-top:8px;">이벤트 발동</button>
+        </div>
+
+      </div>
+    </div>
+
+
+    
+  </div>
+
+  <!-- CENTER -->
+  <div id="center">  
+    <div id="chartWrap">
+      <!-- 차트 캔버스 -->
+      <canvas id="chartCanvas"></canvas>
+      <!-- 가로 스크롤 (차트 하단 전체) -->
+      <input
+        id="panRange"
+        type="range"
+        min="0"
+        max="0"
+        value="0"
+        class="hScroll"
+      />
+    </div>
+
+    <div id="chartControls">
+      <button class="periodBtn active" data-type="1m">1m</button>
+      <button class="periodBtn" data-type="5m">5m</button>
+      <button class="periodBtn" data-type="10m">10m</button>
+      <button class="periodBtn" data-type="1H">1H</button>
+      <button class="periodBtn" data-type="1D">1D</button>
+      <button class="periodBtn" data-type="1W">1W</button>
+      <button class="periodBtn" data-type="1M">1M</button>
+ 
+      <div style="display:flex; gap:6px; align-items:center; margin-left:8px;">
+        <button id="zoomInBtn" class="tiny" title="Zoom in">＋</button>
+        <button id="zoomOutBtn" class="tiny" title="Zoom out">－</button>
+      </div>
+
+      <div class="dataBox" id="periodReturn">+0.00%</div>
+    </div>
+
+  
+    <div id="below">
+      <!-- ECON panel (left half of below) -->
+      <div id="macroPanel">
+        <div id="calWrap">
+          <div class="calHeader">
+            <span id="calMonthTitle">2025. 01</span>
+            </div>
+          <div class="calGrid" id="calendarGrid">
+            </div>
+        </div>
+
+        <div id="newsWrap">
+          <div id="newsHeader">
+            <span id="newsPanelTitle">오늘의 주요 뉴스</span>
+          </div>
+          <div id="newsList">
+            <div class="small muted" style="padding:10px; text-align:center;">데이터 로딩 중...</div>
+          </div>
+        </div>
+      </div>
+      
+      <div id="logs" style="margin-top:0">
+      <!-- Moved Event Log here so it matches econ panel width -->
+        <h3 style="margin:0">게임 이벤트 로그</h3>
+        <div class="small muted">최근 시장 이벤트 및 거래기록</div>
+        <div id="eventLog" style="margin-top:8px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: player info & positions -->
+  <div id="right">
+    <h2>플레이어 정보</h2>
+    <div class="indRow"><div class="small muted">현금 (Cash)</div><div id="cash" style="font-weight:700">데이터 준비 중...</div></div>
+    <div class="indRow"><div class="small muted">평가금액 (Equity)</div><div id="equity" style="font-weight:700">데이터 준비 중...</div></div>
+
+    <div class="section">
+      <h3 style="margin:0">현물 보유</h3>
+      <div id="spotHoldings" class="posList small">없음</div>
+    </div>
+
+    <div class="section">
+      <h3 style="margin:0">선물 목록</h3>
+      <div id="futHoldings" class="posList small">없음</div>
+    </div>
+
+    <div class="section">
+      <h3 style="margin:0">옵션 목록</h3>
+      <div id="optHoldings" class="posList small">없음</div>
+    </div>
+
+    <!-- DETAILS panel (right half of below) - 작게, 우측에 붙음 -->
+    <div id="details" class="details">
+      <div class="small muted cenText">보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>
+    </div>
+    
+  </div>
+
+<script>
+/* ============================
+   FULL SIMULATOR JS (UPDATED)
+   - Adjusted chart period semantics to use period-start -> now (e.g., today's 00:00 -> now for 1D)
+   - Monthly boundary uses first of current month; weekly uses Monday 00:00; yearly uses Jan 1 00:00
+   - Time stepping now produces hourly sub-steps when hoursPerTick > 1 so history contains intermediate prices
+   - Moved event log into econ panel
+   - When a selected detail's underlying position disappears, the details panel resets
+   ============================ */
+
+// simulation time
+// [변경] 시작 시간을 09:30 (개장 직전)으로 설정하여 테스트 용이하게 함
+let simDate = new Date("2025-01-01T09:00:00");
+
+// [변경] loopsPerFrame: 한 번의 화면 갱신(requestAnimationFrame) 동안 몇 분을 진행시킬지 결정
+let loopsPerFrame = 1; 
+
+// [신규] 갭(Gap) 누적 변수 (장 마감 중 발생한 뉴스 충격 저장)
+let gapAccumulator = 1.0; 
+
+// market state
+let state = {
+  spot: 10000.0,
+  fairValue: 10000.0,
+  
+  // [신규] 헤드라인이 만들어낸 '추세 모멘텀' (시간이 지나면 0으로 수렴)
+  trendForce: 0, 
+
+  history: [], 
+  candles: {
+    '1m': [], '5m': [], '10m': [],
+    '1H': [], '1D': [], '1W': [], '1M': [], '1Y': []
+  }
+};
+
+
+// [신규] 세션 정의 상수
+const SESSION = {
+  PRE: 'Pre-Market',      // 04:00 ~ 09:30
+  REGULAR: 'Regular',     // 09:30 ~ 16:00 (Main)
+  AFTER: 'After-Hours',   // 16:00 ~ 20:00
+  DAY: 'Day/Overnight',   // 20:00 ~ 04:00 (Global/Korea)
+  CLOSED: 'Closed'        // Weekend
+};
+
+// 현재 세션 상태
+let currentSession = SESSION.PRE;
+
+// MA/차트 렌더 상태 캐시
+let maAll = { ema5: [], ema20: [], ema60: [] }; // 전체 캔들 기준 MA
+let chartStartIndex = 0;    // 현재 화면에 보이는 slice의 전역 시작 인덱스
+let chartSlice = [];        // 현재 화면에 보이는 캔들 slice (참고용)
+
+// layout / axes
+const chartMarginLeft = 58;
+const chartMarginBottom = 28;
+const chartMarginTop = 8;
+const chartMarginRight = 10;
+
+// pan slider dom refs will be set later
+let panRangeEl = null;
+let zoomInBtn = null;
+let zoomOutBtn = null;
+
+// chart period state
+// let chartPeriod = 'ALL'; // '1D','1W','1M','1Y','ALL'
+let candleType = '1m'; // '1H' | '1D' | '1W'  ...
+let candleOffset = 0; // 왼쪽으로 밀린 봉 수
+let visibleCount = 120; // 화면에 보이는 봉 개수
+let hoverIndex = null; // for crosshair
+
+/* ====== ECON / NEWS 연결 개선: volatility + forecast/actual 흐름 ====== */
+
+/* 1) RATE_BASE를 변경 가능하도록 const -> let */
+let RATE_BASE = 3.00;           // % 단위(예: 3.00)
+let R = RATE_BASE * 0.01;       // r (연 단위 소수). 기존 코드와 동일 위치에 둡니다.
+let Q = 0.0;
+
+/* 2) 변동성(Vol) 상태 관리
+   - volatilityState: 현재 활성화된 "펄스" 리스트 (각 펄스는 시간이 지남에 따라 지수적으로 감소)
+   - getCurrentVol()는 baseVol + (각 펄스의 기여 합) 를 반환
+*/
+const VOL_BASE = 0.10; // 기본 변동성 (기존의 0.2)
+let volatilityState = []; // { id, amp, halfLifeHours, createdAt: simDate }
+
+
+/* [수정] 디버그 정보를 담을 전역 객체 (경제지표 추가) */
+let debugInfo = {
+  // 기존 엔진 변수
+  sigma: 0,
+  volMult: 0,
+  gap: 0,
+  force: 0,
+
+  // 경제 지표 (Economic Indicators)
+  gdp: 0,
+  rate: 0,
+  cpi: 0,
+  pce: 0,   // 개인소비지출물가
+  nfp: 0,   // 비농업고용
+  ur: 0,    // 실업률
+  ic: 0,    // 신규실업수당청구
+  cci: 0,   // 소비자신뢰지수
+  pmi: 0,   // 제조업 pmi
+  spmi: 0,  // 서비스업 pmi
+  rs: 0,    // 소매판매
+  ys: 0     // 장단기금리차
+};
+
+
+
+// player
+let player = {
+  cash: 10000.0,
+  positions: {
+    spot: { qty: 0, avg: 0 },
+    futures: [], // {side, qty, entry, lev, expiryDate, lockedMargin, notional}
+    options: []  // {kind, side, qty, K, entryPremium, openDate, expiryDate}
+  },
+  log: []
+};
+
+/* --- NEW: Calendar & News System Variables --- */
+// 뉴스 데이터 저장소 (추후 엔진 v2에서 이 배열에 이벤트를 push하게 됨)
+// 예시 데이터 포맷: { id, date: 'YYYY-MM-DD', time: 'HH:mm', title, type: 'indicator'|'headline', forecast, actual, impactLevel: 'high'|'mid'|'low' }
+let newsData = [];
+
+let uiState = {
+  selectedDate: null, // 사용자가 캘린더에서 클릭한 날짜 (String 'YYYY-MM-DD' or null)
+  lastRenderedDate: null // 최적화를 위해 마지막 렌더링 날짜 추적
+};
+
+/* [수정] 시장 제어 변수 (틱 단위 제어로 변경) */
+let marketControl = {
+  halted: false,          // 현재 거래 정지 여부
+  haltTicksLeft: 0,       // [변경] 남은 정지 시간(틱 단위)
+  haltReason: '',         // 정지 사유
+  
+  prevClose: 10000.0,     // 전일 종가
+  
+  cbLevel1: false,        // 7% 발동 여부
+  cbLevel2: false,        // 13% 발동 여부
+  cbLevel3: false,        // 20% 발동 여부
+  
+  luldAvgPrice: 10000.0   // LULD 기준가
+};
+
+
+/* [수정] NEWS_CONFIG: 'lastValue' 필드를 추가하여 이전 수치를 기억하게 함 */
+const NEWS_CONFIG = {
+  indicators: [
+    // [Tier 2] GDP: 후행 지표이므로 단기 충격(s)은 낮고, 장기 추세(l) 영향력 유지
+    { title:"GDP 성장률", unit:"%", base:2.5, dev:1.5, lastValue:2.5, weight:{l:0.30,m:0.15,s:0.05}, 
+      schedule: { months: [1,4,7,10], day: 25 } },
+
+    // [Tier 1] 기준금리: 시장의 가장 큰 동인. 단기 충격과 장기 추세 모두 중요
+    { title:"기준금리 결정", unit:"%", base:3.50, dev:0.25, step:0.25, lastValue:3.50, weight:{l:0.30,m:0.20,s:0.25}, inverse:true, 
+      schedule: { months: [1,4,7,10], day: 15 } },
+
+    // [Tier 2] 제조업 PMI: 선행 지표이나 서비스업 대비 비중 고려하여 적절히 배분
+    { title:"제조업 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.10,m:0.15,s:0.10}, 
+      schedule: { months: null, day: 1 } },
+
+    // [Tier 1] 비농업 고용(NFP): 변동성이 크고 중요함. 단기 충격(s)을 주되 기존보단 완화
+    { title:"비농업 고용 증가량", unit:"K", base:180, dev:120, lastValue:180, weight:{l:0.15,m:0.20,s:0.25}, 
+      schedule: { months: null, day: 5 } },
+
+    // [Tier 2] 실업률: 고용 데이터의 결과값. 추세 반영 위주
+    { title:"실업률", unit:"%", base:4.2, dev:0.5, lastValue:4.2, weight:{l:0.20,m:0.10,s:0.08}, inverse: true, 
+      schedule: { months: null, day: 5 } },
+
+    // [Tier 1] CPI: 인플레이션 핵심 지표. 단기 충격(s) 높음
+    { title:"소비자 물가 지수 (CPI)", unit:"%", base:3.0, dev:1.0, lastValue:3.0, weight:{l:0.15,m:0.20,s:0.28}, inverse:true, 
+      schedule: { months: null, day: 10 } },
+
+    // [Tier 2] 소매판매: 소비 심리 확인. 중간 정도의 영향력
+    { title:"소매판매 증가율", unit:"%", base:0.5, dev:1.0, lastValue:0.5, weight:{l:0.10,m:0.15,s:0.12}, 
+      schedule: { months: null, day: 15 } },
+
+    // [Tier 3] 신규 실업수당: 매주 발표되어 노이즈가 심함. 영향력 대폭 축소 (0.50 -> 0.05)
+    { title:"신규 실업수당 청구건수", unit:"K", base:220, dev:80, lastValue:220, weight:{l:0.05,m:0.05,s:0.05}, inverse:true, 
+      schedule: { months: null, day: 20 } },
+
+    // [Tier 1] PCE: 연준이 선호하는 물가 지표. CPI와 유사하게 중요
+    { title:"PCE 물가 지수", unit:"%", base:2.5, dev:0.8, lastValue:2.5, weight:{l:0.15,m:0.20,s:0.25}, inverse:true, 
+      schedule: { months: null, day: 28 } },
+    
+    // [Tier 3] 소비자 신뢰지수: 심리 지표(Soft Data). 영향력 낮음
+    { title:"소비자 신뢰지수", unit:"", base:100, dev:15, lastValue:100, weight:{l:0.05,m:0.08,s:0.08}, 
+      schedule: { months: null, day: 22 } },
+
+    // [Tier 2] 서비스 PMI: 미국 경제의 큰 축. 제조업보다 약간 더 중요하거나 비슷하게
+    { title:"서비스 PMI", unit:"", base:50, dev:5, lastValue:50, weight:{l:0.10,m:0.15,s:0.12}, 
+      schedule: { months: null, day: 3 } },
+
+    // [Special] 장단기 금리차: 경기 침체의 강력한 선행 지표. 장기 추세(l)에 집중
+    { title:"장단기 금리차", unit:"%", base:0.8, dev:0.7, lastValue:0.8, weight:{l:0.35,m:0.10,s:0.02}, 
+      schedule: { months: null, day: 18 } }
+  ],
+
+  // 헤드라인 템플릿 (기존 유지)
+  headlines: {
+    good: [
+      // -----------------------------------------------------
+      // [Tier 3: 소형 호재 / 노이즈] (Power: 0.02 ~ 0.05)
+      // -----------------------------------------------------
+      { text: "외국인, 선물 시장서 소폭 순매수 전환", power: 0.02 },
+      { text: "개인 투자자 예탁금 3주 만에 증가세", power: 0.03 },
+      { text: "환율 안정화, 수출 기업 안도", power: 0.03 },
+      { text: "주요 증권사, 반도체 섹터 비중 확대 의견", power: 0.04 },
+      { text: "신형 스마트폰 사전예약, 전작 대비 10% 증가", power: 0.03 },
+      { text: "주요 항만 물동량 회복 신호", power: 0.02 },
+      { text: "중소형 건설사 유동성 우려 완화", power: 0.04 },
+      { text: "배당락일 이후 저가 매수세 유입", power: 0.03 },
+      { text: "엔터주, 신인 그룹 데뷔 기대감에 강세", power: 0.02 },
+      { text: "여름철 전력 수급 '이상 무', 생산 차질 없다", power: 0.02 },
+      { text: "국내 5대 그룹, 상반기 채용 규모 유지", power: 0.03 },
+      { text: "단기 낙폭 과대 인식, 기술적 반등 시도", power: 0.04 },
+      { text: "국제 금값 소폭 하락, 위험자산 선호 심리", power: 0.03 },
+      { text: "블록체인 컨퍼런스 성료, 관련주 투심 개선", power: 0.02 },
+      { text: "화장품 수출, 중국 외 지역서 호조", power: 0.03 },
+
+      // -----------------------------------------------------
+      // [Tier 2: 중형 호재 / 추세 형성] (Power: 0.06 ~ 0.12)
+      // -----------------------------------------------------
+      { text: "삼성전자-TSMC, 파운드리 가격 인상 합의", power: 0.09 },
+      { text: "미국 CPI 예상 하회, 조기 금리 인하 기대감↑", power: 0.11 },
+      { text: "주요 산유국, 깜짝 증산 발표... 유가 안정", power: 0.10 },
+      { text: "K-배터리, 북미 시장 점유율 역대 최고", power: 0.08 },
+      { text: "정부, '기업 밸류업 프로그램' 세제 혜택 확정", power: 0.12 },
+      { text: "애플, 차세대 AI 기능 탑재 디바이스 공개", power: 0.09 },
+      { text: "중국, 대규모 경기 부양책 패키지 가동", power: 0.11 },
+      { text: "바이오 대장주, FDA 신약 승인 권고 획득", power: 0.12 },
+      { text: "글로벌 해운 운임 지수 안정화, 물류비 절감", power: 0.07 },
+      { text: "테슬라, 완전자율주행(FSD) 규제 승인 임박", power: 0.10 },
+      { text: "아마존, 클라우드 부문 영업이익 사상 최대", power: 0.08 },
+      { text: "방산 수출 잭팟, 중동 국가와 5조원 계약", power: 0.09 },
+      { text: "주요 은행 연체율 하락 반전, 건전성 개선", power: 0.07 },
+      { text: "유럽중앙은행(ECB), 기준금리 인하 단행", power: 0.11 },
+      { text: "MSCI 선진국 지수 편입 기대감 재점화", power: 0.08 },
+      { text: "네이버-카카오, AI 플랫폼 수익화 본격 시동", power: 0.07 },
+      { text: "국내 조선사, LNG선 수주 싹쓸이", power: 0.09 },
+      { text: "비트코인 ETF 옵션 거래 승인, 기관 자금 유입", power: 0.08 },
+
+      // -----------------------------------------------------
+      // [Tier 1: 대형 호재 / 급등 유발] (Power: 0.13 ~ 0.20)
+      // -----------------------------------------------------
+      { text: "러시아-우크라이나 종전 평화 협정 체결", power: 0.20 },
+      { text: "연준(Fed), '물가와의 전쟁 승리' 공식 선언", power: 0.18 },
+      { text: "꿈의 배터리 '전고체', 양산 기술 완벽 확보", power: 0.17 },
+      { text: "미-중 무역관세 전면 철폐 합의", power: 0.19 },
+      { text: "초전도체 상온 시연 성공, 과학계 인정", power: 0.18 },
+      { text: "글로벌 암 치료제 임상 3상 '완전 관해' 확인", power: 0.16 },
+      { text: "핵융합 발전 상용화 로드맵 10년 앞당긴다", power: 0.17 },
+      { text: "사우디 국부펀드, 한국 증시에 50조 투자 선언", power: 0.19 },
+      { text: "인공지능(AI), 인간 수준 추론 능력 달성 발표", power: 0.16 },
+      { text: "전 세계 주요국, 법인세 인하 공조 합의", power: 0.15 }
+    ],
+
+    bad: [
+      // -----------------------------------------------------
+      // [Tier 3: 소형 악재 / 노이즈] (Power: 0.02 ~ 0.05)
+      // -----------------------------------------------------
+      { text: "외국인, 현물 시장서 3일 연속 매도", power: 0.03 },
+      { text: "프로그램 매물 출회, 지수 상승폭 반납", power: 0.02 },
+      { text: "원/달러 환율 5원 상승, 수입 물가 부담", power: 0.03 },
+      { text: "반도체 D램 현물가 소폭 하락", power: 0.04 },
+      { text: "주요 게임 신작 흥행 실패, 관련주 약세", power: 0.03 },
+      { text: "건설사 PF 대출 연체율 소폭 상승", power: 0.04 },
+      { text: "계절적 비수기, 거래대금 30% 급감", power: 0.02 },
+      { text: "일부 2차전지 소재주, 고평가 리포트 발간", power: 0.05 },
+      { text: "국제 유가 2% 반등, 인플레 우려 자극", power: 0.03 },
+      { text: "중국 광군제 매출, 전년 대비 역성장", power: 0.04 },
+      { text: "금융당국, 공매도 규제 강화 검토 루머", power: 0.03 },
+      { text: "코스닥 신용융자 잔고 증가, 반대매매 주의보", power: 0.04 },
+      { text: "엔비디아 CEO 주식 매도 소식에 투심 위축", power: 0.05 },
+      { text: "IPO 대어 상장 철회, 공모주 시장 찬물", power: 0.03 },
+      { text: "겨울철 독감 유행 조짐, 내수 소비 주춤", power: 0.02 },
+
+      // -----------------------------------------------------
+      // [Tier 2: 중형 악재 / 조정 유발] (Power: 0.06 ~ 0.12)
+      // -----------------------------------------------------
+      { text: "미국 국채 10년물 금리 연 4.5% 돌파", power: 0.10 },
+      { text: "주요 산유국 감산 합의 결렬, 유가 불안정", power: 0.08 },
+      { text: "애플 아이폰 출하량 전망치 10% 하향 조정", power: 0.09 },
+      { text: "중국 부동산 개발사 추가 디폴트 위기", power: 0.11 },
+      { text: "연준 위원 매파적 발언 \"금리 인하 시기상조\"", power: 0.10 },
+      { text: "대만 해협 군사 훈련 강화, 긴장감 고조", power: 0.12 },
+      { text: "글로벌 해운사, 홍해 항로 운항 무기한 중단", power: 0.09 },
+      { text: "유럽 천연가스 재고 급감, 에너지난 우려", power: 0.08 },
+      { text: "국내 가계부채 역대 최대치 경신", power: 0.07 },
+      { text: "주요 빅테크 기업, 서버 투자 축소 움직임", power: 0.09 },
+      { text: "일본 중앙은행, 마이너스 금리 종료 시사 (엔캐리 청산)", power: 0.11 },
+      { text: "국세청, 주요 대기업 세무조사 착수", power: 0.06 },
+      { text: "비트코인 거래소 대규모 해킹 사태 발생", power: 0.08 },
+      { text: "미국 정부 셧다운(일시 업무정지) 가능성 부각", power: 0.09 },
+      { text: "주요 자동차 노조, 전면 파업 결의", power: 0.08 },
+      { text: "바이든 행정부, 대중 반도체 추가 제재 검토", power: 0.10 },
+      { text: "테슬라 전기차 화재 급증 리콜 사태", power: 0.09 },
+
+      // -----------------------------------------------------
+      // [Tier 1: 대형 악재 / 투매 유발] (Power: 0.13 ~ 0.20)
+      // -----------------------------------------------------
+      { text: "중동 전쟁 확전, 호르무즈 해협 봉쇄 위기", power: 0.20 },
+      { text: "초대형 헤지펀드 마진콜 사태, 제2의 리먼?", power: 0.19 },
+      { text: "새로운 치사율 높은 변종 바이러스 확산", power: 0.18 },
+      { text: "미국 CPI 5% 재진입, 스태그플레이션 공포", power: 0.17 },
+      { text: "중국, 대만 침공 준비 징후 포착 속보", power: 0.20 },
+      { text: "글로벌 1위 은행, 대규모 파생상품 손실 고백", power: 0.18 },
+      { text: "미국 신용등급 강등, 금융시장 패닉", power: 0.19 },
+      { text: "러시아, 유럽향 가스관 밸브 완전히 잠갔다", power: 0.16 },
+      { text: "주요국 무역전쟁 선포, 관세 25% 일괄 부과", power: 0.17 },
+      { text: "OPEC, 원유 수출 전면 중단 위협", power: 0.18 },
+      { text: "AI의 반란? 자율주행차 대규모 동시 해킹 사고", power: 0.15 }
+    ]
+  }
+
+
+};
+
+// selected detail for live update
+let selectedDetail = null;
+
+// event log (for UI)
+let eventLog = []; // {t:string, msg:string}
+
+toggleSection('secFutures');
+toggleSection('secOptions');
+toggleSection('secDebug');
+
+/* ----------------------------
+   Utilities (unchanged)
+-----------------------------*/
+function fmt2(x){
+  if (isNaN(x) || x === undefined || x === null) return "0.00";
+  return Number(x).toFixed(2);
+}
+function nowStr(d){
+  const Y=d.getFullYear(), M=String(d.getMonth()+1).padStart(2,'0'), D=String(d.getDate()).padStart(2,'0'),
+        h=String(d.getHours()).padStart(2,'0'), m=String(d.getMinutes()).padStart(2,'0');
+  return `${Y}-${M}-${D} ${h}:${m}`;
+}
+function addMonthsToFirst(d, months){
+  const out = new Date(d.getTime());
+  out.setMonth(out.getMonth()+months);
+  out.setDate(1);
+  out.setHours(0,0,0,0);
+  return out;
+}
+function pushEventLog(msg){
+  const t = nowStr(simDate);
+  eventLog.unshift({t, msg});
+  if (eventLog.length > 500) eventLog.pop();
+  renderEventLog();
+}
+function notify(msg, ms=3000){
+  const el = document.getElementById('notif');
+  el.innerText = msg; el.style.display = 'block';
+  setTimeout(()=>{ el.style.display = 'none'; }, ms);
+}
+
+/* ----------------------------
+   Math helpers (unchanged but reorganized for clarity)
+-----------------------------*/
+function erf(x) {
+    const sign = x >= 0 ? 1 : -1;
+    x = Math.abs(x);
+    const a1 = 0.254829592,
+          a2 = -0.284496736,
+          a3 = 1.421413741,
+          a4 = -1.453152027,
+          a5 = 1.061405429,
+          p = 0.3275911;
+    const t = 1 / (1 + p * x);
+    const y = 1 - ((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+    return sign * y;
+}
+
+function normCdf(x) {
+    return 0.5 * (1 + erf(x / Math.sqrt(2)));
+}
+
+function black76_call(F, K, r, sigma, tau) {
+    if (tau <= 0) return Math.exp(-r * 0) * Math.max(F - K, 0);
+    if (sigma <= 0) return Math.exp(-r * tau) * Math.max(F - K, 0);
+    const d1 = (Math.log(F / K) + 0.5 * sigma * sigma * tau) / (sigma * Math.sqrt(tau));
+    const d2 = d1 - sigma * Math.sqrt(tau);
+    return Math.exp(-r * tau) * (F * normCdf(d1) - K * normCdf(d2));
+}
+
+function black76_put(F, K, r, sigma, tau) {
+    if (tau <= 0) return Math.exp(-r * 0) * Math.max(K - F, 0);
+    if (sigma <= 0) return Math.exp(-r * tau) * Math.max(K - F, 0);
+    const d1 = (Math.log(F / K) + 0.5 * sigma * sigma * tau) / (sigma * Math.sqrt(tau));
+    const d2 = d1 - sigma * Math.sqrt(tau);
+    return Math.exp(-r * tau) * (K * normCdf(-d2) - F * normCdf(-d1));
+}
+
+function tauYearsFromExpiry(expiryDateStr) {
+    const exp = new Date(expiryDateStr + 'T00:00:00');
+    const diffMs = Math.max(0, exp.getTime() - simDate.getTime());
+    return diffMs / (365 * 24 * 3600 * 1000);
+}
+
+// helper: 유일 id
+function _uid(prefix='v') { return prefix + '_' + (Date.now() + '_' + Math.floor(Math.random()*10000)); }
+
+/* 추가: 변동성 펄스를 추가하는 함수
+   amplitude: 추가할 절대 크기 (예: 0.05 = 5% 추가)
+   halfLifeHours: 반감기(시간 단위). 작을수록 빨리 사라짐.
+*/
+function addVolPulse(amplitude, halfLifeHours) {
+  if (!amplitude || amplitude <= 0) return;
+  volatilityState.push({
+    id: _uid('vol'),
+    amp: Math.abs(amplitude),
+    halfLifeHours: Math.max(1, halfLifeHours),
+    createdAt: new Date(simDate) // 참고용
+  });
+}
+
+/* 매 시간 호출: 활성 펄스 감쇠(Decay) 및 정리
+   dtHours: 경과 시간(기본 1시간)
+*/
+function decayVolPulses(dtHours = 1) {
+  if (!volatilityState.length) return;
+  // 지수감쇠: newAmp = amp * exp(-dt / halfLife)
+  for (let i = volatilityState.length - 1; i >= 0; i--) {
+    const p = volatilityState[i];
+    const decayFactor = Math.exp(- dtHours / p.halfLifeHours);
+    p.amp *= decayFactor;
+    if (p.amp < 0.005) volatilityState.splice(i, 1); // 너무 작으면 제거
+  }
+}
+  
+/* 새 getCurrentVol: base + 합계(펄스) -> 클램프 */
+function getCurrentVol() {
+  const extra = volatilityState.reduce((s,p) => s + p.amp, 0);
+  // clamp 전체 변동성 (안전 장치)
+  return Math.max(0.01, Math.min(0.8, VOL_BASE + extra));
+}
+
+function optionPremiumByExpiry(kind, S, K, expiryDateStr) {
+  const tau = tauYearsFromExpiry(expiryDateStr);
+  const sigma = getCurrentVol();
+  const F = S * Math.exp((R - Q) * tau);
+  return (kind === 'Call') ? black76_call(F, K, R, sigma, tau) : black76_put(F, K, R, sigma, tau);
+}
+
+/* ----------------------------
+   Time stepping (now hourly sub-steps when hoursPerTick>1)
+-----------------------------*/
+/* [신규] 현재 날짜/시간에 따른 세션 반환 */
+function getMarketSession(d) {
+  const day = d.getDay(); // 0:Sun, 6:Sat
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const timeVal = h + m/60;
+
+  // 주말은 24시간 'Day/Overnight' (또는 휴장) 처리. 여기선 Overnight으로 처리해 뉴스 반영
+  // if (day === 0 || day === 6) return SESSION.DAY; 
+
+  // 평일 스케줄 (ET 기준)
+  if (timeVal >= 4.0 && timeVal < 9.5) return SESSION.PRE;
+  if (timeVal >= 9.5 && timeVal < 16.0) return SESSION.REGULAR;
+  if (timeVal >= 16.0 && timeVal < 20.0) return SESSION.AFTER;
+  return SESSION.DAY; // 20:00 ~ 04:00
+}
+
+/* [수정] 세션별 거래량 및 변동성 특성 계산 */
+function getSessionPhysics(d) {
+  const session = getMarketSession(d);
+  let volMult = 0.1; // 기본 거래량
+  let volNoise = 1.0; // 변동성 증폭 계수 (호가 얇음 구현)
+
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const timeVal = h + m/60;
+
+  switch (session) {
+    case SESSION.REGULAR:
+      // U자형 커브: 장 시작(09:30)과 마감(16:00) 부근에서 거래량 폭발
+      // 9.5 ~ 16.0 정규화 -> x: -1 ~ 1
+      const x = (timeVal - 12.75) / 3.25; 
+      volMult = 0.5 + 4.0 * Math.pow(x, 4); // 중앙은 0.5, 양끝은 약 4.5
+      volNoise = 1.0; 
+      break;
+
+    case SESSION.PRE:
+      // 장 시작 직전(08:00~)에 거래량 상승
+      if (timeVal > 8.0) volMult = 0.5 + (timeVal - 8.0) * 0.3;
+      else volMult = 0.2;
+      volNoise = 2.0; // 호가 얇음 -> 가격 잘 튐
+      break;
+
+    case SESSION.AFTER:
+      // 장 마감 직후(16:00~) 반짝 상승 후 소멸
+      if (timeVal < 17.0) volMult = 0.5 * (17.0 - timeVal);
+      else volMult = 0.1;
+      volNoise = 2.5; // 애프터장이 가장 변동성 큼 (실적발표 등)
+      break;
+
+    case SESSION.DAY:
+      volMult = 0.05; // 거의 거래 없음 (야간 선물)
+      volNoise = 0.5; // 변동성도 죽음
+      break;
+  }
+
+  // 뉴스 영향력 추가
+  const newsActivity = volatilityState.reduce((sum, p) => sum + p.amp, 0);
+  volMult *= (1 + Math.log(1 + newsActivity * 20));
+
+  return { session, volMult, volNoise };
+}
+
+/* [복구] 기존 함수 호환성을 위한 장 운영 여부 체크 */
+function isSpotOpenAt(d) {
+  // 새로 만든 세션 로직을 사용하여 판단
+  const session = getMarketSession(d);
+  // 프리장, 정규장, 애프터장에서는 현물 거래 가능 (데이장/주말 제외)
+  return (session === SESSION.PRE || session === SESSION.REGULAR || session === SESSION.AFTER);
+}
+
+  
+/* --- 뉴스 생성 및 처리 모듈 --- */
+
+/* [신규] 매크로 상관관계 엔진: 다른 지표의 상태를 보고 편향(Bias) 계산 */
+function getMacroBias(targetTitle) {
+  // 1. 현재 주요 지표 값 가져오기 (없으면 기본값 사용)
+  const getVal = (title) => {
+    const ind = NEWS_CONFIG.indicators.find(i => i.title === title);
+    return ind ? ind.lastValue : 0;
+  };
+
+  const curGDP = getVal("GDP 성장률");
+  const curRate = getVal("기준금리 결정");
+  const curCPI = getVal("소비자 물가 지수 (CPI)");
+  const curUnemp = getVal("실업률");
+
+  let bias = 0;
+
+  // 2. 지표별 상관관계 로직 (Economics 101)
+  switch (targetTitle) {
+    case "실업률":
+    case "신규 실업수당 청구건수":
+      // 오쿤의 법칙 변형: GDP가 높으면(2.5% 이상) 실업률은 하락 압력
+      if (curGDP > 2.5) bias = -0.05; 
+      else if (curGDP < 1.5) bias = 0.05; // 경기 침체면 실업률 상승
+      break;
+
+    case "비농업 고용 증가량":
+      // GDP 좋으면 고용 증가
+      if (curGDP > 2.5) bias = 10; 
+      else if (curGDP < 1.5) bias = -10;
+      break;
+
+    case "소비자 물가 지수 (CPI)":
+    case "PCE 물가 지수":
+      // 금리가 물가보다 낮으면 물가 상승 압력, 금리가 높으면 물가 하락 압력
+      // 또한 GDP가 너무 뜨거우면(3.0% 이상) 인플레이션 압력
+      if (curRate < curCPI) bias += 0.05;
+      else bias -= 0.05;
+      
+      if (curGDP > 3.0) bias += 0.05;
+      break;
+
+    case "기준금리 결정":
+      // 테일러 준칙 변형: 물가가 목표(2.0)보다 높거나 GDP가 잠재(2.5)보다 높으면 금리 인상 압력
+      let pressure = 0;
+      if (curCPI > 2.5) pressure += 1;
+      if (curGDP > 3.0) pressure += 1;
+      
+      if (pressure >= 1) bias = 0.25; // 인상 Bias
+      else if (curCPI < 1.5 && curGDP < 1.0) bias = -0.25; // 인하 Bias
+      break;
+
+    case "소매판매 증가율":
+    case "소비자 신뢰지수":
+      // 고용이 좋고(실업률 낮음), 물가가 안정되면 소비 증가
+      if (curUnemp < 4.0 && curCPI < 3.0) bias = 0.2;
+      else if (curUnemp > 5.0 || curCPI > 5.0) bias = -0.2;
+      break;
+
+    case "장단기 금리차":
+      // 기준금리가 높으면 단기채 금리가 높아져 장단기 차이가 줄어듦(플래트닝)
+      if (curRate > 4.0) bias = -0.05; // 커브 플래트닝
+      else if (curRate < 2.0) bias = 0.05; // 커브 스티프닝
+      break;
+  }
+
+  return bias;
+}
+
+  
+/* [수정] 상관관계 반영 & 선반영 수치 저장 */
+function scheduleFutureNews() {
+  const FORECAST_DAYS = 5; 
+
+  const targetDate = new Date(simDate);
+  targetDate.setDate(targetDate.getDate() + FORECAST_DAYS);
+  
+  const tMonth = targetDate.getMonth() + 1; 
+  const tDay = targetDate.getDate();
+  const dateStr = nowStr(targetDate).slice(0, 10);
+
+  NEWS_CONFIG.indicators.forEach(template => {
+    if (template.schedule.day !== tDay) return;
+    if (template.schedule.months && !template.schedule.months.includes(tMonth)) return;
+    if (newsData.some(n => n.date === dateStr && n.title === template.title)) return;
+
+    // --- 값 생성 (상관관계 적용) ---
+    const valPrev = template.lastValue;
+    
+    // [신규] 매크로 편향(Bias) 가져오기
+    const macroBias = getMacroBias(template.title);
+
+    // 실제값 생성: 이전값 + 매크로 편향 + 랜덤 워크
+    let change = macroBias + (Math.random() - 0.5) * 2 * template.dev;
+    
+    // 가끔 튀는 값 (랜덤성 유지)
+    if (Math.random() < 0.15) change *= 1.5; 
+
+    let valActual = valPrev + change;
+    if (template.step) valActual = Math.round(valActual / template.step) * template.step;
+    valActual = Number(valActual.toFixed(2));
+
+    // 예상치 생성: 실제값 근처에 오차 추가
+    const marketError = (Math.random() - 0.5) * template.dev * 0.5;
+    let valForecast = valActual + marketError;
+    if (template.step) valForecast = Math.round(valForecast / template.step) * template.step;
+    valForecast = Number(valForecast.toFixed(2));
+
+    // --- Pricing-in (선반영) 계산 ---
+    let expectedDelta = (valForecast - valPrev) / template.dev; // Z-Score
+    if (template.inverse) expectedDelta *= -1;
+
+    // 선반영 강도 (약 10%)
+    const pricingInFactor = expectedDelta * template.weight.s * 0.025; 
+    
+    state.spot *= (1 + pricingInFactor);
+    state.fairValue *= (1 + pricingInFactor);
+
+    if (Math.abs(pricingInFactor) > 0.001) {
+       const direction = pricingInFactor > 0 ? "상승" : "하락";
+       pushEventLog(`📢 [지표] ${template.title}: 예상 ${fmt2(valForecast)} / 현재 ${fmt2(valPrev)}`);
+    }
+
+    // [수정] 지표별 리얼한 발표 시간 설정
+    let releaseTime = "09:00"; // 기본값
+    
+    if (template.title.includes("고용") || template.title.includes("CPI") || template.title.includes("PPI") || template.title.includes("소매")) {
+        releaseTime = "10:00"; // 장 시작 직후
+    } else if (template.title.includes("PMI") || template.title.includes("소비자 신뢰")) {
+        releaseTime = "11:00"; // 장 초반 (변동성)
+    } else if (template.title.includes("기준금리")) {
+        releaseTime = "14:00"; // 장 중 (최대 변동성)
+    } else if (template.title.includes("GDP")) {
+        releaseTime = "09:30";
+    }
+    
+    const newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStr,
+      time: releaseTime, // 발표 시간 (예: 새벽 2시)
+      type: 'indicator',
+      title: template.title,
+      unit: template.unit,
+      strPrev: fmt2(valPrev) + template.unit,
+      strForecast: fmt2(valForecast) + template.unit,
+      strActual: fmt2(valActual) + template.unit,
+      _valPrev: valPrev,
+      _valForecast: valForecast,
+      _valActual: valActual,
+      _weight: template.weight,
+      _inverse: template.inverse || false,
+      _templateRef: template,
+      
+      // [신규] 선반영되었던 방향과 크기를 저장 (나중에 실망 매물 계산용)
+      _preImpact: pricingInFactor, 
+      
+      impactLevel: 'mid',
+      processed: false
+    };
+
+    newsData.push(newNews);
+  });
+  
+  newsData.sort((a,b) => new Date(a.date) - new Date(b.date));
+  if (newsData.length > 50) newsData.shift();
+
+  renderCalendar();
+}
+
+
+
+/* [추가] 즉발성 헤드라인 뉴스 생성 (예약 없이 바로 newsData에 꽂아넣음) */
+/* [수정] 분 단위 확률로 조정 */
+/* [수정] 뉴스 빈도 상향 (심심함 방지) */
+function tryTriggerHeadline() {
+  // 하루에 2-3개
+  if (Math.random() > 0.002) return; 
+
+  const isGood = Math.random() < 0.5;
+  const list = isGood ? NEWS_CONFIG.headlines.good : NEWS_CONFIG.headlines.bad;
+  
+  // 랜덤 뽑기
+  const item = list[Math.floor(Math.random() * list.length)];
+  
+  const nowTimeStr = nowStr(simDate); 
+  const dateStr = nowTimeStr.slice(0,10);
+  const timeStr = nowTimeStr.slice(11,16);
+
+  const headline = {
+    id: Date.now() + Math.random(),
+    date: dateStr,
+    time: timeStr, 
+    type: 'headline',
+    title: item.text,
+    unit: '',
+    strPrev: '-', strForecast: '-', strActual: '-',
+    
+    _power: item.power * (isGood ? 1 : -1),
+    
+    // [추가] 파워에 따른 임팩트 레벨 자동 분류 (색상 등 UI용)
+    impactLevel: Math.abs(item.power) >= 0.13 ? 'high' : (isGood ? 'good' : 'mid'),
+    
+    processed: false 
+  };
+
+  newsData.push(headline);
+  
+  // 캘린더나 뉴스피드 즉시 갱신 (선택 사항)
+  // renderCalendar(); 
+  
+  // 알림은 너무 자주 뜨면 귀찮을 수 있으니 중요도 높은 것만 띄우거나, 짧게 띄움
+  if (Math.abs(item.power) > 0.05) {
+      notify(`[속보] ${item.text}`, 3000);
+  }
+}
+
+
+
+/* [수정] 실망 매물(되돌림) 로직 & Z-Score 충격 */
+/* [수정] 타임프레임별 뉴스 충격 지속시간 차별화 */
+/* [수정] 지표(점프) vs 헤드라인(추세) 이원화 적용 */
+/* [수정] 뉴스 중첩 시 단순 합산 대신 '혼합(Blending)' 로직 적용 */
+function checkNewsTrigger() {
+  const todayStr = nowStr(simDate).slice(0,10);
+  const currentHour = simDate.getHours();
+  const currentMin = simDate.getMinutes();
+
+  const targets = newsData.filter(n => 
+    n.date === todayStr && 
+    !n.processed &&
+    (parseInt(n.time.split(':')[0]) < currentHour || 
+    (parseInt(n.time.split(':')[0]) === currentHour && parseInt(n.time.split(':')[1]) <= currentMin))
+  );
+
+  targets.forEach(n => {
+    n.processed = true;
+    
+    // --- 지표 (Indicator): 기존과 동일 (충격) ---
+    if (n.type === 'indicator') {
+      const actual = n._valActual;
+      const forecast = n._valForecast;
+      const dev = n._templateRef ? n._templateRef.dev : 1.0;
+      
+      let surpriseZ = (actual - forecast) / dev;
+      if (n._inverse) surpriseZ *= -1;
+
+      let correctionMult = 1.0;
+      if (n._preImpact && Math.sign(n._preImpact) !== Math.sign(surpriseZ)) {
+          correctionMult = 1.5;
+          if (Math.abs(n._preImpact) > 0.005) correctionMult = 2.0;
+      }
+
+      let shockFactor = surpriseZ * correctionMult;
+      if (Math.abs(surpriseZ) > 1.0) shockFactor *= 1.5; 
+
+      let impact = shockFactor * n._weight.s * 0.07; 
+      
+      const icon = surpriseZ > 0 ? '📈 ' : (surpriseZ < 0 ? '📉 ' : '➖ ');
+      let comment = "";
+      if (correctionMult > 1.0) comment = (n._preImpact > 0) ? " (실망)" : " (안도)";
+      pushEventLog(`${icon} ${n.title}: 실제 ${n.strActual} (예상 ${n.strForecast})${comment}`);
+
+      if (n._templateRef) n._templateRef.lastValue = n._valActual;
+      if (n.title.includes('기준금리')) {
+        RATE_BASE = n._valActual;
+        R = RATE_BASE * 0.01;
+        impact *= 1.5;
+        pushEventLog(`🏛️ 기준금리 확정: ${fmt2(n._valActual)}%`);
+      }
+
+      let jumpFactor = 1 + impact;
+      if (jumpFactor < 0.1) jumpFactor = 0.1;
+
+      if (currentSession === SESSION.DAY) {
+        gapAccumulator *= jumpFactor;
+        state.fairValue *= jumpFactor;
+      } else {
+        state.spot *= jumpFactor;
+        state.fairValue *= jumpFactor; 
+      }
+
+      const volPulse = Math.abs(impact) * 4; 
+      addVolPulse(Math.max(0.1, volPulse), 2.0); 
+
+    } 
+    // --- 헤드라인 (Headline): 추세 혼합 (Blending) ---
+    else if (n.type === 'headline') {
+      const p = n._power; 
+      const icon = p > 0 ? '🔥' : '⛈️';
+      pushEventLog(`${icon} [속보] ${n.title}`);
+
+      // [핵심 수정] 추세 혼합 (Blending) 로직
+      // 기존: state.trendForce += momentum; (단순 합산 -> 무한 발산 가능)
+      // 변경: state.trendForce = state.trendForce * 0.5 + momentum; (가중 평균)
+      // 설명: 기존 추세의 영향력을 50%로 줄이고, 새 뉴스의 충격을 더함.
+      // 효과: 호재가 계속 터져도 합연산으로 폭주하지 않고, 최근 뉴스 위주로 재편됨.
+      
+      const momentum = p * 12.0; 
+      
+      // 같은 방향일 때만 혼합 (반대 방향이면 상쇄해야 하므로 그냥 더함)
+      if (Math.sign(state.trendForce) === Math.sign(momentum)) {
+          state.trendForce = state.trendForce * 0.25 + momentum * 0.9;
+      } else {
+          state.trendForce += momentum * 1.1;
+      }
+
+      addVolPulse(Math.abs(p) * 1.5, 3.0); 
+    }
+
+    syncDebugEcon();
+    renderNewsFeed();
+  });
+}
+
+
+
+
+
+
+/* [추가] 시장 보호 장치 (1틱 = 1시간 기준) */
+function checkMarketProtections(currentPrice, time) {
+  // 장이 닫혀있거나 이미 정지 상태면 패스
+  if (!isSpotOpenAt(time) || marketControl.halted) return;
+
+  const dropRate = (marketControl.prevClose - currentPrice) / marketControl.prevClose;
+  const currentHour = time.getHours();
+  const currentMinute = time.getMinutes();
+  const isNearClose = (currentHour >= 15); 
+
+  // 1. Level 1 (7% 하락) -> 30분 정지
+  if (dropRate >= 0.07 && !marketControl.cbLevel1 && !isNearClose) {
+    triggerHalt(30, "📉 서킷브레이거 1단계 - 7% 변동");
+    marketControl.cbLevel1 = true;
+    return;
+  }
+  
+  // 2. Level 2 (13% 하락) -> 60분 정지
+  if (dropRate >= 0.13 && !marketControl.cbLevel2 && !isNearClose) {
+    triggerHalt(60, "📉 서킷브레이커 2단계 - 13% 변동");
+    marketControl.cbLevel2 = true;
+    return;
+  }
+  
+  // 3. Level 3 (20% 하락) -> 당일 장 종료
+  if (dropRate >= 0.20 && !marketControl.cbLevel3) {
+    const ticksLeftInDay = (15 - currentHour)*60 + 60-currentMinute;
+    triggerHalt(ticksLeftInDay, "📉 서킷브레이커 3단계 - 20% 변동");
+    marketControl.cbLevel3 = true;
+    return;
+  }
+
+  // 4. LULD (변동성 완화) -> 1시간 정지 (5% 급변 시)
+  if (marketControl.luldAvgPrice > 0) {
+    const dev = Math.abs(currentPrice - marketControl.luldAvgPrice) / marketControl.luldAvgPrice;
+    if (dev >= 0.05) { 
+        triggerHalt(30, `⚡ 변동성 완화 발동 - 괴리율 ${fmt2(dev*100)}%`);
+        marketControl.luldAvgPrice = currentPrice; 
+        return;
+    }
+  }
+  
+  // LULD 기준가 업데이트
+  const alpha = 0.1; 
+  marketControl.luldAvgPrice = marketControl.luldAvgPrice * (1-alpha) + currentPrice * alpha;
+}
+
+/* [수정] haltUntil 시간 계산 로직 추가 */
+function triggerHalt(ticks, reason) {
+  marketControl.halted = true;
+  marketControl.haltTicksLeft = ticks;
+  marketControl.haltReason = reason;
+
+  // [Fix 3] 현재 시간 + 정지 시간(분)을 계산하여 해제 시점 설정
+  marketControl.haltUntil = new Date(simDate.getTime() + ticks * 60 * 1000);
+
+  pushEventLog(`⛔ ${reason} | ${ticks}분 거래 정지`);
+  notify(reason, 5000);
+  
+  // 상태 즉시 갱신
+  renderAll();
+}
+
+
+
+/* [대규모 수정] 1분 단위 물리 엔진 + 세션 관리 + 갭 로직 */
+/* [수정] 메인 루프: 디버그 데이터 동기화 및 물리 엔진 보정 */
+/* [수정] 서킷브레이커(Halt) 시 거래량 0 & 가격 동결 로직 적용 */
+/* [수정] 거래정지 해제 체크 + 가격 음수 방지 로직 추가 */
+/* [수정] 헤드라인 추세(Trend)와 지표 충격(Shock)을 분리한 물리 엔진 */
+/* [수정] 1. renderAll 루프 밖으로 이동 (배속 해결) */
+/* [수정] 2. 추세 역행 방지 로직 추가 */
+/* [수정] 감쇠율 증가 + 추세 추종률 완화 + 가격 반영 코드 포함 */
+function stepMarket() {
+  for (let i = 0; i < loopsPerFrame; i++) {
+    
+    // 1. 시간 흐름
+    simDate = new Date(simDate.getTime() + 60 * 1000); 
+    const h = simDate.getHours();
+    const m = simDate.getMinutes();
+    
+    // 매일 아침 지표 자동 예약
+    if (h === 9 && m === 30) scheduleFutureNews();
+    if (h === 0 && m === 0) marketControl.prevClose = state.spot;
+
+    // 거래정지 해제
+    if (marketControl.halted && marketControl.haltUntil) {
+       if (simDate >= marketControl.haltUntil) {
+         marketControl.halted = false;
+         marketControl.haltUntil = null;
+         pushEventLog("🟢 거래 재개 (Trading Resumed)");
+       }
+    }
+
+    // 2. 세션 및 물리 파라미터
+    let { session, volMult, volNoise } = getSessionPhysics(simDate);
+    currentSession = session; 
+
+    if (marketControl.halted) { volMult = 0; volNoise = 0; }
+
+    // 3. 갭 처리
+    if (h === 4 && m === 0) { 
+        if (Math.abs(gapAccumulator - 1.0) > 0.001) {
+            state.spot *= gapAccumulator;
+            state.fairValue *= gapAccumulator;
+            pushEventLog(`⚡ 프리마켓 개장: 밤사이 변동 반영 (${fmt2((gapAccumulator-1)*100)}%)`);
+            gapAccumulator = 1.0; 
+        }
+    }
+
+    // 4. 뉴스 체크
+    checkNewsTrigger(); 
+    tryTriggerHeadline();
+    
+    // 5. 물리 엔진
+    const dt = 1 / (24 * 60 * 365); 
+
+    // [1] 적정주가(FV) 움직임
+    let baseDrift = 0.08; 
+    const fvDrift = baseDrift + state.trendForce; 
+    const fvVol = 0.08;
+    let u1=Math.random(), v1=Math.random();
+    let z1 = Math.sqrt(-2*Math.log(u1||1))*Math.cos(2*Math.PI*v1);
+    state.fairValue *= Math.exp((fvDrift - 0.5*fvVol*fvVol)*dt + fvVol*Math.sqrt(dt)*z1);
+
+    // [2] 가격(Spot) 움직임
+    let factor = 1.0;
+    let sigma = 0;
+    let gap = 0;
+    let pull = 0;
+
+    if (!marketControl.halted) {
+        sigma = getCurrentVol() * volNoise; 
+        gap = (state.fairValue - state.spot) / state.spot;
+        pull = gap * 5; 
+        
+        // 추세가 있으면 펀더멘탈(pull) 무시 로직 (이전 유지)
+        if (Math.abs(state.trendForce) > 0.4) {
+            if (Math.sign(state.trendForce) !== Math.sign(pull)) {
+                 pull *= 0.5;
+                 baseDrift = 0.01;
+            } else {
+                 pull *= 2;
+            }
+        }
+
+        // [핵심 변경 A] 추세 반영 강도 완화 (100.0 -> 10.0)
+        // 너무 강하게 밀어붙이지 않도록 조절하여, 변동성(Sigma)에 의해 역행할 여지를 줌
+        const boostedTrend = state.trendForce * 15;
+        
+        const mu = baseDrift + boostedTrend + pull;
+        
+        let u2=Math.random(), v2=Math.random();
+        let z2 = Math.sqrt(-2*Math.log(u2||1))*Math.cos(2*Math.PI*v2);
+        
+        // [핵심 변경 B] 인위적인 확률 편향(z2 조작) 삭제
+        // 이제 추세가 있어도 z2(랜덤 운)가 나쁘면 가격이 하락할 수 있음 (부분적 하락/횡보 구현)
+
+        let tickSigma = sigma * Math.sqrt(volMult); 
+        factor = Math.exp((mu - 0.5*tickSigma*tickSigma)*dt + tickSigma*Math.sqrt(dt)*z2);
+    }
+
+    // [핵심 변경 C] 가격 반영 코드 복구 (이게 없어서 가격이 안 움직였음)
+    if (currentSession === SESSION.DAY) {
+       state.spot *= factor; 
+    } else {
+       state.spot *= factor;
+    }
+
+    // 하한선
+    if (state.spot < 0.00) state.spot = 0.00;
+    if (state.fairValue < 0.00) state.fairValue = 0.00;
+    
+    // 6. 데이터 저장
+    const tickVolume = Math.round(1000 * volMult * (0.5 + Math.random()));
+    updateCandles(state.spot, simDate, tickVolume);
+    
+    // 7. 감쇠(Decay) 가속화
+    decayVolPulses(5/60);
+    
+    // [핵심 변경 D] 감쇠율 증가 (0.998 -> 0.985)
+    // 1분마다 2%씩 힘이 빠짐 -> 약 90분 뒤면 영향력 25% 미만으로 감소 (단기성 강화)
+    state.trendForce *= 0.980; 
+
+    checkMarketProtections(state.spot, simDate);
+    checkExpiries();
+    liquidateFutures();
+
+    // 디버그 갱신
+    debugInfo.sigma = marketControl.halted ? 0 : getCurrentVol();
+    debugInfo.volMult = volMult;
+    debugInfo.gap = gap; 
+    debugInfo.momentum = state.trendForce; 
+    debugInfo.force = (!marketControl.halted) ? pull : 0; 
+    debugInfo.rate = RATE_BASE;
+  }
+  
+  renderAll();
+}
+
+
+
+
+
+
+/* ----------------------------
+   Trading & expiry logic unchanged but ensure details are cleared when positions removed
+-----------------------------*/
+function buySpot() {
+    if (!isSpotOpenAt(simDate)) return notify('🚫 현물 미개장',2000);
+    // [Fix 3] 거래 정지 시 매매 불가
+    if (marketControl.halted) {
+      return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
+    }
+    const cost = state.spot;
+    if (player.cash < cost) return notify('현금 부족',2000);
+    player.cash -= cost;
+    const s = player.positions.spot;
+    const prevTotal = s.qty * s.avg;
+    s.qty += 1;
+    s.avg = (prevTotal + cost) / s.qty;
+    pushEventLog(`🟢 현물 :: 매수 | 수량 1 | 매수금액 ${fmt2(cost)}`,2000);
+    renderAll();
+}
+
+function sellSpot() {
+    if (!isSpotOpenAt(simDate)) return notify('🚫 현물 미개장',2000);
+    // [Fix 3] 거래 정지 시 매매 불가
+    if (marketControl.halted) {
+      return notify(`⛔ 거래 정지 상태입니다. (${marketControl.haltReason})`, 3000);
+    }
+    const s = player.positions.spot;
+    if (s.qty <= 0) return notify('보유 현물이 없습니다',2000);
+    player.cash += state.spot;
+    s.qty -= 1;
+    if (s.qty === 0) s.avg = 0;
+    pushEventLog(`🔴 현물 :: 매도 | 수량 1 | 매도금액 ${fmt2(state.spot)}`,2000);
+    renderAll();
+}
+
+function openFuture() {
+    const h = simDate.getHours();
+    // 17시~18시 사이는 브레이크 타임 (데이장 중 휴식)
+    if (h === 17) {
+        return notify("🚫 선물 휴장: 일일 유지보수 (17:00 ~ 18:00)", 3000);
+    }
+  
+    const side = document.getElementById('futSide').value;
+    const lev = Number(document.getElementById('futLev').value) || 1;
+    const months = Number(document.getElementById('futExp').value) || 1;
+    const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
+    const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const tradeDate = nowStr(simDate).slice(0,10);
+    const tau = tauYearsFromExpiry(expiryDate);
+    const entry = state.spot * Math.exp((R - Q) * tau);
+    const entrySpot = state.spot;
+    const entryBasis = entry - entrySpot;
+    const notional = entry * qty;
+    const margin = notional / lev;
+    const marginPer = margin / qty;
+    const closeRate = document.getElementById('futCloseRate').value;
+    const closePrice = (closeRate === 'inf') ? '무제한' : fmt2(entry + (closeRate * -0.01) * marginPer);
+    if (player.cash < margin) return notify(`증거금 부족: ${fmt2(margin)}`,2000);
+    player.cash -= margin;
+    player.positions.futures.push({
+        side,
+        qty,
+        entry,
+        entrySpot,
+        entryBasis,
+        lev,
+        expiryDate,
+        tradeDate,
+        lockedMargin: margin,
+        notional,
+        closeRate,
+        closePrice
+    });
+    if (side === 'Long') {
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 ${lev}x`);
+    } else {
+      pushEventLog(`🟡 선물 :: 포지션 ${side} | 수량 ${qty} | 진입가 ${fmt2(entry)} | 레버리지 비율 ${lev}x`);
+    }
+    
+    
+    renderAll();
+}
+
+function tradeOption() {
+    // 1. 세션 체크
+    if (currentSession !== SESSION.REGULAR) {
+        return notify(`🚫 옵션 미개장`, 3000);
+    }
+  
+    const kind = document.getElementById('optType').value;
+    const side = document.getElementById('optSide').value;
+    const K = Number(document.getElementById('optK').value) || state.spot;
+    const entrySpot = state.spot;
+    const months = Number(document.getElementById('optExp').value) || 1;
+    const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
+    const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+    const tradeDate = nowStr(simDate).slice(0,10);
+    const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
+    if (side === 'Long') {
+        const total = prem * qty;
+        if (player.cash < total) return notify('프리미엄 지불금 부족',2000);
+        player.cash -= total;
+        player.positions.options.push({
+            kind,
+            side,
+            qty,
+            K,
+            entrySpot,
+            entryPremium: prem,
+            openDate: new Date(simDate),
+            expiryDate,
+            tradeDate
+        });
+        pushEventLog(`🟢 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
+    } else {
+        player.cash += prem * qty;
+        player.positions.options.push({
+            kind,
+            side,
+            qty,
+            K,
+            entrySpot,
+            entryPremium: prem,
+            openDate: new Date(simDate),
+            expiryDate,
+            tradeDate
+        });
+        pushEventLog(`🔴 옵션 :: 포지션 ${side} ${kind} | 수량 ${qty} | 행사가 ${fmt2(K)} | 프리미엄 ${fmt2(prem)}`);
+    }
+    renderAll();
+}
+
+function liquidateFutures() {
+  for (let i = player.positions.futures.length - 1; i >= 0; i--) {
+      const f = player.positions.futures[i];
+
+      if (f.futCloseRate !== 'inf') {
+          const limit = f.closeRate;
+
+          // calculate current futures price
+          const tau = tauYearsFromExpiry(f.expiryDate);
+          const curF = state.spot * Math.exp((R - Q) * tau);
+
+          // calculate pnl
+          const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+          const pnl = pnlPer * f.qty;
+          const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+   
+          // forceClose condition : under limit
+          if (pct <= -limit) {
+              // same as close fut
+              player.cash += f.lockedMargin + pnl;
+              pushEventLog(`⚠️ 선물 강제청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+              player.positions.futures.splice(i, 1);
+              if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+          }
+      }
+   }
+   renderAll();
+}
+
+/* [신규] 선물 포지션의 '청산 현물 가격' 역산 함수 */
+function getLiquidationSpotPrice(f) {
+  if (f.closeRate === 'inf') return null; // 무제한은 청산가 없음
+
+  const limit = parseFloat(f.closeRate); // 예: 50 or 100
+  const lev = f.lev;
+  
+  // 1. 청산 선물 가격(Fut Price) 계산
+  // PnL% = ((CurF - Entry) / Entry) * Side * Lev * 100 = -Limit
+  // (CurF / Entry - 1) * Side * Lev = -Limit / 100
+  // CurF / Entry = 1 - (Limit / (100 * Lev * Side))
+  // CurF = Entry * (1 - (Limit / (100 * Lev)) * Side)
+  
+  const sideDir = (f.side === 'Long' ? 1 : -1);
+  const ratio = limit / (100 * lev);
+  const liqFutPrice = f.entry * (1 - ratio * sideDir);
+
+  // 2. 청산 현물 가격(Spot Price)으로 변환
+  // F = S * exp((R-Q)*tau)  =>  S = F * exp(-(R-Q)*tau)
+  const tau = tauYearsFromExpiry(f.expiryDate);
+  const liqSpotPrice = liqFutPrice * Math.exp(-(R - Q) * tau);
+
+  return Math.max(0, liqSpotPrice);
+}
+
+
+function checkExpiries() {
+    const today = new Date(simDate.getFullYear(), simDate.getMonth(), simDate.getDate(), simDate.getHours());
+    const curS = state.spot;
+    for (let i = player.positions.futures.length - 1; i >= 0; i--) {
+        const f = player.positions.futures[i];
+        const exp = new Date(f.expiryDate + 'T16:00:00');
+        if (today >= exp) {
+            const pnlPer = (curS - f.entry) * (f.side === 'Long' ? 1 : -1);
+            const pnl = pnlPer * f.qty;
+            const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+            player.cash += f.lockedMargin + pnl;
+            pushEventLog(`📦 선물 만기 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+          
+            player.positions.futures.splice(i, 1); // clear selection if it pointed here
+            if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+        }
+    }
+    for (let i = player.positions.options.length - 1; i >= 0; i--) {
+        const o = player.positions.options[i];
+        const exp = new Date(o.expiryDate + 'T16:00:00');
+        if (today >= exp) {
+            const S = state.spot;
+            let payoffPer = 0;
+            if (o.kind === 'Call') payoffPer = Math.max(S - o.K, 0);
+            else payoffPer = Math.max(o.K - S, 0);
+            const total = payoffPer * o.qty;
+            if (o.side === 'Long') {
+                player.cash += total;
+                pushEventLog(`💰 옵션 Long 만기 :: 수익금 ${fmt2(total)}`);
+            } else {
+                player.cash -= total;
+                pushEventLog(`💸 옵션 Short 만기 ::  지급금 ${fmt2(total)}`);
+            }
+          
+            player.positions.options.splice(i, 1);
+            if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
+        }
+    }
+    // ensure details panel reset if selectedDetail now invalid
+    updateDetails();
+}
+
+function closeFuture(idx) {
+    const h = simDate.getHours();
+    if (h === 17) return notify("🚫 선물 휴장: 청산 불가 (17:00 ~ 18:00)", 3000);
+      
+    const f = player.positions.futures[idx];
+    const tau = tauYearsFromExpiry(f.expiryDate);
+    const curF = state.spot * Math.exp((R - Q) * tau);
+    const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+    const pnl = pnlPer * f.qty;
+    const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+    player.cash += f.lockedMargin + pnl;
+    player.positions.futures.splice(idx, 1);
+    pushEventLog(`✂️ 선물 청산 :: 포지션 ${f.side} ${f.lev}x | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%) | 정산금 ${fmt2(f.lockedMargin + pnl)}`);
+    if (selectedDetail && selectedDetail.type === 'Future') selectedDetail = null;
+    renderAll();
+}
+
+function closeOption(idx) {
+    if (currentSession !== SESSION.REGULAR) { return notify(`🚫 옵션 청산 불가: 정규장이 닫혔습니다.`, 3000); }
+    const o = player.positions.options[idx];
+    const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
+    let pnl = 0;
+    if (o.side === 'Long') {
+      pnl = (cur - o.entryPremium) * o.qty;
+      player.cash += pnl + o.entryPremium * o.qty;
+    } else {
+      pnl = (o.entryPremium - cur) * o.qty;
+      player.cash += pnl - o.entryPremium * o.qty;
+    }
+    const totalPaid = o.entryPremium * o.qty;
+    const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
+    player.positions.options.splice(idx, 1);
+    pushEventLog(`✂️ 옵션 청산 :: 포지션  ${o.side} ${o.kind} | 수익금 ${fmt2(pnl)} (${fmt2(pct)}%)`);
+    if (selectedDetail && selectedDetail.type === 'Option') selectedDetail = null;
+    renderAll();
+}
+
+/* ----------------------------
+   Equity & UI helpers (unchanged)
+-----------------------------*/
+function computeEquity() {
+    const s = player.positions.spot;
+    const spotVal = s.qty * state.spot;
+    let futUnreal = 0;
+    let futPaid = 0;
+    player.positions.futures.forEach(f => {
+        const tau = tauYearsFromExpiry(f.expiryDate);
+        const curF = state.spot * Math.exp((R - Q) * tau);
+        const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+        futUnreal += pnlPer * f.qty;
+        futPaid += f.lockedMargin;
+    });
+    let optUnreal = 0;
+    let optPaid = 0;
+    player.positions.options.forEach(o => {
+        const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
+        if (o.side === 'Long') {
+          optUnreal += (cur - o.entryPremium) * o.qty;
+          optPaid += o.entryPremium * o.qty;
+        }
+        else { 
+          optUnreal += (o.entryPremium - cur) * o.qty; 
+          optPaid -= o.entryPremium * o.qty;
+        }
+    });
+    const total = player.cash + spotVal + futUnreal + futPaid + optUnreal + optPaid;
+    return {
+        total,
+        spotVal,
+        futUnreal,
+        futPaid,
+        optUnreal,
+        optPaid
+    };
+}
+
+/* [수정] 타임프레임별 키 생성 (타임스탬프 내림 처리) */
+function getCandleKey(date, type) {
+  const d = new Date(date);
+  if (type === '1m') { d.setSeconds(0,0); }
+  else if (type === '5m') { d.setMinutes(Math.floor(d.getMinutes()/5)*5, 0, 0); }
+  else if (type === '10m') { d.setMinutes(Math.floor(d.getMinutes()/10)*10, 0, 0); }
+  else if (type === '1H') { d.setMinutes(0, 0, 0); }
+  else if (type === '1D') { d.setHours(0, 0, 0, 0); }
+  else if (type === '1W') {
+    // normalize to Monday 00:00 (week starts Monday)
+    const day = d.getDay(); // 0=Sun,1=Mon...
+    const diff = (day === 0 ? -6 : 1) - day; // move to Monday
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+  }
+  else if (type === '1M') {
+    // normalize to first day of month 00:00
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+  }
+  else if (type === '1Y') {
+    // normalize to Jan 1st 00:00 of the year
+    d.setMonth(0);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+  }
+  return d.getTime();
+}
+
+/* [수정] 모든 타임프레임 캔들 동시 갱신 */
+function updateCandles(price, time, volume) {
+  // 갱신할 타임프레임 목록
+  const types = ['1m','5m','10m','1H','1D','1W','1M','1Y'];
+  
+  types.forEach(type => {
+    if (!state.candles[type]) state.candles[type] = [];
+    const arr = state.candles[type];
+    const key = getCandleKey(time, type);
+    const last = arr.length ? arr[arr.length - 1] : null;
+
+    if (!last || last.time !== key) {
+      // 새로운 봉 시작
+      arr.push({ time: key, open: price, high: price, low: price, close: price, volume: volume });
+      
+      // 메모리 최적화: 하위 분봉은 5000개까지만 유지
+      if (type.includes('m') && arr.length > 5000) arr.shift();
+      else if (arr.length > 20000) arr.shift(); // 상위 봉은 넉넉하게
+      
+    } else {
+      // 현재 봉 갱신
+      last.high = Math.max(last.high, price);
+      last.low = Math.min(last.low, price);
+      last.close = price;
+      last.volume += volume;
+    }
+  });
+}
+
+
+/* ----------------------------
+   Chart drawing (update: period semantics start->now)
+-----------------------------*/
+const canvas2 = document.getElementById('chartCanvas');
+const ctx2 = canvas2.getContext('2d');
+
+function calcPeriodReturn(data){ if (!data || data.length<2) return null; const first = data[0].price; const last = data[data.length-1].price; const pct = (last - first) / first * 100; return pct; }
+
+let isHovering = false; let hoverPos = null;
+
+// 단순 이동평균 (SMA)
+function calcSMA(data, period) {
+  const out = [];
+  for (let i = 0; i < data.length; i++) {
+    if (i < period - 1) {
+      out.push(null); // 아직 계산 불가
+    } else {
+      let sum = 0;
+      for (let j = 0; j < period; j++) {
+        sum += data[i - j];
+      }
+      out.push(sum / period);
+    }
+  }
+  return out;
+}
+
+// 지수 이동평균 (EMA)
+function calcEMA(data, period) {
+  const k = 2 / (period + 1);
+  const out = [];
+  let ema = data[0];
+  for (let i = 0; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+    out.push(ema);
+  }
+  return out;
+}
+
+function getMAValues(closes, index) {
+  const ema5 = calcEMA(closes, 5);
+  const ema20 = calcEMA(closes, 20);
+  const ema60 = calcEMA(closes, 60);
+
+  return {
+    ema5: ema5[index] ?? null,
+    ema20: ema20[index] ?? null,
+    ema60: ema60[index] ?? null
+  };
+}
+
+function getActiveCandles() {
+  return state.candles[candleType];
+}
+  
+/* [수정] 차트 그리기 함수: 가격(상단) + 거래량(하단) 영역 분할 */
+function drawChart() {
+  const canvas = canvas2;
+  const ctx = ctx2;
+  canvas.width = canvas.clientWidth * devicePixelRatio;
+  canvas.height = canvas.clientHeight * devicePixelRatio;
+  canvas.style.width = canvas.clientWidth + 'px';
+  canvas.style.height = canvas.clientHeight + 'px';
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+
+  // 배경 지우기
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#041426";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const candles = getActiveCandles();
+  if (!Array.isArray(candles) || candles.length === 0) return;
+
+  // MA 계산 (기존 동일)
+  const allCloses = candles.map(c => c.close);
+  maAll.ema5  = calcEMA(allCloses, 5);
+  maAll.ema20 = calcEMA(allCloses, 20);
+  maAll.ema60 = calcEMA(allCloses, 60);
+
+  // 슬라이스 계산 (기존 동일)
+  const startIndex = Math.max(0, candles.length - visibleCount - candleOffset);
+  chartStartIndex = startIndex;
+  const slice = candles.slice(startIndex, candles.length - candleOffset);
+  chartSlice = slice;
+  if (slice.length === 0) return;
+
+  // --- [핵심 변경] 레이아웃 분할 ---
+  const cw = canvas.clientWidth;
+  const ch = canvas.clientHeight;
+  const innerX = chartMarginLeft;
+  const innerY = chartMarginTop;
+  
+  // 전체 가용 높이
+  const totalInnerH = Math.max(20, ch - chartMarginTop - chartMarginBottom);
+  
+  // 가격 차트: 전체의 75%
+  const priceH = totalInnerH * 0.85;
+  
+  // 간격(Gap): 10px
+  const gap = 10;
+  
+  // 거래량 차트: 나머지 높이에서 간격 제외
+  const volH = Math.max(0, totalInnerH - priceH - gap);
+  const volY = innerY + priceH + gap; // 거래량 차트 시작 Y좌표
+
+  // Y축 범위 계산 (가격)
+  const { min: min, max: max } = computeAutoYRange(slice);
+  
+  // 캔들 너비
+  const candleW = (cw - chartMarginLeft - chartMarginRight) / slice.length;
+  const innerW = cw - chartMarginLeft - chartMarginRight; // innerW 명시적 계산
+
+  // 1. 가격 차트 그리기 (높이를 priceH로 제한)
+  drawYAxis(ctx, innerX, innerY, innerW, priceH, min, max); // Y축 눈금
+  drawXAxis(ctx, innerX, innerY, innerW, totalInnerH, slice); // X축 날짜 (전체 높이 기준 하단)
+  drawCandles(slice, min, max, candleW, innerX, innerY, priceH); // 캔들
+  drawMA(maAll, startIndex, min, max, candleW, slice.length, innerX, innerY, priceH); // 이동평균선
+
+  // 2. 거래량 차트 그리기 (신규 함수 호출)
+  drawVolume(ctx, slice, candleW, innerX, volY, volH, innerW);
+
+  // [수정] 선택된(상세정보 보고 있는) 선물의 청산가만 차트에 표시
+  if (selectedDetail && selectedDetail.type === 'Future') {
+      const idx = selectedDetail.index;
+      const f = player.positions.futures[idx];
+      
+      // 포지션이 유효할 때만 그리기
+      if (f) {
+          const liqPrice = getLiquidationSpotPrice(f);
+          
+          if (liqPrice !== null) {
+              // Y좌표 변환
+              const y = innerY + priceH - ((liqPrice - min) / (max - min || 1)) * priceH;
+
+              // 화면 내에 있을 때만 그리기
+              if (y >= innerY && y <= innerY + priceH) {
+                  ctx.save();
+                  ctx.beginPath();
+                  ctx.strokeStyle = "#8fb0d6"; // 위험색
+                  ctx.lineWidth = 1;
+                  ctx.setLineDash([5, 5]); // 점선
+                  ctx.moveTo(innerX, y);
+                  ctx.lineTo(innerX + innerW, y);
+                  ctx.stroke();
+
+                  // 라벨 표시
+                  ctx.font = "10px system-ui";
+                  ctx.fillStyle = "#8fb0d6";
+                  ctx.textAlign = "left";
+                  ctx.fillText(`${fmt2(liqPrice)}`, innerX + 4, y - 4);
+                  ctx.restore();
+              }
+          }
+      }
+  }
+
+  // 3. 호버/크로스헤어 (높이 정보를 분리해서 전달)
+  if (isHovering && hoverPos?.candle) {
+    // 크로스헤어는 가격 차트 영역(priceH)에만 Y선을 그리고, X선은 전체 관통
+    drawCrosshairAndTooltip(hoverPos, innerX, innerY, innerW, priceH, min, max, volY, volH);
+    drawHoverInfo(hoverPos); 
+  } else {
+    updatePeriodReturnVisible(slice);
+  }
+  syncPanState();
+}
+
+// draw candles inside inner rect (x origin = innerX, top = innerY, height = innerH)
+function drawCandles(slice, min, max, candleW, innerX, innerY, innerH) {
+  const canvas = canvas2;
+  const ctx = ctx2;
+  const range = max - min || 1;
+
+  for (let i = 0; i < slice.length; i++) {
+    const c = slice[i];
+    const x = innerX + i * candleW + candleW * 0.5;
+    const yHigh = innerY + innerH - ((c.high - min) / range) * innerH;
+    const yLow  = innerY + innerH - ((c.low  - min) / range) * innerH;
+    const yOpen = innerY + innerH - ((c.open - min) / range) * innerH;
+    const yClose= innerY + innerH - ((c.close- min) / range) * innerH;
+
+    // wick
+    ctx.strokeStyle = "#cfeaff";
+    ctx.beginPath();
+    ctx.moveTo(x, yHigh);
+    ctx.lineTo(x, yLow);
+    ctx.stroke();
+
+    // body
+    const up = c.close >= c.open;
+    ctx.fillStyle = up ? "#39ff88" : "#ff6b6b";
+
+    const bodyY = Math.min(yOpen, yClose);
+    const bodyH = Math.max(1, Math.abs(yOpen - yClose));
+    ctx.fillRect(x - candleW * 0.3, bodyY, candleW * 0.6, bodyH);
+  }
+}
+
+/* [추가] 거래량 바 차트 그리기 */
+function drawVolume(ctx, slice, candleW, innerX, volY, volH, innerW) {
+  if (volH <= 0) return;
+
+  // 슬라이스 내 최대 거래량 계산 (스케일링용)
+  const maxVol = Math.max(...slice.map(c => c.volume));
+  if (!maxVol) return;
+
+  // 거래량 Y축 눈금 (최대값 하나만 간략 표시)
+  ctx.save();
+  ctx.font = "10px system-ui";
+  ctx.fillStyle = "#5c6b7f";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "top";
+  ctx.fillText(formatVolume(maxVol), innerX - 8, volY);
+  
+  // 구분선 (가격 차트와 경계)
+  ctx.strokeStyle = "rgba(255,255,255,0.05)";
+  ctx.beginPath();
+  ctx.moveTo(innerX, volY);
+  ctx.lineTo(innerX + innerW, volY);
+  ctx.stroke();
+
+  // 바 그리기
+  for (let i = 0; i < slice.length; i++) {
+    const c = slice[i];
+    const vol = c.volume;
+    const height = (vol / maxVol) * volH;
+    
+    const x = innerX + i * candleW + candleW * 0.1; // 캔들보다 약간 얇게
+    const w = candleW * 0.8;
+    const y = volY + volH - height;
+
+    // 색상: 양봉(상승)이면 초록, 음봉(하락)이면 빨강 (캔들 색과 동일하게)
+    const isUp = c.close >= c.open;
+    // 투명도를 주어 캔들보다 연하게 표현
+    ctx.fillStyle = isUp ? "rgba(57, 255, 136, 0.5)" : "rgba(255, 107, 107, 0.5)";
+    
+    ctx.fillRect(x, y, w, height);
+  }
+  ctx.restore();
+}
+
+// 거래량 숫자 포맷팅 (K, M 단위)
+function formatVolume(num) {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toFixed(0);
+}
+
+  
+// draw MA using global arrays - modified signature: includes inner rect positions
+function drawMA(maAll, startIndex, min, max, candleW, sliceLen, innerX, innerY, innerH) {
+  const canvas = canvas2;
+  const ctx = ctx2;
+  const range = max - min || 1;
+
+  function drawOne(arr, color) {
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    let moved = false;
+    for (let i = 0; i < sliceLen; i++) {
+      const globalIdx = startIndex + i;
+      const v = arr[globalIdx];
+      if (v == null) { moved = false; continue; }
+      const x = innerX + i * candleW + candleW * 0.5;
+      const y = innerY + innerH - ((v - min) / range) * innerH;
+      if (!moved) { ctx.moveTo(x, y); moved = true; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  drawOne(maAll.ema5,  "#0af7ef");
+  drawOne(maAll.ema20, "#f7c80a");
+  drawOne(maAll.ema60, "#8a2be2");
+}
+
+// --- 자동 Y 범위 계산 (보이는 slice 기준) ---
+function computeAutoYRange(slice) {
+  if (!slice || slice.length === 0) return { min: 0, max: 1 };
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  let maxP = Math.max(...prices);
+  let minP = Math.min(...prices);
+  if (!isFinite(minP) || !isFinite(maxP)) { minP = 0; maxP = 1; }
+
+  // padding: 범위의 5% 또는 최소 1 단위
+  const padding = Math.max((maxP - minP) * 0.005, Math.abs(maxP) * 0.0010, 1e-6);
+  return { min: minP - padding, max: maxP + padding };
+}
+
+function syncPanState() {
+  updatePanRangeMax();
+}
+
+// draw left Y axis labels (clean minimalist)
+function drawYAxis(ctx, innerX, innerY, innerW, innerH, min, max){
+  ctx.save();
+  ctx.font = "12px system-ui";
+  ctx.fillStyle = "#9fb8d8";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+
+  // choose 5 ticks
+  const ticks = 5;
+  for (let i=0;i<=ticks;i++){
+    const t = i / ticks;
+    const price = max - t * (max - min);
+    const y = innerY + t * innerH;
+    ctx.fillText(fmt2(price), innerX - 8, y);
+    // faint grid line
+    ctx.strokeStyle = "rgba(255,255,255,0.03)";
+    ctx.beginPath();
+    ctx.moveTo(innerX, y);
+    ctx.lineTo(innerX + innerW, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// [수정] 차트 X축: 분봉일 때는 시간, 일봉일 때는 날짜 표시
+function drawXAxis(ctx, innerX, innerY, innerW, innerH, slice){
+  ctx.save();
+  ctx.font = "11px system-ui";
+  ctx.fillStyle = "#9fb8d8";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const len = slice.length;
+  // 틱 개수를 좀 더 넉넉하게 (5 -> 6개)
+  const ticks = 6; 
+  
+  for (let i=0;i<ticks;i++){
+    const idx = Math.floor((i/(ticks-1 || 1)) * (len-1));
+    const c = slice[idx];
+    const dt = new Date(c.time);
+    
+    let label = "";
+    // candleType이 'm'(분봉)이나 'H'(시간봉)을 포함하면 시간 표시
+    if (candleType.includes('m') || candleType === '1H') {
+       label = `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+       // 날짜가 바뀌는 지점이나 첫 틱에는 날짜도 같이 표기해주면 좋음 (공간상 생략 가능)
+    } else {
+       label = `${String(dt.getMonth()+1).padStart(2,'0')}/${String(dt.getDate()).padStart(2,'0')}`;
+    }
+
+    const x = innerX + idx * (innerW / len) + (innerW / len) * 0.5;
+    ctx.fillText(label, x, innerY + innerH + 4);
+  }
+  ctx.restore();
+}
+
+
+/* [수정] 크로스헤어: 가격 영역과 거래량 영역 대응 */
+function drawCrosshairAndTooltip(hover, innerX, innerY, innerW, priceH, min, max, volY, volH){
+  const ctx = ctx2;
+  const i = hover.index;
+  const x = innerX + i * (innerW / chartSlice.length) + (innerW / chartSlice.length) * 0.5;
+  
+  // 가격 차트 내에서의 Y 위치
+  const yPrice = innerY + priceH - ((hover.candle.close - min) / (max - min || 1)) * priceH;
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(200,230,255,0.25)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]); // 점선 스타일
+
+  // 1. 세로선 (전체 관통)
+  ctx.beginPath();
+  ctx.moveTo(x, innerY);
+  ctx.lineTo(x, volY + volH); // 거래량 영역 바닥까지
+  ctx.stroke();
+
+  // 2. 가로선 (가격 차트 영역만)
+  // 마우스가 가격 차트 영역 안에 있을 때만 그리는 게 좋지만, 
+  // 여기서는 캔들 종가 기준으로 그립니다.
+  if (yPrice >= innerY && yPrice <= innerY + priceH) {
+    ctx.beginPath();
+    ctx.moveTo(innerX, yPrice);
+    ctx.lineTo(innerX + innerW, yPrice);
+    ctx.stroke();
+  }
+  
+  ctx.restore();
+}
+
+// when not hovering, update periodReturn with visible slice total return
+function updatePeriodReturnVisible(slice){
+  const el = document.getElementById('periodReturn');
+  if (!el) return;
+  if (!slice || slice.length < 2) { el.innerText = '+0.00%'; el.style.color = 'var(--muted)'; return; }
+  const first = slice[0].close;
+  const last = slice[slice.length - 1].close;
+  const pct = ((last - first)/first)*100;
+  el.innerText = `${pct>=0?'+':''}${fmt2(pct)}%`;
+  el.style.color = pct >=0 ? 'var(--profit)' : 'var(--loss)';
+}
+
+/* [수정] 호버 정보창: 거래량 정보 추가 */
+function drawHoverInfo(hover) {
+  if (!hover || !hover.candle) return;
+
+  const ctx = ctx2;
+  const c = hover.candle;
+  const globalIndex = chartStartIndex + hover.index;
+  const ema5  = maAll.ema5?.[globalIndex]  ?? null;
+  const ema20 = maAll.ema20?.[globalIndex] ?? null;
+  const ema60 = maAll.ema60?.[globalIndex] ?? null;
+
+  const d = new Date(c.time);
+  const dateStr =
+    `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
+    `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+
+  const baseX = chartMarginLeft + 10;
+  const baseY = chartMarginTop + 22;
+  const lh = 16;
+  let y = baseY;
+
+  ctx.save();
+  ctx.font = "12px system-ui";
+  ctx.textBaseline = "top";
+
+  // 날짜
+  ctx.fillStyle = "#9fb8d8";
+  ctx.fillText(dateStr, baseX, y); y += lh;
+
+  // 종가
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(`종가: ${fmt2(c.close)}`, baseX, y); y += lh;
+  
+  // [추가] 거래량 표시
+  ctx.fillStyle = "#d1d5db";
+  ctx.fillText(`거래량: ${formatVolume(c.volume)}`, baseX, y); y += lh;
+
+  // EMA 정보
+  if (ema5 !== null) { ctx.fillStyle = "#0af7ef"; ctx.fillText(`EMA 5 : ${fmt2(ema5)}`, baseX, y); y += lh; }
+  if (ema20 !== null) { ctx.fillStyle = "#f7c80a"; ctx.fillText(`EMA20: ${fmt2(ema20)}`, baseX, y); y += lh; }
+  if (ema60 !== null) { ctx.fillStyle = "#8a2be2"; ctx.fillText(`EMA60: ${fmt2(ema60)}`, baseX, y); y += lh; }
+
+  // 구분선 및 OHLC (기존 유지)
+  y += 4;
+  ctx.strokeStyle = "rgba(255,255,255,0.15)";
+  ctx.beginPath(); ctx.moveTo(baseX, y); ctx.lineTo(baseX + 110, y); ctx.stroke();
+  y += 6;
+
+  ctx.fillStyle = "#cfeaff";
+  ctx.fillText(`시가: ${fmt2(c.open)}`, baseX, y); y += lh;
+  ctx.fillText(`고가: ${fmt2(c.high)}`, baseX, y); y += lh;
+  ctx.fillText(`저가: ${fmt2(c.low)}`,  baseX, y);
+
+  ctx.restore();
+
+  try { drawCandleReturn(c); } catch (e) {}
+}
+
+
+function drawCandleReturn(c) {
+  const el = document.getElementById('periodReturn');
+  if (!el) return;
+
+  // global index of hovered candle
+  const globalIndex = chartStartIndex + (hoverPos ? hoverPos.index : 0);
+  const candles = getActiveCandles();
+  const prev = (globalIndex > 0) ? candles[globalIndex - 1] : null;
+
+  // if prev exists, compute prevClose -> todayOpen and prevClose -> todayClose
+  if (prev) {
+    const nowRet = prev.close !== 0 ? ((c.close - prev.close) / prev.close) * 100 : 0;
+    el.innerText = ` ${nowRet>=0?'+':''}${fmt2(nowRet)}%`;
+    // color - if closeRet positive show profit color else loss; keep small text
+    el.style.color = nowRet >= 0 ? 'var(--profit)' : 'var(--loss)';
+  } else {
+    // fallback: per-candle local return
+    const ret = ((c.close - c.open) / c.open) * 100;
+    el.innerText = `${ret >= 0 ? '+' : ''}${fmt2(ret)}%`;
+    el.style.color = ret >= 0 ? 'var(--profit)' : 'var(--loss)';
+  }
+}
+  
+// helper to update panRange max when candles change
+function updatePanRangeMax() {
+  const candles = getActiveCandles() || [];
+  const maxOffset = Math.max(0, candles.length - visibleCount);
+  if (!panRangeEl) panRangeEl = document.getElementById('panRange');
+  if (panRangeEl) {
+    panRangeEl.max = String(maxOffset);
+    panRangeEl.value = String(maxOffset - candleOffset);
+  }
+}
+
+// initialize controls (call once)
+function initChartControls() {
+  panRangeEl = document.getElementById('panRange');
+  zoomInBtn = document.getElementById('zoomInBtn');
+  zoomOutBtn = document.getElementById('zoomOutBtn');
+
+  if (panRangeEl) {
+    panRangeEl.addEventListener('input', (e) => {
+      const candles = getActiveCandles();
+      const maxOffset = Math.max(0, candles.length - visibleCount);
+
+      // 오른쪽 = 현재 / 왼쪽 = 과거
+      candleOffset = maxOffset - parseInt(e.target.value || '0', 10);
+      drawChart();
+    });
+  }
+  
+  if (zoomInBtn) zoomInBtn.onclick = () => { setVisibleCount(Math.max(10, Math.floor(visibleCount*0.8)), null); updatePanRangeMax(); };
+  if (zoomOutBtn) zoomOutBtn.onclick = () => { setVisibleCount(Math.min( getActiveCandles().length, Math.ceil(visibleCount*1.25) ), null); updatePanRangeMax(); };
+}
+initChartControls();
+
+// mouse/touch hover & pan
+canvas2.addEventListener('mousemove', (ev) => {
+  const rect = canvas2.getBoundingClientRect();
+  const mx = ev.clientX - rect.left;
+  const my = ev.clientY - rect.top;
+
+  // compute inner rect same as drawChart
+  const innerX = chartMarginLeft;
+  const innerY = chartMarginTop;
+  const innerW = Math.max(20, canvas2.clientWidth - chartMarginLeft - chartMarginRight);
+  const innerH = Math.max(20, canvas2.clientHeight - chartMarginTop - chartMarginBottom);
+
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) return;
+  const sliceStart = Math.max(0, candles.length - visibleCount - candleOffset);
+  const slice = candles.slice(sliceStart, candles.length - candleOffset);
+  if (slice.length === 0) return;
+
+  // if mouse outside inner rect do nothing
+  if (mx < innerX || mx > innerX + innerW || my < innerY || my > innerY + innerH) {
+    return;
+  }
+
+  const relX = mx - innerX;
+  const idx = Math.floor(relX / (innerW / slice.length));
+  const clamped = Math.max(0, Math.min(slice.length - 1, idx));
+
+  const prices = slice.flatMap(c => [c.high, c.low]);
+  const max = Math.max(...prices);
+  const min = Math.min(...prices);
+  const py = innerY + innerH - ((slice[clamped].close - min) / (max - min || 1)) * innerH;
+
+  isHovering = true;
+  hoverPos = {
+    x: innerX + clamped * (innerW / slice.length) + (innerW / slice.length) * 0.5,
+    y: py,
+    index: clamped,
+    candle: slice[clamped]
+  };
+
+  drawChart();
+});
+
+// touch support: simple mapping to mousemove (pan via dragging handled separately)
+canvas2.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const rect = canvas2.getBoundingClientRect();
+    const touchX = t.clientX - rect.left;
+    const touchY = t.clientY - rect.top;
+    // treat as hover/tap
+    const mouseEvent = new MouseEvent('mousemove', {clientX: t.clientX, clientY: t.clientY});
+    canvas2.dispatchEvent(mouseEvent);
+  }
+  // prevent default scrolling
+  e.preventDefault();
+}, {passive:false});
+
+canvas2.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 1) {
+    const t = e.touches[0];
+    const mouseEvent = new MouseEvent('mousemove', {clientX: t.clientX, clientY: t.clientY});
+    canvas2.dispatchEvent(mouseEvent);
+  }
+  e.preventDefault();
+}, {passive:false});
+
+canvas2.addEventListener('mouseout', () => {
+  isHovering = false;
+  hoverPos = null;
+  drawChart(); // periodReturn는 drawChart()에서 non-hover 경로로 업데이트됨
+});
+  
+// helper: visibleCount를 바꿀 때 중심 인덱스(글로벌)를 유지하면서 재계산
+function setVisibleCount(newCount, centerGlobalIndex = null) {
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) return;
+
+  newCount = Math.max(10, Math.min(candles.length, Math.floor(newCount)));
+  // determine center index
+  const center = (centerGlobalIndex === null) ? (candles.length - 1) : Math.max(0, Math.min(candles.length - 1, centerGlobalIndex));
+  let newStart = center - Math.floor(newCount / 2);
+  newStart = Math.max(0, Math.min(candles.length - newCount, newStart));
+  // candleOffset is defined as: candles.length - (newStart + newCount)
+  candleOffset = Math.max(0, candles.length - (newStart + newCount));
+  visibleCount = newCount;
+  drawChart();
+}
+
+// wheel: zoom (mouse pointer 중심)
+canvas2.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) return;
+
+  const rect = canvas2.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const startIndex = Math.max(0, candles.length - visibleCount - candleOffset);
+  const sliceLen = Math.min(visibleCount, Math.max(1, candles.length - startIndex));
+  const idx = Math.floor((x / canvas2.width) * sliceLen);
+  const centerGlobal = startIndex + idx;
+
+  // wheel delta: positive -> zoom out, negative -> zoom in
+  const direction = Math.sign(e.deltaY);
+  let newCount = visibleCount;
+  if (direction > 0) newCount = Math.min(candles.length, Math.ceil(visibleCount * 1.25));
+  else newCount = Math.max(10, Math.floor(visibleCount * 0.8));
+
+  setVisibleCount(newCount, centerGlobal);
+});
+
+// drag: pan (mouse)
+let isDragging = false;
+let dragStartX = 0;
+let dragStartOffset = 0;
+
+canvas2.addEventListener('mousedown', (e) => {
+  isDragging = true;
+  dragStartX = e.clientX;
+  dragStartOffset = candleOffset;
+});
+
+window.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const candles = getActiveCandles();
+  if (!candles || candles.length === 0) return;
+
+  const dx = e.clientX - dragStartX;
+  const perCandlePx = canvas2.width / visibleCount;
+  // px -> candle shift
+  const shift = Math.round(dx / perCandlePx);
+  // 오른쪽 드래그 → 현재
+  let newOffset = dragStartOffset + shift; // minus because moving mouse right => show earlier candles
+  newOffset = Math.max(0, Math.min(candles.length - visibleCount, newOffset));
+  if (newOffset !== candleOffset) {
+    candleOffset = newOffset;
+    drawChart();
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (isDragging) isDragging = false;
+  // after changing candleOffset (in drag mousemove handler)
+  if (panRangeEl) panRangeEl.value = String(candleOffset);
+});
+
+function formatCandleDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} ` +
+         `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+/* ----------------------------
+   Event log rendering (unchanged)
+-----------------------------*/
+function renderEventLog() {
+  const el = document.getElementById('eventLog');
+  el.innerHTML = '';
+
+  for (let i = 0; i < Math.min(500, eventLog.length); i++) {
+    const e = eventLog[i];
+    const div = document.createElement('div');
+    div.className = 'logItem';
+    div.innerHTML = `<div style="font-size:12px;color:#9fd6ff">${e.t}</div><div>${e.msg}</div>`;
+    el.appendChild(div);
+  }
+}
+
+/* =========================================
+   NEW UI MODULE: Calendar & News Feed
+   ========================================= */
+
+// 1. 캘린더 그리기
+function renderCalendar() {
+  const grid = document.getElementById('calendarGrid');
+  const title = document.getElementById('calMonthTitle');
+  if(!grid || !title) return;
+
+  const year = simDate.getFullYear();
+  const month = simDate.getMonth(); // 0-based
+  const todayDateStr = nowStr(simDate).slice(0,10); // 'YYYY-MM-DD'
+
+  // 헤더 업데이트 (최적화: 달이 바뀌었을 때만 그리도록 해도 되지만, 일단 매프레임 호출 시 체크)
+  title.innerText = `${year}. ${String(month+1).padStart(2,'0')}`;
+
+  grid.innerHTML = '';
+
+  // 요일 헤더 (일~토)
+  const days = ['일','월','화','수','목','금','토'];
+  days.forEach(d => {
+    const dh = document.createElement('div');
+    dh.className = 'calDayHead';
+    dh.innerText = d;
+    grid.appendChild(dh);
+  });
+
+  // 날짜 계산
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDayOfWeek = firstDay.getDay(); // 0(일) ~ 6(토)
+  const totalDays = lastDay.getDate();
+
+  // 빈 칸 채우기
+  for(let i=0; i<startDayOfWeek; i++){
+    const cell = document.createElement('div');
+    cell.className = 'calCell empty';
+    grid.appendChild(cell);
+  }
+
+  // 날짜 셀 생성
+  for(let d=1; d<=totalDays; d++){
+    const cell = document.createElement('div');
+    cell.className = 'calCell';
+    cell.innerText = d;
+
+    // 날짜 문자열 생성
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+
+    // 오늘 날짜 하이라이트
+    if(dateStr === todayDateStr) {
+      cell.classList.add('today');
+    }
+
+    // 선택된 날짜 하이라이트
+    if(uiState.selectedDate === dateStr) {
+      cell.classList.add('selected');
+    }
+
+    // 뉴스/이벤트 존재 여부 체크 (dot 표시)
+    // 실제 엔진에서는 해당 월의 이벤트만 필터링해서 체크해야 함
+    const hasEvent = newsData.some(n => n.date === dateStr);
+    if(hasEvent) cell.classList.add('hasEvent');
+
+    // 클릭 이벤트
+    cell.onclick = () => {
+      if(uiState.selectedDate === dateStr) {
+        // 이미 선택된 날짜 클릭 -> 해제 (오늘 보기로 복귀)
+        uiState.selectedDate = null;
+      } else {
+        uiState.selectedDate = dateStr;
+      }
+      renderCalendar(); // 재렌더링 (선택효과 적용)
+      renderNewsFeed(); // 뉴스 패널 갱신
+    };
+
+    grid.appendChild(cell);
+  }
+}
+
+// 2. 뉴스 패널 그리기
+function renderNewsFeed() {
+  const list = document.getElementById('newsList');
+  const title = document.getElementById('newsPanelTitle');
+  if(!list) return;
+
+  const todayStr = nowStr(simDate).slice(0,10);
+  const targetDate = uiState.selectedDate || todayStr; // 선택 날짜 없으면 오늘 날짜 기준
+
+  // UI 텍스트 갱신
+  if(uiState.selectedDate) {
+    title.innerText = `${uiState.selectedDate} 뉴스`;
+    title.style.color = '#fff';
+  } else {
+    title.innerText = `오늘(${todayStr}) 뉴스`;
+    title.style.color = '#fff';
+  }
+
+  list.innerHTML = '';
+
+  // 데이터 필터링: 선택한 날짜의 데이터 (또는 오늘)
+  // [엔진 v2 확장 고려]: 오늘 날짜일 경우, 현재 시간(simDate) 이전에 발표된 것만 보여주거나,
+  // 미래 예정인 것은 '예정' 상태로 보여주는 로직이 필요함. 일단은 다 보여줌.
+  const events = newsData.filter(n => n.date === targetDate);
+
+  if(events.length === 0) {
+    list.innerHTML = `<div class="small muted" style="text-align:center; padding-top:20px;">예정된 뉴스가 없습니다.</div>`;
+    return;
+  }
+
+  // 시간순 정렬
+  events.sort((a,b) => a.time.localeCompare(b.time));
+
+  events.forEach(n => {
+    const item = document.createElement('div');
+    // impactLevel에 따라 테두리 색상 클래스 추가
+    let impactClass = '';
+    if(n.impactLevel === 'high') impactClass = 'impact-high';
+    if(n.impactLevel === 'good') impactClass = 'impact-good';
+
+    item.className = `newsItem ${impactClass}`;
+
+    // [수정] renderNewsFeed 함수 내부 루프 (item 생성 부분)
+    
+    let dataHtml = '';
+    if (n.type === 'indicator') {
+      // 발표 전(processed=false)이면 실제값은 숨김 ('?')
+      const showActual = n.processed;
+      const dispActual = showActual ? n.strActual : "미발표";
+      
+      // 실제값이 발표되었을 때, 색상 강조 (예상보다 좋으면 초록, 나쁘면 빨강 등)
+      // 여기서는 단순히 발표되면 흰색, 아니면 회색
+      const styleAct = showActual ? "color:#fff; font-weight:700;" : "color:#555;";
+
+      dataHtml = `
+        <div class="newsData" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; text-align:center;">
+          <div><span class="small muted">이전</span><br><span style="color:#ccc">${n.strPrev}</span></div>
+          <div><span class="small muted">예상</span><br><span style="color:#ccc">${n.strForecast}</span></div>
+          <div><span class="small muted">실제</span><br><span style="${styleAct}">${dispActual}</span></div>
+        </div>
+      `;
+    } else {
+      // 헤드라인은 수치가 없음
+      dataHtml = `<div class="small muted" style="margin-top:4px;">시장 충격 요인 발생</div>`;
+    }
+
+    // item.innerHTML 구성 (기존과 유사하지만 dataHtml 반영)
+    item.innerHTML = `
+      <div class="newsMeta">
+        <span>${n.time}</span>
+        <span class="badge" style="${n.type==='headline'?'background:#ff6b6b;color:#000':''}">${n.type === 'headline' ? 'BREAKING' : 'ECON'}</span>
+      </div>
+      <div class="newsTitle" style="font-size:14px; margin-bottom:6px;">${n.title}</div>
+      ${dataHtml}
+    `;
+    list.appendChild(item);
+  });
+}
+
+/* ----------------------------
+   Details panel: live update (ensure reset when no selection)
+-----------------------------*/
+function updateDetails() {
+  const details = document.getElementById('details');
+
+  if (!selectedDetail) {
+    details.innerHTML = `<div class="small muted cenText">보유목록에서 종목을 선택하여<br>이곳에 세부 정보를 표시</div>`;
+    return;
+  }
+
+  const type = selectedDetail.type;
+  const idx = selectedDetail.index;
+
+  if (type === 'Future') {
+    if (idx < 0 || idx >= player.positions.futures.length) {
+      selectedDetail = null;
+      details.innerHTML = `<div class="small muted">선택한 선물이 없습니다.</div>`;
+      return;
+    }
+
+    const f = player.positions.futures[idx];
+    const tau = tauYearsFromExpiry(f.expiryDate);
+    const curS = state.spot;
+    const curF = curS * Math.exp((R - Q) * tau);
+    const curBasis = curF - curS;
+    const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+    const pnl = pnlPer * f.qty;
+    const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+
+    // [신규] 청산 현물 가격 계산
+    const liqSpot = getLiquidationSpotPrice(f);
+    const liqStr = liqSpot !== null ? fmt2(liqSpot) : "무제한";
+    // 현재가와의 거리 (안전마진)
+    const dist = liqSpot !== null ? ((state.spot - liqSpot) / state.spot * 100).toFixed(2) + '%' : '-';
+    
+    details.innerHTML = `
+      <h3 style="margin:0">선물 상세정보</h3>
+      <div class="indRow"><div class="small muted" style="margin-top:8px">포지션</div><div>${f.side} ${f.lev}x</div></div>
+      <div class="indRow"><div class="small muted">수량</div><div>${f.qty}</div></div>
+
+      <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
+      
+      <div class="indRow"><div class="small muted">진입 시점 선물 가격</div><div>${fmt2(f.entry)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(f.entrySpot)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 베이시스</div><div>${fmt2(f.entryBasis)}</div></div>
+      <div class="indRow"><div class="small muted">현재 선물 가격</div><div>${fmt2(curF)}</div></div>
+      <div class="indRow"><div class="small muted">현재 현물 가격</div><div>${fmt2(curS)}</div></div>
+      <div class="indRow"><div class="small muted">현재 베이시스</div><div>${fmt2(curBasis)}</div></div>
+
+      <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
+      
+      <div class="indRow"><div class="small muted">총 명목가치</div><div>${fmt2(f.notional)}</div></div>
+      <div class="indRow"><div class="small muted">증거금</div><div>${fmt2(f.lockedMargin)}</div></div>
+      <div class="indRow"><div class="small muted">미실현 손익</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
+      <div class="indRow"><div class="small muted">만기</div><div>${f.expiryDate}</div></div>
+      <div class="indRow"><div class="small muted">거래일</div><div>${f.tradeDate}</div></div>
+
+      <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
+      
+      <div class="indRow"><div class="small muted">청산 손실률</div><div>${f.closeRate === 'inf' ? '무제한' : '-'+f.closeRate+'%'}</div></div>
+      <div class="indRow"><div class="small muted">청산 선물 가격</div><div>${f.closePrice}</div></div>
+      <div class="indRow"><div class="small muted">청산 예상 현물가</div><div style="color:#ff6b6b; font-weight:bold;">${liqStr}</div></div>
+      
+      <div style="margin-top:10px;"><button onclick="closeFuture(${idx})">즉시 청산</button></div>
+    `;
+  } else if (type === 'Option') {
+    if (idx < 0 || idx >= player.positions.options.length) {
+      selectedDetail = null;
+      details.innerHTML = `<div class="small muted">선택한 옵션이 없습니다.</div>`;
+      return;
+    }
+
+    const o = player.positions.options[idx];
+    const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
+    const paidPer = o.entryPremium;
+    const totalPaid = paidPer * o.qty;
+    const pnl = (o.side === 'Long') ? (cur - paidPer) * o.qty : (paidPer - cur) * o.qty;
+    const pct = totalPaid ? (pnl / totalPaid) * 100 : 0;
+
+    details.innerHTML = `
+      <h3 style="margin:0">옵션 상세정보</h3>
+      <div class="indRow"><div class="small muted" style="margin-top:8px">종류</div><div>${o.kind} (${o.side})</div></div>
+      <div class="indRow"><div class="small muted">행사가</div><div>${fmt2(o.K)}</div></div>
+      <div class="indRow"><div class="small muted">수량</div><div>${o.qty}</div></div>
+
+      <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
+      
+      <div class="indRow"><div class="small muted">진입 시점 현물 가격</div><div>${fmt2(o.entrySpot)}</div></div>
+      <div class="indRow"><div class="small muted">진입 시점 프리미엄</div><div>${fmt2(paidPer)}</div></div>
+
+      <div style="margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);"></div>
+      
+      <div class="indRow"><div class="small muted">총 프리미엄</div><div>${fmt2(totalPaid)}</div></div>
+      <div class="indRow"><div class="small muted">현재 프리미엄</div><div>${fmt2(cur)}</div></div>
+      <div class="indRow"><div class="small muted">미실현 손익</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div></div>
+      <div class="indRow"><div class="small muted">만기</div><div>${o.expiryDate}</div></div>
+      <div class="indRow"><div class="small muted">거래일</div><div>${o.tradeDate}</div></div>
+      <div style="margin-top:10px;"><button onclick="closeOption(${idx})">즉시 청산</button></div>
+    `;
+  }
+}
+
+/* ----------------------------
+   Render all UI elements (called each tick)
+-----------------------------*/
+function renderAll() {
+  document.getElementById('datetime').innerText = nowStr(simDate);
+  
+  document.getElementById('spotPrice').innerText = fmt2(state.spot);
+
+  // [수정] 상태 표시 (세션 정보 포함)
+  const statusEl = document.getElementById('marketStatus');
+  
+  if (marketControl.halted) {
+    statusEl.innerText = `⛔ 거래 정지`;
+    statusEl.style.color = '#ff6b6b';
+  } else {
+    // 세션에 따라 색상과 텍스트 변경
+    let color = '#fff';
+    let text = currentSession; // PRE, REGULAR...
+
+    if (currentSession === SESSION.REGULAR) {
+        color = '#39ff88'; // 초록 (정규장)
+        text = "🟢 정규장";
+    } else if (currentSession === SESSION.PRE) {
+        color = '#ffd166'; // 노랑 (프리장)
+        text = "🟠 프리마켓";
+    } else if (currentSession === SESSION.AFTER) {
+        color = '#ffd166'; // 노랑 (애프터장)
+        text = "🟠 애프터마켓";
+    } else {
+        color = '#8fb0d6'; // 파랑 (데이장/휴장)
+        text = "🔵 데이마켓";
+    }
+
+    statusEl.innerText = text;
+    statusEl.style.color = color;
+  }
+
+  updateFutMarginDisplay();
+  updateOptPremiumDisplay();
+  drawChart();
+
+  document.getElementById('cash').innerText = fmt2(player.cash);
+  const eq = computeEquity();
+  document.getElementById('equity').innerText = fmt2(eq.total);
+
+  const s = player.positions.spot;
+  const spotEl = document.getElementById('spotHoldings');
+  if (s.qty <= 0) {
+    spotEl.innerHTML = `<div class="small muted">없음</div>`;
+  } else {
+    const pnl = (state.spot - s.avg) * s.qty;
+    const pct = s.avg > 0 ? (pnl / (s.avg * s.qty)) * 100 : 0;
+    spotEl.innerHTML = `<div>수량 ${s.qty} | 평균단가 ${fmt2(s.avg)}</div><div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>`;
+  }
+
+  // futures list
+  const futEl = document.getElementById('futHoldings');
+  if (player.positions.futures.length <= 0) {
+    futEl.innerHTML = '없음';
+  } else {
+    futEl.innerHTML = '';
+  }
+  player.positions.futures.forEach((f, i) => {
+    const tau = tauYearsFromExpiry(f.expiryDate);
+    const curF = state.spot * Math.exp((R - Q) * tau);
+    const pnlPer = (curF - f.entry) * (f.side === 'Long' ? 1 : -1);
+    const pnl = pnlPer * f.qty;
+    const pct = f.notional ? (pnl / f.notional) * f.lev * 100 : 0;
+
+    const el = document.createElement('div');
+    el.className = 'posItem';
+    el.innerHTML = `
+      <div><strong>${f.side} ${f.lev}x</strong> | 수량 ${f.qty} | 진입가 ${fmt2(f.entry)} | 만기 ${f.expiryDate}</div>
+      <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
+      <div class="small muted">총 명목가치 ${fmt2(f.notional)} | 증거금 ${fmt2(f.lockedMargin)}</div>
+    `;
+    el.onclick = () => {
+      if(selectedDetail && selectedDetail.type === 'Future' && selectedDetail.index === i) {
+        selectedDetail = null;
+      } else {
+        selectedDetail = { type: 'Future', index: i };
+      }
+      updateDetails();
+    };
+    futEl.appendChild(el);
+  });
+
+  // options list
+  const optEl = document.getElementById('optHoldings');
+  if (player.positions.options.length <= 0) {
+    optEl.innerHTML = '없음';
+  } else {
+    optEl.innerHTML = '';
+  }
+  player.positions.options.forEach((o, i) => {
+    const cur = optionPremiumByExpiry(o.kind, state.spot, o.K, o.expiryDate);
+    const paidPer = o.entryPremium;
+    const pnl = (o.side === 'Long') ? (cur - paidPer) * o.qty : (paidPer - cur) * o.qty;
+    const pct = paidPer ? (pnl / (paidPer * o.qty)) * 100 : 0;
+
+    const el = document.createElement('div');
+    el.className = 'posItem';
+    el.innerHTML = `
+      <div><strong>${o.side} ${o.kind}</strong> | 수량 ${o.qty} | 행사가 ${fmt2(o.K)} | 만기 ${o.expiryDate}</div>
+      <div class="${pnl >= 0 ? 'profit' : 'loss'}">${fmt2(pnl)} (${fmt2(pct)}%)</div>
+      <div class="small muted">총 프리미엄 ${fmt2(paidPer * o.qty)} | 현재 프리미엄 ${fmt2(cur)}</div>
+    `;
+    el.onclick = () => {
+      if(selectedDetail && selectedDetail.type === 'Option' && selectedDetail.index === i) {
+        selectedDetail = null;
+      } else {
+        selectedDetail = { type: 'Option', index: i };
+      }
+      updateDetails();
+    };
+    optEl.appendChild(el);
+  });
+
+  renderCalendar();
+  renderNewsFeed();
+
+  updateDetails();
+  renderEventLog();
+
+  updateDebugPanel();
+}
+
+/* ----------------------------
+   Fut margin & Opt premium display helper
+-----------------------------*/
+function updateFutMarginDisplay() {
+  const lev = Number(document.getElementById('futLev').value) || 1;
+  const months = Number(document.getElementById('futExp').value) || 1;
+  const qty = Math.max(1, Number(document.getElementById('futQty').value) || 1);
+  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+  const tau = tauYearsFromExpiry(expiryDate);
+  const entry = state.spot * Math.exp((R - Q) * tau);
+  const margin = entry / lev;
+  const total = margin * qty;
+  document.getElementById('futMarginDisplay').innerHTML = `${fmt2(margin)}`;
+  document.getElementById('futTotalDisplay').innerHTML = `${fmt2(total)}`;
+}
+
+function updateOptPremiumDisplay() {
+  const K = Number(document.getElementById('optK').value || state.spot);
+  const months = Number(document.getElementById('optExp').value || 1);
+  const expiryDate = addMonthsToFirst(simDate, months).toISOString().slice(0, 10);
+  const kind = document.getElementById('optType').value;
+  const prem = optionPremiumByExpiry(kind, state.spot, K, expiryDate);
+  const qty = Math.max(1, Number(document.getElementById('optQty').value) || 1);
+  const total = prem * qty
+  document.getElementById('optPremiumDisplay').innerHTML = `${fmt2(prem)}`;
+  document.getElementById('optTotalDisplay').innerHTML = `${fmt2(total)}`;
+
+}
+
+
+/* =========================================
+   UI HELPERS: Toggle, Qty, Debug
+   ========================================= */
+
+// 1. 섹션 접기/펼치기
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const content = el.querySelector('.sectionContent');
+  
+  if (content.classList.contains('hidden')) {
+    content.classList.remove('hidden');
+    el.classList.remove('collapsed');
+  } else {
+    content.classList.add('hidden');
+    el.classList.add('collapsed');
+  }
+}
+
+// 2. 수량 조절 버튼 (+/-)
+function adjustQty(inputId, delta) {
+  const input = document.getElementById(inputId);
+  let val = parseInt(input.value) || 0;
+  val += delta;
+  if (val < 1) val = 1; // 최소값 1
+  input.value = val;
+  
+  // 값 변경 후 예상 금액 업데이트 트리거
+  if (inputId === 'futQty') updateFutMarginDisplay();
+  if (inputId === 'optQty') updateOptPremiumDisplay();
+}
+
+/* [수정] 디버그 패널 업데이트 (경제지표 포함) */
+/* [수정] 디버그 패널: 금리 하단 이동, 모멘텀 상단 추가 */
+function updateDebugPanel() {
+  const elFair = document.getElementById('dbgFair');
+  if (!elFair) return;
+
+  syncDebugEcon();
+  // 1. 핵심 엔진 변수 업데이트
+  elFair.innerText = fmt2(state.fairValue);
+  
+  const gapPct = debugInfo.gap * 100;
+  const elGap = document.getElementById('dbgGap');
+  elGap.innerText = (gapPct > 0 ? '+' : '') + fmt2(gapPct) + '%';
+  elGap.style.color = gapPct > 0 ? '#39ff88' : (gapPct < 0 ? '#ff6b6b' : '#fff');
+
+  document.getElementById('dbgSigma').innerText = fmt2(debugInfo.sigma * 100) + '%';
+  document.getElementById('dbgVolMult').innerText = 'x' + fmt2(debugInfo.volMult);
+  
+  // [신규] 모멘텀 표시 (추세 강도)
+  const mom = debugInfo.momentum; // state.trendForce
+  const elMom = document.getElementById('dbgMomentum');
+  elMom.innerText = (mom > 0 ? '+' : (mom < 0 ? '' : '')) + fmt2(mom);
+  elMom.style.color = mom > 0.5 ? '#39ff88' : (mom < -0.5 ? '#ff6b6b' : '#fff');
+
+  // 복원력(Pull)
+  document.getElementById('dbgForce').innerText = fmt2(debugInfo.force);
+  
+  // 2. 시장 상태 텍스트
+  const stateText = document.getElementById('dbgStateText');
+  if (marketControl.halted) {
+      stateText.innerText = "정지";
+  }
+  else if (debugInfo.sigma > 0.5) stateText.innerText = "공포";
+  else if (Math.abs(mom) > 5.0) stateText.innerText = "추세 형성"; // 모멘텀 강할 때
+  else if (Math.abs(debugInfo.gap) > 0.1) stateText.innerText = "불안정";
+  else stateText.innerText = "안정";
+
+  // 3. 경제 지표 리스트
+  const container = document.getElementById('dbgEconContainer');
+  let econList = document.getElementById('dbgEconList');
+  
+  if (container && !econList) {
+    const sep = document.createElement('div');
+    sep.style.cssText = "margin:8px 0; border-top:1px dashed rgba(255,255,255,0.1);";
+    container.appendChild(sep);
+    
+    const title = document.createElement('div');
+    title.className = "small muted";
+    title.innerText = "Macro Indicators";
+    title.style.marginBottom = "4px";
+    container.appendChild(title);
+
+    econList = document.createElement('div');
+    econList.id = 'dbgEconList';
+    econList.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:4px 12px;";
+    container.appendChild(econList);
+  }
+
+  if (econList) {
+      // [수정] 기준금리(rate)를 맨 앞에 추가
+      const indicators = [
+        { k: 'rate', label: '기준금리', unit: '%' },
+        { k: 'gdp', label: 'GDP', unit: '%' },
+        { k: 'cpi', label: 'CPI', unit: '%' },
+        { k: 'pce', label: 'PCE', unit: '%' },
+        { k: 'nfp', label: '비농업고용', unit: 'K' },
+        { k: 'ur',  label: '실업률', unit: '%' },
+        { k: 'ic',  label: '실업수당청구', unit: 'K' },
+        { k: 'pmi', label: '제조업 PMI', unit: '' },
+        { k: 'spmi', label: '서비스업 PMI', unit: '' },
+        { k: 'rs',  label: '소매판매', unit: '%' },
+        { k: 'cci', label: '소비자신뢰', unit: '' },
+        { k: 'ys',  label: '장단기금리차', unit: '%' },
+      ];
+
+      econList.innerHTML = indicators.map(item => `
+        <div style="display:flex; justify-content:space-between;">
+          <span class="dbg-label">${item.label}</span>
+          <span class="dbg-val" style="color:#d1d5db">${fmt2(debugInfo[item.k])}${item.unit}</span>
+        </div>
+      `).join('');
+  }
+}
+
+
+/* [추가] NEWS_CONFIG의 최신 지표 값을 debugInfo로 동기화 */
+function syncDebugEcon() {
+  const mapTitleToKey = {
+    "GDP 성장률": "gdp",
+    "기준금리 결정": "rate",
+    "소비자 물가 지수 (CPI)": "cpi",
+    "PCE 물가 지수": "pce",
+    "비농업 고용 증가량": "nfp",
+    "실업률": "ur",
+    "신규 실업수당 청구건수": "ic",
+    "소비자 신뢰지수": "cci",
+    "제조업 PMI": "pmi",
+    "서비스 PMI": "spmi",
+    "소매판매 증가율": "rs",
+    "장단기 금리차": "ys"
+  };
+
+  NEWS_CONFIG.indicators.forEach(ind => {
+    const key = mapTitleToKey[ind.title];
+    if (key) {
+      debugInfo[key] = ind.lastValue;
+    }
+  });
+}
+
+/* =========================================
+   GOD MODE: Manual News Injection
+   ========================================= */
+
+// 1. 초기화: 지표 목록 채우기
+function initDebugTools() {
+  const sel = document.getElementById('dbgIndSel');
+  if (!sel) return;
+  
+  sel.innerHTML = '';
+  NEWS_CONFIG.indicators.forEach((ind, idx) => {
+    const opt = document.createElement('option');
+    opt.value = idx;
+    opt.text = ind.title;
+    sel.appendChild(opt);
+  });
+  
+  // 초기값 설정
+  onDbgIndSelect();
+}
+
+// 2. 지표 선택 시 입력창 자동 채우기
+function onDbgIndSelect() {
+  const idx = document.getElementById('dbgIndSel').value;
+  const template = NEWS_CONFIG.indicators[idx];
+  if (!template) return;
+
+  document.getElementById('dbgIndUnit').innerText = template.unit;
+  // 기본적으로 현재 값(LastValue)을 예상치/실제치에 넣어줌
+  document.getElementById('dbgIndForecast').value = template.lastValue;
+  document.getElementById('dbgIndActual').value = template.lastValue;
+}
+
+// 3. 탭 전환 (지표 vs 헤드라인)
+function switchDebugTab(mode) {
+  document.getElementById('tabInd').className = (mode === 'ind' ? 'active' : '');
+  document.getElementById('tabHead').className = (mode === 'head' ? 'active' : '');
+  
+  document.getElementById('formInd').style.display = (mode === 'ind' ? 'block' : 'none');
+  document.getElementById('formHead').style.display = (mode === 'head' ? 'block' : 'none');
+}
+
+// 4. 뉴스 강제 주입
+function injectManualNews() {
+  const mode = document.getElementById('tabInd').classList.contains('active') ? 'ind' : 'head';
+  
+  // 현재 날짜 기준
+  const today = new Date(simDate);
+  const dateStrToday = nowStr(today).slice(0,10);
+  
+  // 5일 뒤 날짜 계산 (실제치 발표용)
+  const targetDate = new Date(today);
+  targetDate.setDate(targetDate.getDate() + 2);
+  const dateStrTarget = nowStr(targetDate).slice(0,10);
+
+  if (mode === 'ind') {
+    // --- 지표 모드 ---
+    const idx = document.getElementById('dbgIndSel').value;
+    const template = NEWS_CONFIG.indicators[idx];
+    
+    // 입력값 가져오기
+    const forecast = parseFloat(document.getElementById('dbgIndForecast').value);
+    const actual = parseFloat(document.getElementById('dbgIndActual').value);
+
+    if (isNaN(forecast) || isNaN(actual)) return notify('값을 입력해주세요');
+
+    // [Step 1] 예상치 발표 효과 (Pricing-in) - 즉시 발동
+    // 현재값(template.lastValue) 대비 예상치(forecast)의 변화를 선반영
+    const prev = template.lastValue;
+    const dev = template.dev || 1.0;
+    
+    let expectedDelta = (forecast - prev) / dev;
+    if (template.inverse) expectedDelta *= -1;
+
+    // 선반영 강도 (자동 생성 로직과 동일하게 20% 수준)
+    const pricingInFactor = expectedDelta * template.weight.s * 0.2; 
+    
+    // 가격 및 적정주가 즉시 이동
+    state.spot *= (1 + pricingInFactor);
+    state.fairValue *= (1 + pricingInFactor);
+    
+    // 로그 출력
+    const direction = pricingInFactor > 0 ? "상승" : "하락";
+    pushEventLog(`🛠️ [God Mode] ${template.title} 예상치 강제 주입: ${fmt2(forecast)} (시장 ${direction} 선반영)`);
+
+
+    // [Step 2] 실제치 발표 예약 (5일 뒤 02:00)
+    const newNews = {
+      id: Date.now() + Math.random(),
+      date: dateStrTarget, // 2일 뒤
+      time: "10:00",       // 10시 발표
+      type: 'indicator',
+      title: template.title,
+      unit: template.unit,
+      
+      strPrev: fmt2(prev) + template.unit,
+      strForecast: fmt2(forecast) + template.unit,
+      strActual: fmt2(actual) + template.unit,
+
+      _valPrev: prev,
+      _valForecast: forecast,
+      _valActual: actual,
+      
+      _weight: template.weight,
+      _inverse: template.inverse || false,
+      _templateRef: template, // ★ 중요: 이걸 넘겨야 checkNewsTrigger에서 lastValue를 업데이트함
+      
+      impactLevel: 'high',
+      processed: false
+    };
+
+    newsData.push(newNews);
+    
+    // 캘린더 갱신 (5일 뒤 점 찍히도록)
+    renderCalendar();
+
+  } else {
+    // --- 헤드라인 모드 (기존 동일) ---
+    const text = document.getElementById('dbgHeadText').value;
+    const power = parseFloat(document.getElementById('dbgHeadPower').value);
+
+    if (!text) return notify('속보 내용을 입력해주세요');
+
+    const headline = {
+      id: Date.now() + Math.random(),
+      date: dateStrToday,
+      time: nowStr(today).slice(11,16), // 현재 시간
+      type: 'headline',
+      title: text,
+      unit: '',
+      strPrev: '-', strForecast: '-', strActual: '-',
+      _power: power,
+      impactLevel: Math.abs(power) > 0.5 ? 'high' : 'mid',
+      processed: false
+    };
+    
+    newsData.push(headline);
+    checkNewsTrigger(); // 즉시 발동
+  }
+}
+
+
+// 초기화 실행
+initDebugTools();
+
+
+
+  
+/* ----------------------------
+   Reset system (debug)
+-----------------------------*/
+function resetSystem() {
+  simDate = new Date("2025-01-01T00:00:00");
+  pushEventLog('🔁 시스템 초기화 완료');
+  renderAll();
+}
+
+/* ----------------------------
+   UI event wiring for trading
+-----------------------------*/
+document.getElementById('buySpot').addEventListener('click', buySpot);
+document.getElementById('sellSpot').addEventListener('click', sellSpot);
+document.getElementById('openFut').addEventListener('click', openFuture);
+document.getElementById('tradeOpt').addEventListener('click', tradeOption);
+document.getElementById('optK').addEventListener('input', updateOptPremiumDisplay);
+document.getElementById('optType').addEventListener('change', updateOptPremiumDisplay);
+document.getElementById('optExp').addEventListener('change', updateOptPremiumDisplay);
+document.getElementById('speedSelect').addEventListener('change', (e) => { loopsPerFrame = parseInt(e.target.value); });
+
+
+// bind candle type buttons
+document.querySelectorAll('.periodBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.periodBtn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+
+    const t = btn.dataset.type;
+    // [수정] 분봉 타입 지원 추가
+    if (t && ['1m','5m','10m','1H','1D','1W','1M','1Y'].includes(t)) {
+      candleType = t;
+      candleOffset = 0; 
+      // 화면에 보여줄 캔들 개수 조정 (분봉은 더 많이 보여줌)
+      if(t.includes('m')) visibleCount = 120;
+      else if(t === '1H') visibleCount = 60;
+      else visibleCount = 40;
+      
+      renderAll();
+    }
+  });
+});
+
+/* ----------------------------
+   Initialization & main loop
+-----------------------------*/
+state.history.push({ t: new Date(simDate), price: state.spot });
+pushEventLog('🚀 미니 파생상품 게임 시작 (현물 시작가: 10,000)');
+renderAll();
+drawChart();
+setInterval(() => { stepMarket(); }, 500);
+
+
+</script>
+</body>
+</html>
