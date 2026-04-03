@@ -504,7 +504,7 @@ let gapAccumulator = 1.0;
 
 // market state
 let state = {
-  spot: 10000.0,
+  spot: 6300.0,
   fairValue: 10000.0,
   
   // [신규] 헤드라인이 만들어낸 '추세 모멘텀' (시간이 지나면 0으로 수렴)
@@ -620,13 +620,13 @@ let marketControl = {
   haltTicksLeft: 0,       // [변경] 남은 정지 시간(틱 단위)
   haltReason: '',         // 정지 사유
   
-  prevClose: 10000.0,     // 전일 종가
+  prevClose: state.spot,     // 전일 종가
   
   cbLevel1: false,        // 7% 발동 여부
   cbLevel2: false,        // 13% 발동 여부
   cbLevel3: false,        // 20% 발동 여부
   
-  luldAvgPrice: 10000.0   // LULD 기준가
+  luldAvgPrice: state.spot   // LULD 기준가
 };
 
 
